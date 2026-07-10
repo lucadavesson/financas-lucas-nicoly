@@ -239,7 +239,7 @@ export default function NovoLancamento() {
   const S = {
     page:  { minHeight:'100%', background:'#FAF7F4' },
     hdr:   { position:'sticky' as const, top:0, background:'#FAF7F4', borderBottom:'0.5px solid #E8D9C8', padding:'12px 16px', display:'flex', alignItems:'center', gap:10, zIndex:10 },
-    form:  { padding:'16px', display:'flex', flexDirection:'column' as const, gap:16, paddingBottom:32 },
+    form:  { padding:'16px', display:'flex', flexDirection:'column' as const, gap:16, paddingBottom:120 },
     lbl:   { fontSize:11, fontWeight:600 as const, color:'#8B6914', textTransform:'uppercase' as const, letterSpacing:'0.05em', display:'block', marginBottom:6 },
     inp:   { width:'100%', height:44, background:'#fff', border:'0.5px solid #D4C4B0', borderRadius:12, padding:'0 14px', fontSize:15, color:'#1C1C1E', outline:'none' },
     inpMoney: { width:'100%', height:52, background:'#fff', border:'0.5px solid #D4C4B0', borderRadius:12, padding:'0 14px', fontSize:20, fontWeight:700 as const, color:'#2C1810', outline:'none', fontVariantNumeric:'tabular-nums' as const },
@@ -639,7 +639,6 @@ export default function NovoLancamento() {
 
         {/* ── RECEITA ── */}
         {tipo === 'receita' && (<>
-          {CampoCat}
           <div>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
               <label style={{...S.lbl,marginBottom:0}}>Esta receita se repete?</label>
