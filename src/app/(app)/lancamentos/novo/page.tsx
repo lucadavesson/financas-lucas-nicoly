@@ -1,95 +1,148 @@
 'use client'
-import { useState } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { calcBillingMonth, calcImplicitInterest, CATS_RECEITA, CATS_DESPESA, SUBCATS, formatCurrency } from '@/lib/utils'
+import { calcBillingMonth, CATS_RECEITA, CATS_DESPESA, SUBCATS } from '@/lib/utils'
 import { toast } from 'sonner'
-import { ChevronLeft, Loader2, Plus, X } from 'lucide-react'
+import { ChevronLeft, Loader2, Plus, X, ChevronDown } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 type TipoLanc = 'escolha' | 'parcelada' | 'avista' | 'recorrente' | 'receita'
 
-const CARDS_CREDITO = ['Nubank — Lucas','Nubank — Nicoly','Santander — Lucas','Santander — Nicoly','Banco do Brasil — Lucas','Banco do Brasil — Nicoly','C6 Bank — Lucas','C6 Bank — Nicoly','Bradesco — Lucas','Bradesco — Nicoly','Mercado Pago — Lucas','Mercado Pago — Nicoly','Caixa — Lucas','Caixa — Nicoly']
-const CONTAS_DEBITO = ['Nubank — Lucas','Nubank — Nicoly','Banco do Brasil — Lucas','Banco do Brasil — Nicoly','C6 Bank — Lucas','C6 Bank — Nicoly','Caixa — Lucas','Caixa — Nicoly']
-const CARD_CLOSING: Record<string,number> = {'Nubank — Lucas':2,'Nubank — Nicoly':9,'Santander — Lucas':13,'Santander — Nicoly':13,'Banco do Brasil — Lucas':1,'Banco do Brasil — Nicoly':1,'C6 Bank — Lucas':5,'C6 Bank — Nicoly':5,'Bradesco — Lucas':18,'Bradesco — Nicoly':18,'Mercado Pago — Lucas':1,'Mercado Pago — Nicoly':1,'Caixa — Lucas':5,'Caixa — Nicoly':5}
+const CARDS_CREDITO = [
+  'Nubank — Lucas','Nubank — Nicoly','Santander — Lucas','Santander — Nicoly',
+  'Banco do Brasil — Lucas','Banco do Brasil — Nicoly','C6 Bank — Lucas','C6 Bank — Nicoly',
+  'Bradesco — Lucas','Bradesco — Nicoly','Mercado Pago — Lucas','Mercado Pago — Nicoly',
+  'Caixa — Lucas','Caixa — Nicoly'
+]
+const CONTAS_DEBITO = [
+  'Nubank — Lucas','Nubank — Nicoly','Banco do Brasil — Lucas','Banco do Brasil — Nicoly',
+  'C6 Bank — Lucas','C6 Bank — Nicoly','Caixa — Lucas','Caixa — Nicoly'
+]
+const CARD_CLOSING: Record<string,number> = {
+  'Nubank — Lucas':2,'Nubank — Nicoly':9,'Santander — Lucas':13,'Santander — Nicoly':13,
+  'Banco do Brasil — Lucas':1,'Banco do Brasil — Nicoly':1,'C6 Bank — Lucas':5,'C6 Bank — Nicoly':5,
+  'Bradesco — Lucas':18,'Bradesco — Nicoly':18,'Mercado Pago — Lucas':1,'Mercado Pago — Nicoly':1,
+  'Caixa — Lucas':5,'Caixa — Nicoly':5
+}
 
-const FORMAS_AVISTA = [{v:'debito',l:'Débito'},{v:'pix',l:'PIX'},{v:'dinheiro',l:'Dinheiro'},{v:'boleto',l:'Boleto'},{v:'debito_automatico',l:'Déb. automático'}]
-const RECORRENTE_TIPOS = [{v:'contas_casa',l:'🏠 Contas de casa',d:'Energia, água, internet, condomínio...'},{v:'assinatura',l:'📺 Assinaturas',d:'Netflix, Spotify, academia...'},{v:'debito_bancario',l:'🏦 Débito bancário',d:'Financiamento, empréstimo...'},{v:'outros',l:'🔄 Outros recorrentes',d:'Qualquer coisa que se repete'}]
+// Formata número como moeda enquanto digita
+function formatMoneyInput(raw: string): string {
+  const nums = raw.replace(/\D/g, '')
+  if (!nums) return ''
+  const num = parseInt(nums) / 100
+  return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+function parseMoneyInput(formatted: string): number {
+  return parseFloat(formatted.replace(/[R$\s.]/g, '').replace(',', '.')) || 0
+}
+
 const CONTAS_CASA_ITEMS = ['Energia','Água','Internet','Condomínio','Aluguel','Gás','IPTU','Outros']
 const ASSINATURAS_ITEMS = ['Netflix','Spotify','Amazon Prime','Disney+','YouTube Premium','HBO Max','Apple TV+','Academia','Curso online','Software','Outros']
 
+// Forma de pagamento → tipo de conta que mostra
+const METODO_CONTA: Record<string, 'cartao_credito'|'conta_debito'|'nenhum'> = {
+  cartao_credito: 'cartao_credito',
+  debito:         'conta_debito',
+  pix:            'conta_debito',
+  dinheiro:       'nenhum',
+  boleto:         'nenhum',
+  debito_automatico: 'conta_debito',
+}
+
 export default function NovoLancamento() {
   const router = useRouter()
-  const [tipo, setTipo] = useState<TipoLanc>('escolha')
+  const [tipo, setTipo]     = useState<TipoLanc>('escolha')
   const [loading, setLoading] = useState(false)
-  const [customCats, setCustomCats] = useState<string[]>([])
-  const [showAddCat, setShowAddCat] = useState(false)
-  const [newCat, setNewCat] = useState('')
 
-  // Campos comuns
-  const [holder, setHolder]   = useState('Lucas')
-  const [desc, setDesc]       = useState('')
-  const [amount, setAmount]   = useState('')
-  const [cat, setCat]         = useState('')
-  const [subcat, setSubcat]   = useState('')
-  const [date, setDate]       = useState(format(new Date(),'yyyy-MM-dd'))
-  const [nature, setNature]   = useState('Variável')
-  const [notes, setNotes]     = useState('')
+  // Campos comuns — resetam ao trocar tipo
+  const [holder, setHolder] = useState('Lucas')
+  const [amountRaw, setAmountRaw] = useState('')
+  const [desc, setDesc]     = useState('')
+  const [cat, setCat]       = useState('')
+  const [subcat, setSubcat] = useState('')
+  const [date, setDate]     = useState(format(new Date(),'yyyy-MM-dd'))
+  const [notes, setNotes]   = useState('')
 
   // Parcelada
   const [card, setCard]         = useState('Nubank — Lucas')
   const [installments, setInst] = useState('')
-  const [instValue, setInstVal] = useState('')
+  const [instRaw, setInstRaw]   = useState('')
   const [hasEntry, setHasEntry] = useState(false)
-  const [entryAmt, setEntryAmt] = useState('')
+  const [entryRaw, setEntryRaw] = useState('')
   const [entryMethod, setEntryMethod] = useState('pix')
-  const [entryCard, setEntryCard] = useState('Nubank — Lucas')
+  const [entryCard, setEntryCard]     = useState('Nubank — Lucas')
 
   // À vista
-  const [method, setMethod]   = useState('pix')
+  const [method, setMethod]       = useState('pix')
   const [debitCard, setDebitCard] = useState('Nubank — Lucas')
 
   // Recorrente
-  const [recTipo, setRecTipo] = useState('')
-  const [recItem, setRecItem] = useState('')
-  const [recDay, setRecDay]   = useState('')
-  const [recCard, setRecCard] = useState('Nubank — Lucas')
+  const [recTipo, setRecTipo]   = useState('')
+  const [recItem, setRecItem]   = useState('')
+  const [recDay, setRecDay]     = useState('')
   const [recMethod, setRecMethod] = useState('debito_automatico')
+  const [recCard, setRecCard]   = useState('Nubank — Lucas')
 
   // Receita
-  const [recIsRec, setRecIsRec] = useState(false)
-  const [recExpected, setRecExpected] = useState('')
+  const [recIsRec, setRecIsRec]   = useState(false)
   const [recAccount, setRecAccount] = useState('Nubank — Lucas')
 
-  // Calcula fatura
+  // Subcategoria customizada
+  const [customSubs, setCustomSubs] = useState<Record<string,string[]>>({})
+  const [showAddSub, setShowAddSub] = useState(false)
+  const [newSubName, setNewSubName] = useState('')
+
+  // Reseta campos ao trocar tipo
+  function changeTipo(t: TipoLanc) {
+    setTipo(t)
+    setAmountRaw(''); setDesc(''); setCat(''); setSubcat('')
+    setDate(format(new Date(),'yyyy-MM-dd')); setNotes('')
+    setInst(''); setInstRaw(''); setHasEntry(false); setEntryRaw('')
+    setRecTipo(''); setRecItem(''); setRecDay('')
+    setRecIsRec(false)
+  }
+
+  const amount    = parseMoneyInput(amountRaw)
+  const instValue = parseMoneyInput(instRaw)
+  const entryAmt  = parseMoneyInput(entryRaw)
+  const nParcelas = parseInt(installments) || 0
+
+  const totalPago    = instValue > 0 && nParcelas > 0 ? instValue * nParcelas : 0
+  const totalJuros   = totalPago > 0 ? Math.max(0, totalPago - (amount - entryAmt)) : 0
+  const pctJuros     = (amount - entryAmt) > 0 && totalJuros > 0 ? (totalJuros / (amount - entryAmt) * 100) : 0
+
   const billingMonth = tipo === 'parcelada' && date && card
     ? calcBillingMonth(parseISO(date), CARD_CLOSING[card] || 1)
+    : tipo === 'avista' && method === 'cartao_credito' && date && debitCard
+    ? calcBillingMonth(parseISO(date), CARD_CLOSING[debitCard] || 1)
     : null
 
-  // Calcula juros
-  const juros = tipo === 'parcelada' && amount && installments && instValue
-    ? calcImplicitInterest(parseFloat(amount)||0, parseFloat(entryAmt)||0, parseFloat(instValue)||0, parseInt(installments)||1)
-    : null
+  const allCats = tipo === 'receita' ? [...CATS_RECEITA,...Object.keys(customSubs).filter(k=>!CATS_RECEITA.includes(k))]
+    : [...CATS_DESPESA,...Object.keys(customSubs).filter(k=>!CATS_DESPESA.includes(k))]
+  const baseSubs   = SUBCATS[cat] || []
+  const extraSubs  = customSubs[cat] || []
+  const allSubs    = [...baseSubs, ...extraSubs]
 
-  const allCats = tipo === 'receita' ? [...CATS_RECEITA,...customCats] : [...CATS_DESPESA,...customCats]
-  const allSubs = SUBCATS[cat] || []
-
-  function addCustomCat() {
-    if (!newCat.trim()) return
-    setCustomCats(p=>[...p,newCat.trim()])
-    setCat(newCat.trim())
-    setNewCat(''); setShowAddCat(false)
-    toast.success('Categoria adicionada!')
+  function addCustomSub() {
+    if (!newSubName.trim() || !cat) return
+    setCustomSubs(p => ({ ...p, [cat]: [...(p[cat]||[]), newSubName.trim()] }))
+    setSubcat(newSubName.trim())
+    setNewSubName(''); setShowAddSub(false)
+    toast.success('Subcategoria criada!')
   }
+
+  // Qual tipo de conta mostrar baseado na forma de pagamento
+  const contaTipo = METODO_CONTA[method] || 'conta_debito'
+  const recContaTipo = METODO_CONTA[recMethod] || 'conta_debito'
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    if (!desc || !amount || !cat) { toast.error('Preencha todos os campos obrigatórios'); return }
-
-    const amtNum = parseFloat(amount) || 0
-    if (amtNum <= 0) { toast.error('Valor deve ser maior que zero'); return }
-
+    if (!desc || amount <= 0 || (!cat && tipo !== 'recorrente')) {
+      toast.error('Preencha todos os campos obrigatórios')
+      return
+    }
     setLoading(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -97,58 +150,62 @@ export default function NovoLancamento() {
 
     try {
       if (tipo === 'parcelada') {
-        const nInst = parseInt(installments) || 1
-        const iVal  = parseFloat(instValue) || (amtNum - (parseFloat(entryAmt)||0)) / nInst
-        const bm    = billingMonth ? format(billingMonth,'yyyy-MM-dd') : null
+        const iVal = instValue || (amount - entryAmt) / (nParcelas || 1)
+        const bm   = billingMonth ? format(billingMonth,'yyyy-MM-dd') : null
         const { error } = await supabase.from('transactions').insert({
-          owner_id: user.id, holder, transaction_type:'parcelada',
-          description: desc, amount: amtNum, category: cat, subcategory: subcat||null,
-          nature, purchase_date: date, notes: notes||null,
-          card_name: card, billing_month: bm, status:'pendente',
+          owner_id:user.id, holder, transaction_type:'parcelada',
+          description:desc, amount, category:cat, subcategory:subcat||null,
+          purchase_date:date, notes:notes||null,
+          card_name:card, billing_month:bm, status:'pendente',
           payment_method:'cartao_credito',
-          installment_total: nInst, installment_value: iVal,
-          installment_interest: juros?.totalInterest || 0,
-          has_entry: hasEntry, entry_amount: hasEntry?(parseFloat(entryAmt)||0):null,
-          entry_payment_method: hasEntry?entryMethod:null,
-          entry_card_name: hasEntry?entryCard:null, entry_paid: false,
+          installment_total:nParcelas||1, installment_value:iVal,
+          installment_interest:totalJuros,
+          has_entry:hasEntry,
+          entry_amount:hasEntry?entryAmt:null,
+          entry_payment_method:hasEntry?entryMethod:null,
+          entry_card_name:hasEntry?entryCard:null,
+          entry_paid:hasEntry&&['pix','debito','dinheiro'].includes(entryMethod),
         })
         if (error) throw error
-
-        // Entrada como lançamento separado
-        if (hasEntry && entryAmt) {
-          const entryNum = parseFloat(entryAmt) || 0
-          if (entryNum > 0) {
-            const entBm = entryMethod==='cartao_credito' ? format(calcBillingMonth(parseISO(date),CARD_CLOSING[entryCard]||1),'yyyy-MM-dd') : null
-            await supabase.from('transactions').insert({
-              owner_id:user.id, holder, transaction_type:'avista',
-              description:`${desc} — entrada`, amount:entryNum,
-              category:cat, subcategory:subcat||null, nature, purchase_date:date,
-              payment_method:entryMethod, card_name:entryCard, billing_month:entBm,
-              status:['pix','dinheiro','debito'].includes(entryMethod)?'pago':'pendente',
-            })
-          }
+        // Entrada separada
+        if (hasEntry && entryAmt > 0) {
+          const entBm = entryMethod==='cartao_credito'
+            ? format(calcBillingMonth(parseISO(date),CARD_CLOSING[entryCard]||1),'yyyy-MM-dd') : null
+          await supabase.from('transactions').insert({
+            owner_id:user.id, holder, transaction_type:'avista',
+            description:`${desc} — entrada`, amount:entryAmt,
+            category:cat, subcategory:subcat||null,
+            purchase_date:date, payment_method:entryMethod,
+            card_name:entryCard, billing_month:entBm,
+            status:['pix','dinheiro','debito'].includes(entryMethod)?'pago':'pendente',
+          })
         }
 
       } else if (tipo === 'avista') {
-        const bm = method==='cartao_credito' ? format(calcBillingMonth(parseISO(date),CARD_CLOSING[debitCard]||1),'yyyy-MM-dd') : null
+        const isCredito = method === 'cartao_credito'
+        const bm = isCredito ? format(calcBillingMonth(parseISO(date),CARD_CLOSING[debitCard]||1),'yyyy-MM-dd') : null
         const { error } = await supabase.from('transactions').insert({
           owner_id:user.id, holder, transaction_type:'avista',
-          description:desc, amount:amtNum, category:cat, subcategory:subcat||null,
-          nature, purchase_date:date, notes:notes||null,
+          description:desc, amount, category:cat, subcategory:subcat||null,
+          purchase_date:date, notes:notes||null,
           payment_method:method, card_name:debitCard, billing_month:bm,
           status:['pix','dinheiro','debito'].includes(method)?'pago':'pendente',
         })
         if (error) throw error
 
       } else if (tipo === 'recorrente') {
-        const bm = recMethod==='cartao_credito' ? format(calcBillingMonth(parseISO(date),CARD_CLOSING[recCard]||1),'yyyy-MM-dd') : null
+        const finalCat  = cat || (recTipo==='contas_casa'?'Moradia':recTipo==='assinatura'?'Lazer e Entretenimento':'Dívidas e Financiamentos')
         const finalDesc = desc || recItem
+        const bm = recMethod==='cartao_credito'
+          ? format(calcBillingMonth(parseISO(date),CARD_CLOSING[recCard]||1),'yyyy-MM-dd') : null
         const { error } = await supabase.from('transactions').insert({
           owner_id:user.id, holder, transaction_type:'recorrente',
-          description:finalDesc, amount:amtNum, category:cat, subcategory:subcat||null,
-          nature:'Fixo', purchase_date:date, notes:notes||null,
-          payment_method:recMethod, card_name:recCard, billing_month:bm,
-          is_recurring:true, recurring_day:recDay?parseInt(recDay):null,
+          description:finalDesc, amount, category:finalCat,
+          subcategory:recItem||subcat||null,
+          purchase_date:date, notes:notes||null,
+          payment_method:recMethod, card_name:recContaTipo!=='nenhum'?recCard:null,
+          billing_month:bm, is_recurring:true,
+          recurring_day:recDay?parseInt(recDay):null,
           status:'pendente',
         })
         if (error) throw error
@@ -156,9 +213,9 @@ export default function NovoLancamento() {
       } else if (tipo === 'receita') {
         const { error } = await supabase.from('transactions').insert({
           owner_id:user.id, holder, transaction_type:'receita',
-          description:desc, amount:amtNum,
-          expected_amount:recIsRec?(parseFloat(recExpected)||amtNum):null,
-          category:cat, subcategory:subcat||null, nature,
+          description:desc, amount,
+          expected_amount:recIsRec?amount:null,
+          category:cat, subcategory:subcat||null,
           purchase_date:date, notes:notes||null,
           received_account:recAccount,
           is_recurring:recIsRec,
@@ -167,332 +224,463 @@ export default function NovoLancamento() {
         if (error) throw error
       }
 
-      toast.success('Lançamento salvo!')
+      toast.success('Salvo com sucesso!')
       router.push('/lancamentos')
       router.refresh()
     } catch (err: any) {
       console.error(err)
-      toast.error(`Erro ao salvar: ${err.message}`)
+      toast.error(`Erro: ${err.message}`)
     } finally {
       setLoading(false)
     }
   }
 
-  // ── TELA DE ESCOLHA ─────────────────────────────────────
-  if (tipo === 'escolha') {
-    return (
-      <div className="min-h-full bg-gray-50">
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 z-10">
-          <button onClick={()=>router.back()} className="p-1 -ml-1"><ChevronLeft size={22} color="#8E8E93"/></button>
-          <h1 className="font-semibold text-gray-900">Novo lançamento</h1>
-        </div>
-        <div className="px-4 py-6 space-y-3">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">O que você quer registrar?</p>
-          {[
-            { tipo:'receita' as TipoLanc, emoji:'↑', label:'Receita', desc:'Salário, renda extra, investimento recebido', color:'#E1F5EE', tc:'#085041' },
-            { tipo:'parcelada' as TipoLanc, emoji:'💳', label:'Compra parcelada', desc:'Pagamento em várias vezes no cartão de crédito', color:'#EEEDFE', tc:'#3C3489' },
-            { tipo:'avista' as TipoLanc, emoji:'💵', label:'Compra à vista', desc:'Débito, PIX, dinheiro ou boleto', color:'#FFF3EE', tc:'#7B3010' },
-            { tipo:'recorrente' as TipoLanc, emoji:'🔄', label:'Conta recorrente', desc:'Energia, assinatura, financiamento...', color:'#E6F1FB', tc:'#0C447C' },
-          ].map(item => (
-            <button key={item.tipo} onClick={()=>setTipo(item.tipo)}
-              style={{ width:'100%', background:'#fff', borderRadius:20, border:'0.5px solid rgba(0,0,0,.08)', padding:'16px', display:'flex', alignItems:'center', gap:14, textAlign:'left' }}>
-              <div style={{ width:46, height:46, borderRadius:14, background:item.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>{item.emoji}</div>
-              <div style={{ flex:1 }}>
-                <p style={{ fontSize:15, fontWeight:600, color:'#1C1C1E', marginBottom:3 }}>{item.label}</p>
-                <p style={{ fontSize:12, color:'#8E8E93' }}>{item.desc}</p>
-              </div>
-              <ChevronLeft size={18} color="#C7C7CC" style={{ transform:'rotate(180deg)' }}/>
-            </button>
-          ))}
-        </div>
-      </div>
-    )
+  // ── ESTILOS base ────────────────────────────────────
+  const S = {
+    page:  { minHeight:'100%', background:'#FAF7F4' },
+    hdr:   { position:'sticky' as const, top:0, background:'#FAF7F4', borderBottom:'0.5px solid #E8D9C8', padding:'12px 16px', display:'flex', alignItems:'center', gap:10, zIndex:10 },
+    form:  { padding:'16px', display:'flex', flexDirection:'column' as const, gap:16, paddingBottom:32 },
+    lbl:   { fontSize:11, fontWeight:600 as const, color:'#8B6914', textTransform:'uppercase' as const, letterSpacing:'0.05em', display:'block', marginBottom:6 },
+    inp:   { width:'100%', height:44, background:'#fff', border:'0.5px solid #D4C4B0', borderRadius:12, padding:'0 14px', fontSize:15, color:'#1C1C1E', outline:'none' },
+    inpMoney: { width:'100%', height:52, background:'#fff', border:'0.5px solid #D4C4B0', borderRadius:12, padding:'0 14px', fontSize:20, fontWeight:700 as const, color:'#2C1810', outline:'none', fontVariantNumeric:'tabular-nums' as const },
+    seg:   (on:boolean, accent='#2C1810') => ({
+      flex:1, height:40, borderRadius:10, border: on?`1px solid ${accent}`:'0.5px solid #D4C4B0',
+      background: on?accent:'#fff', color: on?'#FAF7F4':'#5C3D2E',
+      fontSize:13, fontWeight: on?600:400 as any, cursor:'pointer',
+      display:'flex', alignItems:'center', justifyContent:'center', gap:5,
+    }),
+    card:  { background:'#fff', borderRadius:16, border:'0.5px solid #E8D9C8', padding:'14px' },
+    btn:   { width:'100%', height:52, background:'#2C1810', color:'#FAF7F4', borderRadius:16, border:'none', fontSize:15, fontWeight:600 as const, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:8 },
+    sel:   { width:'100%', height:44, background:'#fff', border:'0.5px solid #D4C4B0', borderRadius:12, padding:'0 14px', fontSize:14, color:'#1C1C1E', outline:'none', appearance:'none' as const },
   }
 
-  // ── FORMULÁRIOS ─────────────────────────────────────────
-  const tipoLabels: Record<TipoLanc,string> = {
+  // ── TELA DE ESCOLHA ──────────────────────────────────
+  if (tipo === 'escolha') return (
+    <div style={S.page}>
+      <div style={S.hdr}>
+        <button onClick={()=>router.back()} style={{background:'none',border:'none',cursor:'pointer',padding:4}}>
+          <ChevronLeft size={22} color="#5C3D2E"/>
+        </button>
+        <span style={{fontSize:16,fontWeight:600,color:'#1C1C1E'}}>Novo lançamento</span>
+      </div>
+      <div style={{padding:'20px 16px'}}>
+        <p style={{fontSize:12,fontWeight:600,color:'#8B6914',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:16}}>
+          O que você quer registrar?
+        </p>
+        {[
+          { t:'receita' as TipoLanc,    emoji:'↑', label:'Receita',           desc:'Salário, renda extra, investimento recebido',    bg:'#F0FAF5', border:'#9FE1CB', ec:'#0F6E56' },
+          { t:'parcelada' as TipoLanc,  emoji:'💳', label:'Compra parcelada',  desc:'Pagamento em várias vezes no cartão de crédito', bg:'#F5EDD8', border:'#C9A87C', ec:'#5C4A0A' },
+          { t:'avista' as TipoLanc,     emoji:'💵', label:'Compra à vista',    desc:'Crédito, débito, PIX, dinheiro ou boleto',       bg:'#FAF0EC', border:'#D4A090', ec:'#7B3020' },
+          { t:'recorrente' as TipoLanc, emoji:'🔄', label:'Conta recorrente',  desc:'Energia, assinatura, financiamento...',           bg:'#F0F0FA', border:'#B0B0D8', ec:'#3A3A7A' },
+        ].map(item => (
+          <button key={item.t} onClick={()=>changeTipo(item.t)} style={{
+            width:'100%', background:'#fff', borderRadius:18,
+            border:`0.5px solid ${item.border}`, padding:'14px 16px',
+            display:'flex', alignItems:'center', gap:14, textAlign:'left',
+            marginBottom:10, cursor:'pointer',
+          }}>
+            <div style={{width:46,height:46,borderRadius:14,background:item.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>
+              {item.emoji}
+            </div>
+            <div style={{flex:1}}>
+              <p style={{fontSize:15,fontWeight:600,color:'#1C1C1E',marginBottom:3}}>{item.label}</p>
+              <p style={{fontSize:12,color:'#8E8E93'}}>{item.desc}</p>
+            </div>
+            <ChevronDown size={16} color="#C7C7CC" style={{transform:'rotate(-90deg)'}}/>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const tipoLabel: Record<TipoLanc,string> = {
     escolha:'', parcelada:'Compra parcelada', avista:'Compra à vista',
     recorrente:'Conta recorrente', receita:'Receita'
   }
 
-  return (
-    <div className="min-h-full bg-gray-50">
-      <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 z-10">
-        <button onClick={()=>setTipo('escolha')} className="p-1 -ml-1"><ChevronLeft size={22} color="#8E8E93"/></button>
-        <h1 className="font-semibold text-gray-900">{tipoLabels[tipo]}</h1>
+  // ── CAMPOS COMUNS ────────────────────────────────────
+  const CamposComuns = (
+    <>
+      {/* Responsável */}
+      <div>
+        <label style={S.lbl}>Responsável</label>
+        <div style={{display:'flex',gap:8}}>
+          {['Lucas','Nicoly','Prata'].map(p=>(
+            <button key={p} type="button" onClick={()=>setHolder(p)} style={S.seg(holder===p)}>
+              {p}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <form onSubmit={handleSave} className="px-4 py-4 space-y-5 pb-8">
-        {/* Responsável */}
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Responsável</label>
-          <div className="grid grid-cols-3 gap-2">
-            {['Lucas','Nicoly','Prata'].map(p=>(
-              <button key={p} type="button" onClick={()=>setHolder(p)}
-                className={`h-10 rounded-xl text-sm font-medium border transition-all ${holder===p?'bg-brand-50 text-brand-600 border-brand-300':'bg-white text-gray-600 border-gray-200'}`}>
-                {p}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* Valor */}
+      <div>
+        <label style={S.lbl}>
+          {tipo==='receita' ? 'Valor recebido (R$)' : 'Valor total (R$)'}
+        </label>
+        <input
+          type="text" inputMode="numeric"
+          value={amountRaw}
+          onChange={e => setAmountRaw(formatMoneyInput(e.target.value))}
+          placeholder="R$ 0,00"
+          style={S.inpMoney}
+        />
+      </div>
 
-        {/* Valor */}
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            {tipo==='receita'?'Valor recebido (R$) *':'Valor total (R$) *'}
-          </label>
-          <input type="number" inputMode="decimal" value={amount} onChange={e=>setAmount(e.target.value)}
-            placeholder="0,00" required className="input-base text-xl font-bold" step="0.01" min="0.01"/>
-        </div>
+      {/* Descrição */}
+      <div>
+        <label style={S.lbl}>Descrição</label>
+        <input type="text" value={desc} onChange={e=>setDesc(e.target.value)}
+          placeholder={tipo==='receita'?'Ex: Salário junho...':tipo==='parcelada'?'Ex: Sofá, iPhone...':tipo==='avista'?'Ex: Mercado, Farmácia...':'Ex: Netflix, Energia...'}
+          style={S.inp} required/>
+      </div>
 
-        {/* Descrição */}
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Descrição *</label>
-          <input type="text" value={desc} onChange={e=>setDesc(e.target.value)}
-            placeholder={tipo==='receita'?'Ex: Salário junho...':tipo==='parcelada'?'Ex: Sofá, iPhone...':tipo==='avista'?'Ex: Mercado, Farmácia...':'Ex: Energia, Netflix...'}
-            required className="input-base"/>
-        </div>
+      {/* Data */}
+      <div>
+        <label style={S.lbl}>{tipo==='receita'?'Data do recebimento':'Data da compra'}</label>
+        <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={S.inp}/>
+      </div>
+    </>
+  )
 
-        {/* Categoria */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoria *</label>
-            <button type="button" onClick={()=>setShowAddCat(!showAddCat)} className="text-xs text-brand-500 font-medium flex items-center gap-1">
-              <Plus size={12}/> Nova
-            </button>
-          </div>
-          {showAddCat&&(
-            <div className="flex gap-2 mb-2">
-              <input type="text" value={newCat} onChange={e=>setNewCat(e.target.value)} placeholder="Nome da categoria" className="input-base flex-1 h-9 text-sm" autoFocus/>
-              <button type="button" onClick={addCustomCat} className="h-9 px-3 bg-brand-400 text-white rounded-xl text-sm font-medium">OK</button>
-              <button type="button" onClick={()=>setShowAddCat(false)} className="h-9 px-2 bg-gray-100 rounded-xl"><X size={14} color="#8E8E93"/></button>
-            </div>
-          )}
-          <select value={cat} onChange={e=>{setCat(e.target.value);setSubcat('')}} required className="input-base">
+  // Categoria + Subcategoria — para tipos que precisam
+  const CampoCat = (
+    <>
+      <div>
+        <label style={S.lbl}>Categoria</label>
+        <div style={{position:'relative'}}>
+          <select value={cat} onChange={e=>{setCat(e.target.value);setSubcat('')}} style={S.sel} required>
             <option value="">Selecione...</option>
             {allCats.map(c=><option key={c} value={c}>{c}</option>)}
           </select>
+          <ChevronDown size={14} color="#8B6914" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
         </div>
-
-        {/* Subcategoria */}
-        {cat && allSubs.length > 0 && (
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Subcategoria</label>
-            <select value={subcat} onChange={e=>setSubcat(e.target.value)} className="input-base">
+      </div>
+      {cat && (
+        <div>
+          <label style={S.lbl}>Subcategoria</label>
+          <div style={{position:'relative'}}>
+            <select value={subcat} onChange={e=>{
+              if(e.target.value==='__nova__'){setShowAddSub(true)}
+              else{setSubcat(e.target.value)}
+            }} style={S.sel}>
               <option value="">Selecione...</option>
               {allSubs.map(s=><option key={s} value={s}>{s}</option>)}
+              <option value="__nova__">+ Criar nova subcategoria...</option>
             </select>
+            <ChevronDown size={14} color="#8B6914" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
           </div>
-        )}
-
-        {/* Data */}
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            {tipo==='receita'?'Data do recebimento *':'Data da compra *'}
-          </label>
-          <input type="date" value={date} onChange={e=>setDate(e.target.value)} required className="input-base"/>
-        </div>
-
-        {/* Natureza (exceto recorrente que é sempre Fixo) */}
-        {tipo !== 'recorrente' && (
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Natureza</label>
-            <div className="grid grid-cols-2 gap-2">
-              {['Fixo','Variável'].map(n=>(
-                <button key={n} type="button" onClick={()=>setNature(n)}
-                  className={`h-10 rounded-xl text-sm font-medium border transition-all ${nature===n?'bg-brand-50 text-brand-600 border-brand-300':'bg-white text-gray-600 border-gray-200'}`}>
-                  {n}
-                </button>
-              ))}
+          {showAddSub && (
+            <div style={{display:'flex',gap:8,marginTop:8}}>
+              <input type="text" value={newSubName} onChange={e=>setNewSubName(e.target.value)}
+                placeholder="Nome da nova subcategoria" style={{...S.inp,flex:1,height:40,fontSize:13}} autoFocus/>
+              <button type="button" onClick={addCustomSub}
+                style={{height:40,padding:'0 14px',background:'#2C1810',color:'#FAF7F4',borderRadius:10,border:'none',cursor:'pointer',fontSize:13,fontWeight:600}}>
+                OK
+              </button>
+              <button type="button" onClick={()=>setShowAddSub(false)}
+                style={{height:40,padding:'0 10px',background:'#F5EDD8',borderRadius:10,border:'none',cursor:'pointer'}}>
+                <X size={14} color="#8B6914"/>
+              </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+      )}
+    </>
+  )
 
-        {/* ── CAMPOS ESPECÍFICOS POR TIPO ── */}
+  // ── FORMULÁRIO PRINCIPAL ────────────────────────────
+  return (
+    <div style={S.page}>
+      <div style={S.hdr}>
+        <button onClick={()=>changeTipo('escolha')} style={{background:'none',border:'none',cursor:'pointer',padding:4}}>
+          <ChevronLeft size={22} color="#5C3D2E"/>
+        </button>
+        <span style={{fontSize:16,fontWeight:600,color:'#1C1C1E'}}>{tipoLabel[tipo]}</span>
+      </div>
 
-        {/* PARCELADA */}
-        {tipo==='parcelada'&&(
-          <>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cartão de crédito</label>
-              <select value={card} onChange={e=>setCard(e.target.value)} className="input-base">
+      <form onSubmit={handleSave} style={S.form}>
+        {CamposComuns}
+        {tipo !== 'recorrente' && CampoCat}
+
+        {/* ── PARCELADA ── */}
+        {tipo === 'parcelada' && (<>
+          <div>
+            <label style={S.lbl}>Cartão de crédito</label>
+            <div style={{position:'relative'}}>
+              <select value={card} onChange={e=>setCard(e.target.value)} style={S.sel}>
                 {CARDS_CREDITO.map(c=><option key={c} value={c}>{c}</option>)}
               </select>
-              {billingMonth&&<p className="text-xs text-brand-500 mt-1.5 font-medium">📅 Entra na fatura de {format(billingMonth,'MMMM/yyyy',{locale:ptBR})}</p>}
+              <ChevronDown size={14} color="#8B6914" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Nº de parcelas</label>
-                <input type="number" value={installments} onChange={e=>setInst(e.target.value)} placeholder="Ex: 12" className="input-base" min="2"/>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Valor da parcela</label>
-                <input type="number" inputMode="decimal" value={instValue} onChange={e=>setInstVal(e.target.value)} placeholder="R$ 0,00" className="input-base" step="0.01"/>
-              </div>
-            </div>
-            {juros&&juros.totalInterest>0&&(
-              <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-xs">
-                <div className="flex justify-between mb-1"><span className="text-red-600">Total a pagar</span><span className="font-bold text-red-700 tabular-nums">{formatCurrency(juros.totalPaid)}</span></div>
-                <div className="flex justify-between"><span className="text-red-600">Juros implícito</span><span className="font-bold text-red-700 tabular-nums">{formatCurrency(juros.totalInterest)} ({juros.interestPct.toFixed(1)}%)</span></div>
-              </div>
+            {billingMonth && (
+              <p style={{fontSize:11,color:'#8B6914',fontWeight:500,marginTop:5}}>
+                📅 Entra na fatura de {format(billingMonth,'MMMM/yyyy',{locale:ptBR})}
+              </p>
             )}
-            {/* Entrada */}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Pagou entrada?</label>
-                <button type="button" onClick={()=>setHasEntry(!hasEntry)}
-                  style={{ width:40, height:22, borderRadius:11, background:hasEntry?'#1D9E75':'#E5E5EA', position:'relative', border:'none', cursor:'pointer', transition:'background 0.2s' }}>
-                  <div style={{ position:'absolute', top:2, width:18, height:18, background:'#fff', borderRadius:'50%', boxShadow:'0 1px 3px rgba(0,0,0,.2)', transition:'transform 0.2s', transform:hasEntry?'translateX(20px)':'translateX(2px)' }}/>
-                </button>
+              <label style={S.lbl}>Nº de parcelas</label>
+              <input type="number" value={installments} onChange={e=>setInst(e.target.value)}
+                placeholder="Ex: 12" style={S.inp} min="2"/>
+            </div>
+            <div>
+              <label style={S.lbl}>Valor da parcela</label>
+              <input type="text" inputMode="numeric" value={instRaw}
+                onChange={e=>setInstRaw(formatMoneyInput(e.target.value))}
+                placeholder="R$ 0,00" style={S.inp}/>
+            </div>
+          </div>
+          {totalJuros > 0 && (
+            <div style={{background:'#FFF0EC',border:'0.5px solid #D4A090',borderRadius:12,padding:12}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}}>
+                <span style={{color:'#7B3020'}}>Total a pagar</span>
+                <span style={{fontWeight:700,color:'#7B3020',fontVariantNumeric:'tabular-nums'}}>
+                  {totalPago.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                </span>
               </div>
-              {hasEntry&&(
-                <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Valor da entrada (R$)</label>
-                    <input type="number" inputMode="decimal" value={entryAmt} onChange={e=>setEntryAmt(e.target.value)} placeholder="0,00" className="input-base h-10" step="0.01"/>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}>
+                <span style={{color:'#7B3020'}}>Juros implícito</span>
+                <span style={{fontWeight:700,color:'#7B3020',fontVariantNumeric:'tabular-nums'}}>
+                  {totalJuros.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} ({pctJuros.toFixed(1)}%)
+                </span>
+              </div>
+            </div>
+          )}
+          {/* Entrada */}
+          <div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+              <label style={{...S.lbl,marginBottom:0}}>Pagou entrada?</label>
+              <button type="button" onClick={()=>setHasEntry(!hasEntry)} style={{
+                width:42,height:24,borderRadius:12,
+                background:hasEntry?'#2C1810':'#D4C4B0',
+                position:'relative',border:'none',cursor:'pointer',transition:'background 0.2s'
+              }}>
+                <div style={{position:'absolute',top:3,width:18,height:18,background:'#fff',borderRadius:'50%',boxShadow:'0 1px 3px rgba(0,0,0,.2)',transition:'transform 0.2s',transform:hasEntry?'translateX(21px)':'translateX(3px)'}}/>
+              </button>
+            </div>
+            {hasEntry && (
+              <div style={{background:'#F5EDD8',borderRadius:14,padding:14,display:'flex',flexDirection:'column',gap:10}}>
+                <div>
+                  <label style={S.lbl}>Valor da entrada</label>
+                  <input type="text" inputMode="numeric" value={entryRaw}
+                    onChange={e=>setEntryRaw(formatMoneyInput(e.target.value))}
+                    placeholder="R$ 0,00" style={S.inp}/>
+                  {entryAmt > 0 && amount > 0 && (
+                    <p style={{fontSize:11,color:'#8B6914',marginTop:4,fontWeight:500}}>
+                      Valor a parcelar: {(amount-entryAmt).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label style={S.lbl}>Como pagou a entrada</label>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+                    {[{v:'pix',l:'PIX'},{v:'debito',l:'Débito'},{v:'dinheiro',l:'Dinheiro'},{v:'boleto',l:'Boleto'},{v:'cartao_credito',l:'Crédito'}].map(m=>(
+                      <button key={m.v} type="button" onClick={()=>setEntryMethod(m.v)}
+                        style={S.seg(entryMethod===m.v,'#8B6914')}>
+                        {m.l}
+                      </button>
+                    ))}
                   </div>
+                </div>
+                {METODO_CONTA[entryMethod] !== 'nenhum' && (
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Como pagou a entrada</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[{v:'pix',l:'PIX'},{v:'debito',l:'Débito'},{v:'dinheiro',l:'Dinheiro'},{v:'boleto',l:'Boleto'},{v:'cartao_credito',l:'Crédito'},{v:'debito_automatico',l:'Déb. auto.'}].map(m=>(
-                        <button key={m.v} type="button" onClick={()=>setEntryMethod(m.v)}
-                          className={`h-9 rounded-xl text-xs font-medium border transition-all ${entryMethod===m.v?'bg-brand-50 text-brand-600 border-brand-300':'bg-white text-gray-600 border-gray-200'}`}>
-                          {m.l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Conta da entrada</label>
-                    <select value={entryCard} onChange={e=>setEntryCard(e.target.value)} className="input-base h-10 text-sm">
-                      {[...CARDS_CREDITO,...CONTAS_DEBITO].filter((v,i,a)=>a.indexOf(v)===i).map(c=><option key={c} value={c}>{c}</option>)}
+                    <label style={S.lbl}>
+                      {METODO_CONTA[entryMethod]==='cartao_credito'?'Cartão':'Conta'}
+                    </label>
+                    <select value={entryCard} onChange={e=>setEntryCard(e.target.value)} style={S.sel}>
+                      {(METODO_CONTA[entryMethod]==='cartao_credito'?CARDS_CREDITO:CONTAS_DEBITO).map(c=><option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
-                  {entryAmt&&amount&&<p className="text-xs text-brand-500 font-medium">Valor a parcelar: {formatCurrency(Math.max(0,parseFloat(amount)-parseFloat(entryAmt)))}</p>}
-                </div>
-              )}
-            </div>
-          </>
-        )}
+                )}
+              </div>
+            )}
+          </div>
+        </>)}
 
-        {/* À VISTA */}
-        {tipo==='avista'&&(
+        {/* ── À VISTA ── */}
+        {tipo === 'avista' && (<>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Como pagou</label>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {FORMAS_AVISTA.map(m=>(
+            <label style={S.lbl}>Como pagou</label>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {[
+                {v:'cartao_credito',l:'Crédito (fatura)'},
+                {v:'debito',l:'Débito'},
+                {v:'pix',l:'PIX'},
+                {v:'dinheiro',l:'Dinheiro'},
+                {v:'boleto',l:'Boleto'},
+              ].map(m=>(
                 <button key={m.v} type="button" onClick={()=>setMethod(m.v)}
-                  className={`h-10 rounded-xl text-sm font-medium border transition-all ${method===m.v?'bg-brand-50 text-brand-600 border-brand-300':'bg-white text-gray-600 border-gray-200'}`}>
+                  style={S.seg(method===m.v)}>
                   {m.l}
                 </button>
               ))}
             </div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Conta / Cartão</label>
-            <select value={debitCard} onChange={e=>setDebitCard(e.target.value)} className="input-base">
-              {[...CARDS_CREDITO,...CONTAS_DEBITO].filter((v,i,a)=>a.indexOf(v)===i).map(c=><option key={c} value={c}>{c}</option>)}
-            </select>
-            {method==='pix'||method==='debito'||method==='dinheiro'?<p className="text-xs text-green-600 mt-1.5 font-medium">✓ Será registrado como pago</p>:null}
-            {method==='boleto'||method==='debito_automatico'?<p className="text-xs text-amber-600 mt-1.5 font-medium">⏳ Ficará pendente até você confirmar</p>:null}
+            {method==='cartao_credito' && billingMonth && (
+              <p style={{fontSize:11,color:'#8B6914',fontWeight:500,marginTop:6}}>
+                📅 Entra na fatura de {format(billingMonth,'MMMM/yyyy',{locale:ptBR})}
+              </p>
+            )}
+            {['pix','debito','dinheiro'].includes(method) && (
+              <p style={{fontSize:11,color:'#2C6E49',fontWeight:500,marginTop:6}}>✓ Será registrado como pago</p>
+            )}
+            {['boleto'].includes(method) && (
+              <p style={{fontSize:11,color:'#8B6914',fontWeight:500,marginTop:6}}>⏳ Ficará pendente até confirmar</p>
+            )}
           </div>
-        )}
+          {contaTipo !== 'nenhum' && (
+            <div>
+              <label style={S.lbl}>{contaTipo==='cartao_credito'?'Cartão de crédito':'Conta'}</label>
+              <div style={{position:'relative'}}>
+                <select value={debitCard} onChange={e=>setDebitCard(e.target.value)} style={S.sel}>
+                  {(contaTipo==='cartao_credito'?CARDS_CREDITO:CONTAS_DEBITO).map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+                <ChevronDown size={14} color="#8B6914" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
+              </div>
+            </div>
+          )}
+        </>)}
 
-        {/* RECORRENTE */}
-        {tipo==='recorrente'&&(
-          <>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tipo de conta recorrente</label>
-              <div className="space-y-2">
-                {RECORRENTE_TIPOS.map(rt=>(
-                  <button key={rt.v} type="button" onClick={()=>{setRecTipo(rt.v);setRecItem('');if(!cat){setCat(rt.v==='contas_casa'?'Moradia':rt.v==='assinatura'?'Lazer e Entretenimento':rt.v==='debito_bancario'?'Dívidas e Financiamentos':'Outros')}}}
-                    className={`w-full text-left h-auto px-4 py-3 rounded-xl border transition-all ${recTipo===rt.v?'bg-brand-50 border-brand-300':'bg-white border-gray-200'}`}>
-                    <p className={`text-sm font-medium ${recTipo===rt.v?'text-brand-700':'text-gray-700'}`}>{rt.l}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{rt.d}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-            {recTipo==='contas_casa'&&(
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Qual conta?</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {CONTAS_CASA_ITEMS.map(i=>(
-                    <button key={i} type="button" onClick={()=>{setRecItem(i);if(!desc)setDesc(i)}}
-                      className={`h-10 rounded-xl text-sm font-medium border transition-all ${recItem===i?'bg-brand-50 text-brand-600 border-brand-300':'bg-white text-gray-600 border-gray-200'}`}>
-                      {i}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {recTipo==='assinatura'&&(
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Qual assinatura?</label>
-                <div className="flex flex-wrap gap-2">
-                  {['Netflix','Spotify','Amazon Prime','Disney+','YouTube Premium','HBO Max','Apple TV+','Academia','Outros'].map(i=>(
-                    <button key={i} type="button" onClick={()=>{setRecItem(i);if(!desc)setDesc(i)}}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${recItem===i?'bg-brand-50 text-brand-600 border-brand-300':'bg-white text-gray-600 border-gray-200'}`}>
-                      {i}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Dia do vencimento</label>
-              <input type="number" value={recDay} onChange={e=>setRecDay(e.target.value)} placeholder="Ex: 15" className="input-base" min="1" max="31"/>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Como é cobrado</label>
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                {[{v:'debito_automatico',l:'Débito automático'},{v:'boleto',l:'Boleto'},{v:'cartao_credito',l:'Cartão crédito'},{v:'pix',l:'PIX'}].map(m=>(
-                  <button key={m.v} type="button" onClick={()=>setRecMethod(m.v)}
-                    className={`h-10 rounded-xl text-sm font-medium border transition-all ${recMethod===m.v?'bg-brand-50 text-brand-600 border-brand-300':'bg-white text-gray-600 border-gray-200'}`}>
-                    {m.l}
-                  </button>
-                ))}
-              </div>
-              <select value={recCard} onChange={e=>setRecCard(e.target.value)} className="input-base">
-                {[...CARDS_CREDITO,...CONTAS_DEBITO].filter((v,i,a)=>a.indexOf(v)===i).map(c=><option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </>
-        )}
-
-        {/* RECEITA */}
-        {tipo==='receita'&&(
-          <>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Esta receita se repete?</label>
-                <button type="button" onClick={()=>setRecIsRec(!recIsRec)}
-                  style={{ width:40, height:22, borderRadius:11, background:recIsRec?'#1D9E75':'#E5E5EA', position:'relative', border:'none', cursor:'pointer', transition:'background 0.2s' }}>
-                  <div style={{ position:'absolute', top:2, width:18, height:18, background:'#fff', borderRadius:'50%', boxShadow:'0 1px 3px rgba(0,0,0,.2)', transition:'transform 0.2s', transform:recIsRec?'translateX(20px)':'translateX(2px)' }}/>
+        {/* ── RECORRENTE ── */}
+        {tipo === 'recorrente' && (<>
+          <div>
+            <label style={S.lbl}>Tipo de conta recorrente</label>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {[
+                {v:'contas_casa', emoji:'🏠', l:'Contas de casa',    d:'Energia, água, internet, condomínio...'},
+                {v:'assinatura',  emoji:'📺', l:'Assinaturas',       d:'Netflix, Spotify, academia...'},
+                {v:'debito_bancario',emoji:'🏦',l:'Débito bancário', d:'Financiamento, empréstimo...'},
+                {v:'outros',      emoji:'🔄', l:'Outros recorrentes',d:'Qualquer outra recorrência'},
+              ].map(rt=>(
+                <button key={rt.v} type="button"
+                  onClick={()=>{setRecTipo(rt.v);setRecItem('');setDesc('')}}
+                  style={{
+                    textAlign:'left',padding:'12px 14px',borderRadius:14,
+                    border:`0.5px solid ${recTipo===rt.v?'#2C1810':'#D4C4B0'}`,
+                    background:recTipo===rt.v?'#F5EDD8':'#fff',cursor:'pointer'
+                  }}>
+                  <p style={{fontSize:13,fontWeight:600,color:'#1C1C1E'}}>{rt.emoji} {rt.l}</p>
+                  <p style={{fontSize:11,color:'#8E8E93',marginTop:2}}>{rt.d}</p>
                 </button>
-              </div>
-              {recIsRec&&(
-                <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
-                  <p className="font-semibold mb-1">Receita recorrente</p>
-                  <p>Será registrada como <strong>prevista</strong> até você confirmar o recebimento com o valor e data real.</p>
-                </div>
-              )}
+              ))}
             </div>
+          </div>
+
+          {recTipo==='contas_casa' && (
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Onde recebeu</label>
-              <select value={recAccount} onChange={e=>setRecAccount(e.target.value)} className="input-base">
+              <label style={S.lbl}>Qual conta?</label>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                {CONTAS_CASA_ITEMS.map(i=>(
+                  <button key={i} type="button"
+                    onClick={()=>{setRecItem(i);setDesc(i)}}
+                    style={S.seg(recItem===i,'#8B6914')}>
+                    {i}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {recTipo==='assinatura' && (
+            <div>
+              <label style={S.lbl}>Qual assinatura?</label>
+              <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+                {ASSINATURAS_ITEMS.map(i=>(
+                  <button key={i} type="button"
+                    onClick={()=>{setRecItem(i);setDesc(i)}}
+                    style={{
+                      padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:500,cursor:'pointer',
+                      border:`0.5px solid ${recItem===i?'#2C1810':'#D4C4B0'}`,
+                      background:recItem===i?'#2C1810':'#fff',
+                      color:recItem===i?'#FAF7F4':'#5C3D2E'
+                    }}>
+                    {i}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label style={S.lbl}>Dia do vencimento</label>
+            <input type="number" value={recDay} onChange={e=>setRecDay(e.target.value)}
+              placeholder="Ex: 15" style={S.inp} min="1" max="31"/>
+          </div>
+
+          <div>
+            <label style={S.lbl}>Como é cobrado</label>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+              {[
+                {v:'debito_automatico',l:'Débito automático'},
+                {v:'boleto',l:'Boleto'},
+                {v:'cartao_credito',l:'Cartão de crédito'},
+                {v:'pix',l:'PIX'},
+              ].map(m=>(
+                <button key={m.v} type="button" onClick={()=>setRecMethod(m.v)}
+                  style={S.seg(recMethod===m.v)}>
+                  {m.l}
+                </button>
+              ))}
+            </div>
+            {recContaTipo !== 'nenhum' && (
+              <div>
+                <label style={S.lbl}>{recContaTipo==='cartao_credito'?'Cartão':'Conta'}</label>
+                <div style={{position:'relative'}}>
+                  <select value={recCard} onChange={e=>setRecCard(e.target.value)} style={S.sel}>
+                    {(recContaTipo==='cartao_credito'?CARDS_CREDITO:CONTAS_DEBITO).map(c=><option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <ChevronDown size={14} color="#8B6914" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
+                </div>
+              </div>
+            )}
+          </div>
+        </>)}
+
+        {/* ── RECEITA ── */}
+        {tipo === 'receita' && (<>
+          {CampoCat}
+          <div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+              <label style={{...S.lbl,marginBottom:0}}>Esta receita se repete?</label>
+              <button type="button" onClick={()=>setRecIsRec(!recIsRec)} style={{
+                width:42,height:24,borderRadius:12,
+                background:recIsRec?'#2C1810':'#D4C4B0',
+                position:'relative',border:'none',cursor:'pointer',transition:'background 0.2s'
+              }}>
+                <div style={{position:'absolute',top:3,width:18,height:18,background:'#fff',borderRadius:'50%',boxShadow:'0 1px 3px rgba(0,0,0,.2)',transition:'transform 0.2s',transform:recIsRec?'translateX(21px)':'translateX(3px)'}}/>
+              </button>
+            </div>
+            {recIsRec && (
+              <div style={{background:'#F5EDD8',borderRadius:12,padding:'10px 12px',fontSize:12,color:'#5C4A0A'}}>
+                Ficará como <strong>previsto</strong> até você confirmar o valor real recebido.
+              </div>
+            )}
+          </div>
+          <div>
+            <label style={S.lbl}>Onde recebeu</label>
+            <div style={{position:'relative'}}>
+              <select value={recAccount} onChange={e=>setRecAccount(e.target.value)} style={S.sel}>
                 {CONTAS_DEBITO.map(c=><option key={c} value={c}>{c}</option>)}
               </select>
+              <ChevronDown size={14} color="#8B6914" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
             </div>
-          </>
-        )}
+          </div>
+        </>)}
 
         {/* Observações */}
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Observações</label>
-          <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Opcional..." rows={2} className="input-base py-2.5 resize-none"/>
+          <label style={S.lbl}>Observações</label>
+          <textarea value={notes} onChange={e=>setNotes(e.target.value)}
+            placeholder="Opcional..." rows={2}
+            style={{...S.inp,height:'auto',padding:'10px 14px',resize:'none',fontSize:14}}/>
         </div>
 
-        <button type="submit" disabled={loading} className="btn-primary">
-          {loading?<><Loader2 size={18} className="animate-spin"/>Salvando...</>:`Salvar ${tipoLabels[tipo].toLowerCase()}`}
+        <button type="submit" disabled={loading} style={S.btn}>
+          {loading
+            ? <><Loader2 size={18} style={{animation:'spin 0.8s linear infinite'}}/> Salvando...</>
+            : `Salvar ${tipoLabel[tipo].toLowerCase()}`
+          }
         </button>
       </form>
     </div>
