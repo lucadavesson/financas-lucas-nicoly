@@ -554,7 +554,7 @@ export default function NovoLancamento() {
                 {v:'outros',      emoji:'🔄', l:'Outros recorrentes',d:'Qualquer outra recorrência'},
               ].map(rt=>(
                 <button key={rt.v} type="button"
-                  onClick={()=>{setRecTipo(rt.v);setRecItem('');setDesc('')}}
+                  onClick={()=>{setRecTipo(rt.v);setRecItem('')}}
                   style={{
                     textAlign:'left',padding:'12px 14px',borderRadius:14,
                     border:`0.5px solid ${recTipo===rt.v?'#2C1810':'#D4C4B0'}`,
@@ -573,7 +573,7 @@ export default function NovoLancamento() {
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                 {CONTAS_CASA_ITEMS.map(i=>(
                   <button key={i} type="button"
-                    onClick={()=>{setRecItem(i);setDesc(i)}}
+                    onClick={()=>{setRecItem(i);if(!desc)setDesc(i)}}
                     style={S.seg(recItem===i,'#8B6914')}>
                     {i}
                   </button>
@@ -588,7 +588,7 @@ export default function NovoLancamento() {
               <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
                 {ASSINATURAS_ITEMS.map(i=>(
                   <button key={i} type="button"
-                    onClick={()=>{setRecItem(i);setDesc(i)}}
+                    onClick={()=>{setRecItem(i);if(!desc)setDesc(i)}}
                     style={{
                       padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:500,cursor:'pointer',
                       border:`0.5px solid ${recItem===i?'#2C1810':'#D4C4B0'}`,
