@@ -9,17 +9,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect('/login')
 
   return (
-    <div style={{
-      height: '100vh', display: 'flex', flexDirection: 'column',
-      overflow: 'hidden', background: '#FAF7F4',
-    }}>
+    <div style={{ height:'100vh', display:'flex', flexDirection:'column', overflow:'hidden', background:'#1A0F0A' }}>
       <TopBar />
-      <main style={{
-        flex: 1, overflowY: 'auto', overflowX: 'hidden',
-        overscrollBehavior: 'none',
-        WebkitOverflowScrolling: 'touch' as any,
-        paddingBottom: '80px',
-      }}>
+      <main style={{ flex:1, overflowY:'auto', overflowX:'hidden', overscrollBehavior:'none', WebkitOverflowScrolling:'touch' as any, paddingBottom:'80px' }}>
         {children}
       </main>
       <BottomNav />
