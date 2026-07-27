@@ -6,6 +6,16 @@ import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Lock, Unlock } from 'lucide-react'
 
+// ─── Paleta v3 (idêntica ao dashboard_v3) ────────────────────────────────────
+const BG      = '#C4A882'
+const SEBBLE  = 'linear-gradient(145deg,#CEAD8A,#B89068)'
+const TEXT    = '#3D2C20'
+const TEXTMU  = '#8B7060'
+const GREEN   = '#3D7A4A'
+const GREENBG = 'rgba(80,130,90,0.15)'
+const TERRA   = '#C4622D'
+const TERRABG = 'rgba(196,98,45,0.15)'
+
 export default function Cartoes() {
   const [cards, setCards]     = useState<any[]>([])
   const [faturas, setFaturas] = useState<Record<string,any>>({})
@@ -18,98 +28,165 @@ export default function Cartoes() {
     const { data: cardsData } = await s.from('cards').select('*').eq('is_active',true).order('holder').order('name')
     const now = new Date()
     const { data: txData } = await s.from('transactions').select('card_name,amount,status,installment_value')
-      .gte('purchase_date',format(startOfMonth(now),'yyyy-MM-dd'))
-      .lte('purchase_date',format(endOfMonth(now),'yyyy-MM-dd'))
+      .gte('purchase_date', format(startOfMonth(now),'yyyy-MM-dd'))
+      .lte('purchase_date', format(endOfMonth(now),'yyyy-MM-dd'))
       .neq('transaction_type','receita')
     const map: Record<string,any> = {}
     ;(cardsData||[]).forEach(c => {
-      const nome = `${c.name} — ${c.holder}`
-      const txs  = (txData||[]).filter(t=>t.card_name===nome||t.card_name===c.name)
-      const gasto = txs.reduce((s:number,t:any)=>s+(t.installment_value||t.amount),0)
-      const pago  = txs.filter((t:any)=>t.status==='pago').reduce((s:number,t:any)=>s+(t.installment_value||t.amount),0)
-      const hoje  = now.getDate()
-      map[c.id] = { gasto, pago, pendente:gasto-pago, status:hoje>c.closing_day?'fechado':'aberto' }
+      const nome  = `${c.name} — ${c.holder}`
+      const txs   = (txData||[]).filter(t => t.card_name===nome || t.card_name===c.name)
+      const gasto = txs.reduce((s:number,t:any) => s+(t.installment_value||t.amount), 0)
+      const pago  = txs.filter((t:any) => t.status==='pago').reduce((s:number,t:any) => s+(t.installment_value||t.amount), 0)
+      map[c.id]   = { gasto, pago, pendente:gasto-pago, status:now.getDate()>c.closing_day?'fechado':'aberto' }
     })
     setCards(cardsData||[])
     setFaturas(map)
     setLoading(false)
   }
 
-  if (loading) return <div className="flex justify-center py-20"><div className="w-6 h-6 border-2 border-brand-400 border-t-transparent rounded-full animate-spin"/></div>
+  if (loading) return (
+    <div style={{ background:BG, minHeight:'100%', display:'flex', justifyContent:'center', padding:80 }}>
+      <div style={{ width:24, height:24, border:`2px solid ${TERRA}`, borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite' }}/>
+    </div>
+  )
 
-  const credito = cards.filter(c=>c.card_type==='credito')
-  const contas  = cards.filter(c=>c.card_type!=='credito')
+  const credito = cards.filter(c => c.card_type==='credito')
+  const contas  = cards.filter(c => c.card_type!=='credito')
   const mes     = format(new Date(),'MMMM yyyy',{locale:ptBR})
 
   return (
-    <div className="px-4 py-4 animate-in">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-gray-900">Cartões</h1>
-        <p className="text-xs text-gray-400 capitalize">{mes}</p>
+    <div style={{ background:BG, minHeight:'100%', padding:'14px 14px 110px' }}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+        <h1 style={{ fontSize:18, fontWeight:700, color:TEXT, margin:0 }}>Cartões</h1>
+        <p style={{ fontSize:11, color:TEXTMU, textTransform:'capitalize', margin:0 }}>{mes}</p>
       </div>
 
-      {cards.length===0?(
-        <div className="text-center py-16">
-          <p className="text-3xl mb-3">💳</p>
-          <p className="text-sm text-gray-400">Execute o SQL no Supabase para carregar os cartões</p>
+      {cards.length===0 ? (
+        <div style={{ textAlign:'center', padding:'64px 0' }}>
+          <p style={{ fontSize:32, marginBottom:12 }}>💳</p>
+          <p style={{ fontSize:13, color:TEXTMU }}>Execute o SQL no Supabase para carregar os cartões</p>
         </div>
-      ):(
+      ) : (
         <>
-          {credito.length>0&&<p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Crédito</p>}
-          {credito.map(c=>{
-            const f = faturas[c.id]||{gasto:0,pago:0,pendente:0,status:'aberto'}
-            const pct = c.credit_limit>0?(f.gasto/c.credit_limit)*100:0
-            const over = pct>=(c.alert_pct||80)
+          {/* ── Crédito ── */}
+          {credito.length>0 && (
+            <p style={{ fontSize:11, fontWeight:700, color:TEXT, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:10, opacity:0.5 }}>
+              Crédito
+            </p>
+          )}
+
+          {credito.map(c => {
+            const f   = faturas[c.id]||{gasto:0,pago:0,pendente:0,status:'aberto'}
+            const pct = c.credit_limit>0 ? (f.gasto/c.credit_limit)*100 : 0
+            const over= pct>=(c.alert_pct||80)
+
             return (
-              <div key={c.id} className="mb-4 rounded-3xl overflow-hidden shadow-sm">
-                {/* Frente do cartão */}
-                <div style={{background:`linear-gradient(135deg,${c.color},${c.color}99)`,padding:20,color:'#fff',position:'relative',overflow:'hidden'}}>
-                  <div style={{position:'absolute',right:-20,top:-20,width:120,height:120,borderRadius:'50%',background:'rgba(255,255,255,0.1)'}}/>
-                  <div style={{position:'absolute',right:20,bottom:-30,width:80,height:80,borderRadius:'50%',background:'rgba(255,255,255,0.05)'}}/>
-                  <div className="flex justify-between items-start mb-6">
+              <div key={c.id} style={{ marginBottom:16, borderRadius:28, overflow:'hidden', boxShadow:'0 6px 20px rgba(61,44,32,0.2)' }}>
+
+                {/* Frente do cartão — mantida igual ao original */}
+                <div style={{ background:`linear-gradient(135deg,${c.color},${c.color}99)`, padding:20, color:'#fff', position:'relative', overflow:'hidden' }}>
+                  <div style={{ position:'absolute', right:-20, top:-20, width:120, height:120, borderRadius:'50%', background:'rgba(255,255,255,0.1)' }}/>
+                  <div style={{ position:'absolute', right:20, bottom:-30, width:80, height:80, borderRadius:'50%', background:'rgba(255,255,255,0.05)' }}/>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:24, position:'relative' }}>
                     <div>
-                      <p style={{fontSize:11,color:'rgba(255,255,255,0.7)',marginBottom:2}}>{c.bank}</p>
-                      <p style={{fontSize:15,fontWeight:600}}>{c.holder}</p>
+                      <p style={{ fontSize:11, color:'rgba(255,255,255,0.7)', marginBottom:2, margin:'0 0 2px' }}>{c.bank}</p>
+                      <p style={{ fontSize:15, fontWeight:600, margin:0 }}>{c.holder}</p>
                     </div>
-                    <div style={{display:'flex',alignItems:'center',gap:4,background:'rgba(255,255,255,0.2)',padding:'4px 10px',borderRadius:20,fontSize:11,fontWeight:600}}>
-                      {f.status==='aberto'?<><Unlock size={11}/>Aberta</>:<><Lock size={11}/>Fechada</>}
+                    <div style={{ display:'flex', alignItems:'center', gap:4, background:'rgba(255,255,255,0.2)', padding:'4px 10px', borderRadius:20, fontSize:11, fontWeight:600 }}>
+                      {f.status==='aberto' ? <><Unlock size={11}/>Aberta</> : <><Lock size={11}/>Fechada</>}
                     </div>
                   </div>
-                  <div className="flex justify-between items-end">
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', position:'relative' }}>
                     <div>
-                      <p style={{fontSize:11,color:'rgba(255,255,255,0.7)'}}>Fatura {mes}</p>
-                      <p style={{fontSize:26,fontWeight:700,letterSpacing:'-0.5px',fontVariantNumeric:'tabular-nums'}}>{formatCurrency(f.gasto)}</p>
+                      <p style={{ fontSize:11, color:'rgba(255,255,255,0.7)', margin:'0 0 2px' }}>Fatura {mes}</p>
+                      <p style={{ fontSize:26, fontWeight:700, letterSpacing:'-0.5px', fontVariantNumeric:'tabular-nums', margin:0 }}>{formatCurrency(f.gasto)}</p>
                     </div>
-                    <div className="text-right">
-                      <p style={{fontSize:11,color:'rgba(255,255,255,0.7)'}}>Limite</p>
-                      <p style={{fontSize:14,fontWeight:600,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(c.credit_limit)}</p>
+                    <div style={{ textAlign:'right' }}>
+                      <p style={{ fontSize:11, color:'rgba(255,255,255,0.7)', margin:'0 0 2px' }}>Limite</p>
+                      <p style={{ fontSize:14, fontWeight:600, fontVariantNumeric:'tabular-nums', margin:0 }}>{formatCurrency(c.credit_limit)}</p>
                     </div>
                   </div>
                 </div>
-                {/* Detalhes */}
-                <div className="bg-white p-4">
-                  <div className="flex justify-between text-xs text-gray-400 mb-1">
+
+                {/* ── Parte inferior: SEBBLE taupe (era bg-white) ── */}
+                <div style={{ background:SEBBLE, padding:'14px 16px 16px', borderTop:'0.5px solid rgba(255,255,255,0.2)' }}>
+                  {/* Barra de uso */}
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:TEXTMU, marginBottom:6 }}>
                     <span>{pct.toFixed(0)}% do limite</span>
-                    <span className={over?'text-red-500 font-semibold':''}>
-                      {over?`⚠️ Acima de ${c.alert_pct||80}%`:`${formatCurrency(c.credit_limit-f.gasto)} disponível`}
+                    <span style={{ color:over?'#E24B4A':TEXTMU, fontWeight:over?600:400 }}>
+                      {over ? `⚠️ Acima de ${c.alert_pct||80}%` : `${formatCurrency(c.credit_limit-f.gasto)} disponível`}
                     </span>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-4">
-                    <div className="h-full rounded-full transition-all" style={{width:`${Math.min(pct,100)}%`,background:over?'#E24B4A':c.color}}/>
+                  <div style={{ height:6, background:'rgba(61,44,32,0.12)', borderRadius:99, overflow:'hidden', marginBottom:12 }}>
+                    <div style={{ height:'100%', borderRadius:99, transition:'width 0.4s', width:`${Math.min(pct,100)}%`, background:over?'#E24B4A':c.color }}/>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[['Pago',f.pago,'text-green-600','bg-green-50'],['Pendente',f.pendente,'text-amber-600','bg-amber-50'],['Fecha dia',c.closing_day,'text-gray-700','bg-gray-50']].map(([l,v,tc,bg])=>(
-                      <div key={l as string} className={`${bg} rounded-xl p-2.5 text-center`}>
-                        <p className="text-xs text-gray-400 mb-0.5">{l as string}</p>
-                        <p className={`text-sm font-bold ${tc} tabular-nums`}>{typeof v==='number'&&(l==='Pago'||l==='Pendente')?formatCurrency(v):v}</p>
-                      </div>
-                    ))}
+
+                  {/* Grid Pago / Pendente / Fecha dia — cores via globals.css + inline backup */}
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+                    <div style={{ background:GREENBG, borderRadius:16, padding:'10px 8px', textAlign:'center', border:'0.5px solid rgba(61,122,74,0.2)' }}>
+                      <p style={{ fontSize:10, color:TEXTMU, margin:'0 0 3px' }}>Pago</p>
+                      <p style={{ fontSize:13, fontWeight:700, color:GREEN, margin:0, fontVariantNumeric:'tabular-nums' }}>{formatCurrency(f.pago)}</p>
+                    </div>
+                    <div style={{ background:TERRABG, borderRadius:16, padding:'10px 8px', textAlign:'center', border:'0.5px solid rgba(196,98,45,0.2)' }}>
+                      <p style={{ fontSize:10, color:TEXTMU, margin:'0 0 3px' }}>Pendente</p>
+                      <p style={{ fontSize:13, fontWeight:700, color:TERRA, margin:0, fontVariantNumeric:'tabular-nums' }}>{formatCurrency(f.pendente)}</p>
+                    </div>
+                    <div style={{ background:'rgba(61,44,32,0.08)', borderRadius:16, padding:'10px 8px', textAlign:'center', border:'0.5px solid rgba(61,44,32,0.1)' }}>
+                      <p style={{ fontSize:10, color:TEXTMU, margin:'0 0 3px' }}>Fecha dia</p>
+                      <p style={{ fontSize:13, fontWeight:700, color:TEXT, margin:0 }}>{c.closing_day}</p>
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-400 text-center mt-3">Fecha dia {c.closing_day} · Vence dia {c.due_day}</p>
+
+                  <p style={{ fontSize:11, color:TEXTMU, textAlign:'center', margin:'10px 0 0' }}>
+                    Fecha dia {c.closing_day} · Vence dia {c.due_day}
+                  </p>
                 </div>
               </div>
             )
           })}
+
+          {/* ── Contas ── */}
+          {contas.length>0 && (
+            <>
+              <p style={{ fontSize:11, fontWeight:700, color:TEXT, textTransform:'uppercase', letterSpacing:'0.08em', margin:'8px 0 10px', opacity:0.5 }}>
+                Contas
+              </p>
+              {contas.map(c => {
+                const f = faturas[c.id]||{gasto:0,pago:0,pendente:0,status:'aberto'}
+                return (
+                  <div key={c.id} style={{ marginBottom:12, borderRadius:24, overflow:'hidden', boxShadow:'0 4px 14px rgba(61,44,32,0.15)' }}>
+                    <div style={{ background:`linear-gradient(135deg,${c.color},${c.color}99)`, padding:'16px 18px', color:'#fff', position:'relative', overflow:'hidden' }}>
+                      <div style={{ position:'absolute', right:-16, top:-16, width:90, height:90, borderRadius:'50%', background:'rgba(255,255,255,0.1)' }}/>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', position:'relative' }}>
+                        <div>
+                          <p style={{ fontSize:11, color:'rgba(255,255,255,0.7)', margin:'0 0 2px' }}>{c.bank}</p>
+                          <p style={{ fontSize:14, fontWeight:600, margin:0 }}>{c.holder}</p>
+                        </div>
+                        <div style={{ textAlign:'right' }}>
+                          <p style={{ fontSize:11, color:'rgba(255,255,255,0.7)', margin:'0 0 2px' }}>Movimentado</p>
+                          <p style={{ fontSize:18, fontWeight:700, margin:0, fontVariantNumeric:'tabular-nums' }}>{formatCurrency(f.gasto)}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ background:SEBBLE, padding:'12px 16px', borderTop:'0.5px solid rgba(255,255,255,0.2)' }}>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                        <div style={{ background:GREENBG, borderRadius:14, padding:'8px 10px', textAlign:'center' }}>
+                          <p style={{ fontSize:10, color:TEXTMU, margin:'0 0 2px' }}>Pago</p>
+                          <p style={{ fontSize:13, fontWeight:700, color:GREEN, margin:0, fontVariantNumeric:'tabular-nums' }}>{formatCurrency(f.pago)}</p>
+                        </div>
+                        <div style={{ background:TERRABG, borderRadius:14, padding:'8px 10px', textAlign:'center' }}>
+                          <p style={{ fontSize:10, color:TEXTMU, margin:'0 0 2px' }}>Pendente</p>
+                          <p style={{ fontSize:13, fontWeight:700, color:TERRA, margin:0, fontVariantNumeric:'tabular-nums' }}>{formatCurrency(f.pendente)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </>
+          )}
         </>
       )}
     </div>
