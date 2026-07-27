@@ -128,7 +128,7 @@ export default function Dashboard() {
   })
 
   return (
-    <div style={{ background:BG, minHeight:'100%', padding:'14px 14px 110px' }}>
+    <div style={{ background:BG, minHeight:'100%', padding:'14px 14px 130px' }}>
 
       {/* Mês + ocultar */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>

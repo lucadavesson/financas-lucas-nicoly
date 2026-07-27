@@ -5,19 +5,31 @@ import { formatCurrency } from '@/lib/utils'
 import { Plus, Pencil, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-export default function Metas() {
-  const [goals, setGoals]       = useState<any[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [show, setShow]         = useState(false)
-  const [editId, setEditId]     = useState<string|null>(null)
-  const [saving, setSaving]     = useState(false)
-  const [form, setForm] = useState({name:'',holder:'Casal',target_amount:'',current_amount:'0',monthly_target:'',deadline:'',icon:'target',color:'#1D9E75',category_link:''})
+const BG     = '#1A110A'
+const PEBBLE = 'linear-gradient(145deg,#3D2810,#2C1C0E)'
+const TEXT   = '#F4EFE8'
+const TEXTLT = '#C8B89A'
+const TEXTMU = '#8B7A6A'
+const TERRA  = '#C4622D'
+const CREAM  = '#F4EFE8'
 
-  useEffect(()=>{load()},[])
+const ICONS_MAP:Record<string,string>={diamond:'💍',plane:'✈️',home:'🏠',shield:'🛡️',star:'⭐',target:'🎯',car:'🚗',ring:'💍',piggy:'🐷',book:'📚'}
+const GOAL_COLORS=['#1D9E75','#7F77DD','#378ADD','#C8963C','#E24B4A','#C4622D','#0F6E56','#9B59B6']
+
+export default function Metas() {
+  const [goals,   setGoals]   = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [show,    setShow]    = useState(false)
+  const [editId,  setEditId]  = useState<string|null>(null)
+  const [saving,  setSaving]  = useState(false)
+  const [form, setForm] = useState({name:'',holder:'Casal',target_amount:'',current_amount:'0',monthly_target:'',deadline:'',icon:'target',color:'#1D9E75'})
+
+  useEffect(()=>{ load() },[])
 
   async function load() {
     const {data} = await createClient().from('goals').select('*').eq('status','ativa').order('created_at',{ascending:true})
-    setGoals(data||[]); setLoading(false)
+    setGoals(data||[])
+    setLoading(false)
   }
   function sf(k:string,v:string){setForm(f=>({...f,[k]:v}))}
 
@@ -29,78 +41,147 @@ export default function Metas() {
     const s=createClient()
     const {data:{user}}=await s.auth.getUser()
     if(!user){return}
-    const payload={name:form.name,holder:form.holder,target_amount:t,current_amount:parseFloat(form.current_amount||'0'),monthly_target:form.monthly_target?parseFloat(form.monthly_target):null,deadline:form.deadline?form.deadline+'-01':null,icon:form.icon,color:form.color,category_link:form.category_link||null,status:'ativa'}
+    const payload={name:form.name,holder:form.holder,target_amount:t,current_amount:parseFloat(form.current_amount||'0'),monthly_target:form.monthly_target?parseFloat(form.monthly_target):null,deadline:form.deadline?form.deadline+'-01':null,icon:form.icon,color:form.color,status:'ativa'}
     const {error}=editId?await s.from('goals').update(payload).eq('id',editId):await s.from('goals').insert({...payload,owner_id:user.id})
-    if(error){console.error(error);toast.error(`Erro: ${error.message}`);setSaving(false);return}
+    if(error){toast.error(`Erro: ${error.message}`);setSaving(false);return}
     toast.success(editId?'Atualizada!':'Meta criada!')
-    setShow(false);setEditId(null);setForm({name:'',holder:'Casal',target_amount:'',current_amount:'0',monthly_target:'',deadline:'',icon:'target',color:'#1D9E75',category_link:''})
+    setShow(false);setEditId(null)
+    setForm({name:'',holder:'Casal',target_amount:'',current_amount:'0',monthly_target:'',deadline:'',icon:'target',color:'#1D9E75'})
     load();setSaving(false)
   }
 
-  const ICONS_MAP:Record<string,string>={diamond:'💍',plane:'✈️',home:'🏠',shield:'🛡️',star:'⭐',target:'🎯',car:'🚗',ring:'💍'}
-  const COLORS=['#1D9E75','#7F77DD','#378ADD','#BA7517','#E24B4A']
+  const inp = {width:'100%',height:46,background:'rgba(255,255,255,0.07)',border:'0.5px solid rgba(255,255,255,0.12)',borderRadius:22,padding:'0 16px',fontSize:14,color:TEXT,outline:'none',boxSizing:'border-box' as const}
+  const seg = (on:boolean,col?:string)=>({flex:1,height:38,borderRadius:19,border:'none',background:on?(col||TERRA):'rgba(255,255,255,0.07)',color:on?CREAM:TEXTLT,fontSize:13,fontWeight:on?700:400 as any,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'})
 
   return (
-    <div className="px-4 py-4 animate-in">
-      <div className="flex items-center justify-between mb-4">
-        <div><h1 className="text-lg font-semibold text-gray-900">Metas & Projetos</h1><p className="text-xs text-gray-400">{goals.length} ativas</p></div>
-        <button onClick={()=>{setForm({name:'',holder:'Casal',target_amount:'',current_amount:'0',monthly_target:'',deadline:'',icon:'target',color:'#1D9E75',category_link:''});setEditId(null);setShow(true)}} className="w-9 h-9 bg-brand-400 rounded-xl flex items-center justify-center"><Plus size={20} color="#fff"/></button>
+    <div style={{background:BG,minHeight:'100%',padding:'14px 14px 130px'}}>
+
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+        <div>
+          <h1 style={{fontSize:22,fontWeight:800,color:TEXT,margin:'0 0 2px'}}>Metas</h1>
+          <p style={{fontSize:12,color:TEXTMU,margin:0}}>{goals.length} ativa{goals.length!==1?'s':''}</p>
+        </div>
+        <button onClick={()=>{setForm({name:'',holder:'Casal',target_amount:'',current_amount:'0',monthly_target:'',deadline:'',icon:'target',color:'#1D9E75'});setEditId(null);setShow(true)}}
+          style={{width:40,height:40,background:TERRA,borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',border:'none',cursor:'pointer',boxShadow:'0 4px 14px rgba(196,98,45,0.4)'}}>
+          <Plus size={20} color={CREAM}/>
+        </button>
       </div>
 
-      {loading?<div className="flex justify-center py-12"><div className="w-6 h-6 border-2 border-brand-400 border-t-transparent rounded-full animate-spin"/></div>
-      :goals.length===0?<div className="text-center py-16"><p className="text-3xl mb-3">🎯</p><p className="text-sm text-gray-400 mb-4">Nenhuma meta ainda</p><button onClick={()=>setShow(true)} className="btn-primary max-w-xs mx-auto">Criar primeira meta</button></div>
-      :<div className="space-y-3">
-        {goals.map(g=>{
-          const pct=g.target_amount>0?Math.min(100,g.current_amount/g.target_amount*100):0
-          const rem=g.target_amount-g.current_amount
-          const proj=g.monthly_target&&g.monthly_target>0&&rem>0?`~${Math.ceil(rem/g.monthly_target)} meses`:rem<=0?'🎉 Meta atingida!':''
-          return(
-            <div key={g.id} className="card">
-              <div className="flex items-center gap-3 mb-3">
-                <div style={{width:38,height:38,borderRadius:12,background:`${g.color}20`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>{ICONS_MAP[g.icon]||'🎯'}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm">{g.name}</p>
-                  <p className="text-xs text-gray-400">{g.holder}</p>
+      {loading ? (
+        <div style={{display:'flex',justifyContent:'center',padding:48}}>
+          <div style={{width:22,height:22,border:`2px solid ${TERRA}`,borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
+        </div>
+      ) : goals.length===0 ? (
+        <div style={{textAlign:'center',padding:'64px 0'}}>
+          <p style={{fontSize:40,margin:'0 0 12px'}}>🎯</p>
+          <p style={{fontSize:15,fontWeight:600,color:TEXTLT,margin:'0 0 6px'}}>Nenhuma meta ainda</p>
+          <p style={{fontSize:12,color:TEXTMU,margin:'0 0 20px'}}>Crie sua primeira meta financeira</p>
+          <button onClick={()=>setShow(true)} style={{background:TERRA,color:CREAM,border:'none',borderRadius:24,padding:'12px 28px',fontSize:14,fontWeight:700,cursor:'pointer'}}>
+            Criar primeira meta
+          </button>
+        </div>
+      ) : (
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          {goals.map(g=>{
+            const pct=g.target_amount>0?Math.min(100,g.current_amount/g.target_amount*100):0
+            const rem=g.target_amount-g.current_amount
+            const proj=g.monthly_target&&g.monthly_target>0&&rem>0?`~${Math.ceil(rem/g.monthly_target)} meses no ritmo atual`:rem<=0?'🎉 Meta atingida!':''
+            return(
+              <div key={g.id} style={{background:PEBBLE,borderRadius:24,padding:'16px 18px',boxShadow:'0 4px 16px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.06)'}}>
+                <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+                  <div style={{width:42,height:42,borderRadius:14,background:`${g.color}25`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0}}>{ICONS_MAP[g.icon]||'🎯'}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <p style={{fontSize:14,fontWeight:700,color:TEXT,margin:'0 0 2px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.name}</p>
+                    <p style={{fontSize:11,color:TEXTMU,margin:0}}>{g.holder}</p>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <p style={{fontSize:14,fontWeight:800,margin:0,color:g.color,fontVariantNumeric:'tabular-nums'}}>{pct.toFixed(0)}%</p>
+                    <button onClick={()=>{setForm({name:g.name,holder:g.holder,target_amount:g.target_amount.toString(),current_amount:g.current_amount.toString(),monthly_target:g.monthly_target?.toString()||'',deadline:g.deadline?.slice(0,7)||'',icon:g.icon||'target',color:g.color||'#1D9E75'});setEditId(g.id);setShow(true)}}
+                      style={{width:30,height:30,background:'rgba(255,255,255,0.07)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      <Pencil size={13} color={TEXTMU}/>
+                    </button>
+                  </div>
                 </div>
-                <button onClick={()=>{setForm({name:g.name,holder:g.holder,target_amount:g.target_amount.toString(),current_amount:g.current_amount.toString(),monthly_target:g.monthly_target?.toString()||'',deadline:g.deadline?.slice(0,7)||'',icon:g.icon||'target',color:g.color||'#1D9E75',category_link:g.category_link||''});setEditId(g.id);setShow(true)}} className="p-1.5 rounded-lg hover:bg-gray-100"><Pencil size={14} color="#8E8E93"/></button>
-                <p className="text-sm font-bold tabular-nums" style={{color:g.color}}>{pct.toFixed(0)}%</p>
-              </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-2"><div className="h-full rounded-full" style={{width:`${pct}%`,background:g.color}}/></div>
-              <div className="flex justify-between text-xs text-gray-400"><span>{formatCurrency(g.current_amount)}</span><span>Meta {formatCurrency(g.target_amount)}</span></div>
-              {proj&&<p className="mt-2 px-3 py-1.5 rounded-xl text-xs font-medium" style={{background:`${g.color}15`,color:g.color}}>{proj}</p>}
-            </div>
-          )
-        })}
-      </div>}
 
+                {/* Barra de progresso */}
+                <div style={{height:8,background:'rgba(255,255,255,0.07)',borderRadius:99,overflow:'hidden',marginBottom:8}}>
+                  <div style={{height:'100%',borderRadius:99,width:`${pct}%`,background:g.color,transition:'width 0.5s ease'}}/>
+                </div>
+
+                <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:TEXTMU,marginBottom:proj?8:0}}>
+                  <span style={{fontVariantNumeric:'tabular-nums'}}>{formatCurrency(g.current_amount)} acumulado</span>
+                  <span style={{fontVariantNumeric:'tabular-nums'}}>Meta: {formatCurrency(g.target_amount)}</span>
+                </div>
+
+                {proj&&(
+                  <div style={{background:`${g.color}18`,borderRadius:14,padding:'7px 12px',border:`0.5px solid ${g.color}30`}}>
+                    <p style={{fontSize:11,fontWeight:600,color:g.color,margin:0}}>{proj}</p>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Bottom sheet form */}
       {show&&(
-        <div style={{position:'fixed',inset:0,zIndex:50,display:'flex',alignItems:'flex-end'}} onClick={()=>setShow(false)}>
-          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,.3)'}}/>
-          <div style={{position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'#fff',borderRadius:'20px 20px 0 0',maxHeight:'92vh',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
-            <div style={{padding:'20px 20px 12px',borderBottom:'0.5px solid #F2F2F7',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-              <h2 style={{fontSize:15,fontWeight:600}}>{editId?'Editar meta':'Nova meta'}</h2>
-              <button onClick={()=>setShow(false)}><X size={20} color="#8E8E93"/></button>
+        <div style={{position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end'}} onClick={()=>setShow(false)}>
+          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',backdropFilter:'blur(10px)'}}/>
+          <div style={{position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'linear-gradient(180deg,#3D2810,#2C1C0E)',borderRadius:'28px 28px 0 0',maxHeight:'92vh',display:'flex',flexDirection:'column',boxShadow:'0 -8px 40px rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
+            <div style={{padding:'18px 20px 12px',borderBottom:'0.5px solid rgba(255,255,255,0.08)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <h3 style={{fontSize:16,fontWeight:700,color:TEXT,margin:0}}>{editId?'Editar meta':'Nova meta'}</h3>
+              <button onClick={()=>setShow(false)} style={{background:'none',border:'none',cursor:'pointer'}}><X size={20} color={TEXTMU}/></button>
             </div>
             <div style={{overflowY:'auto',overscrollBehavior:'none',flex:1}}>
-              <form onSubmit={save} style={{padding:'16px 20px 48px',display:'flex',flexDirection:'column',gap:14}}>
+              <form onSubmit={save} style={{padding:'16px 20px 60px',display:'flex',flexDirection:'column',gap:14}}>
+
+                {/* Tipo */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tipo</label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:8,textTransform:'uppercase',letterSpacing:'0.04em'}}>Tipo</label>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
                     {[{v:'target',l:'🎯 Meta'},{v:'diamond',l:'💍 Casamento'},{v:'plane',l:'✈️ Viagem'},{v:'home',l:'🏠 Casa'},{v:'shield',l:'🛡️ Reserva'},{v:'car',l:'🚗 Veículo'}].map(i=>(
-                      <button key={i.v} type="button" onClick={()=>sf('icon',i.v)} className={`h-10 rounded-xl text-xs font-medium border transition-all ${form.icon===i.v?'bg-brand-50 text-brand-600 border-brand-300':'bg-white text-gray-600 border-gray-200'}`}>{i.l}</button>
+                      <button key={i.v} type="button" onClick={()=>sf('icon',i.v)}
+                        style={{height:40,borderRadius:14,fontSize:12,fontWeight:500,cursor:'pointer',border:'none',
+                          background:form.icon===i.v?`${TERRA}30`:'rgba(255,255,255,0.07)',
+                          color:form.icon===i.v?TERRA:TEXTLT,
+                          outline:form.icon===i.v?`1px solid ${TERRA}40`:'none'
+                        }}>{i.l}</button>
                     ))}
                   </div>
                 </div>
-                <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Nome *</label><input type="text" value={form.name} onChange={e=>sf('name',e.target.value)} required className="input-base"/></div>
-                <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">De quem</label><div className="grid grid-cols-3 gap-2">{['Casal','Lucas','Nicoly'].map(p=><button key={p} type="button" onClick={()=>sf('holder',p)} className={`h-10 rounded-xl text-sm font-medium border transition-all ${form.holder===p?'bg-brand-50 text-brand-600 border-brand-300':'bg-white text-gray-600 border-gray-200'}`}>{p}</button>)}</div></div>
-                <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Valor da meta (R$) *</label><input type="number" inputMode="decimal" value={form.target_amount} onChange={e=>sf('target_amount',e.target.value)} required className="input-base" step="0.01" min="0.01"/></div>
-                <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Já acumulado (R$)</label><input type="number" inputMode="decimal" value={form.current_amount} onChange={e=>sf('current_amount',e.target.value)} className="input-base" step="0.01" min="0"/></div>
-                <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Aporte mensal (R$)</label><input type="number" inputMode="decimal" value={form.monthly_target} onChange={e=>sf('monthly_target',e.target.value)} placeholder="Para calcular projeção" className="input-base" step="0.01" min="0"/></div>
-                <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Prazo</label><input type="month" value={form.deadline} onChange={e=>sf('deadline',e.target.value)} className="input-base"/></div>
-                <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cor</label><div className="flex gap-3">{COLORS.map(c=><button key={c} type="button" onClick={()=>sf('color',c)} style={{width:32,height:32,borderRadius:'50%',background:c,border:form.color===c?`3px solid ${c}`:'3px solid transparent',outline:form.color===c?'2px solid #fff':'none',boxShadow:form.color===c?`0 0 0 2px ${c}`:'none'}}/>)}</div></div>
-                <div className="flex gap-2 pt-2">
-                  {editId&&<button type="button" onClick={async()=>{await createClient().from('goals').update({status:'cancelada'}).eq('id',editId);toast.success('Removida');setShow(false);load()}} className="h-12 px-4 bg-red-50 text-red-500 font-medium rounded-2xl text-sm">Apagar</button>}
-                  <button type="submit" disabled={saving} className="btn-primary flex-1">{saving?<><Loader2 size={18} className="animate-spin"/>Salvando...</>:editId?'Salvar':'Criar meta'}</button>
+
+                <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>Nome *</label><input type="text" value={form.name} onChange={e=>sf('name',e.target.value)} required placeholder="Ex: Viagem para Europa" style={inp}/></div>
+
+                <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>De quem</label><div style={{display:'flex',gap:8}}>{['Casal','Lucas','Nicoly'].map(p=><button key={p} type="button" onClick={()=>sf('holder',p)} style={seg(form.holder===p)}>{p}</button>)}</div></div>
+
+                <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>Valor da meta (R$) *</label><input type="number" inputMode="decimal" value={form.target_amount} onChange={e=>sf('target_amount',e.target.value)} required placeholder="0.00" style={inp} step="0.01" min="0.01"/></div>
+                <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>Já acumulado (R$)</label><input type="number" inputMode="decimal" value={form.current_amount} onChange={e=>sf('current_amount',e.target.value)} placeholder="0.00" style={inp} step="0.01" min="0"/></div>
+                <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>Aporte mensal (R$)</label><input type="number" inputMode="decimal" value={form.monthly_target} onChange={e=>sf('monthly_target',e.target.value)} placeholder="Para calcular projeção" style={inp} step="0.01" min="0"/></div>
+                <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>Prazo</label><input type="month" value={form.deadline} onChange={e=>sf('deadline',e.target.value)} style={inp}/></div>
+
+                <div>
+                  <label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:8,textTransform:'uppercase',letterSpacing:'0.04em'}}>Cor</label>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+                    {GOAL_COLORS.map(c=>(
+                      <button key={c} type="button" onClick={()=>sf('color',c)}
+                        style={{width:32,height:32,borderRadius:'50%',background:c,border:form.color===c?`3px solid #F4EFE8`:'2px solid transparent',cursor:'pointer',flexShrink:0,boxShadow:form.color===c?`0 0 0 2px ${c}`:undefined}}/>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{display:'flex',gap:8,paddingTop:4}}>
+                  {editId&&(
+                    <button type="button" onClick={async()=>{await createClient().from('goals').update({status:'cancelada'}).eq('id',editId);toast.success('Removida');setShow(false);load()}}
+                      style={{height:50,padding:'0 18px',background:'rgba(196,98,45,0.15)',color:TERRA,fontWeight:600,fontSize:13,borderRadius:24,border:'none',cursor:'pointer'}}>
+                      Apagar
+                    </button>
+                  )}
+                  <button type="submit" disabled={saving}
+                    style={{flex:1,height:50,background:TERRA,color:CREAM,borderRadius:24,border:'none',fontSize:15,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,boxShadow:'0 4px 16px rgba(196,98,45,0.35)'}}>
+                    {saving?<><Loader2 size={18} style={{animation:'spin 0.8s linear infinite'}}/>Salvando...</>:editId?'Salvar':'Criar meta'}
+                  </button>
                 </div>
               </form>
             </div>

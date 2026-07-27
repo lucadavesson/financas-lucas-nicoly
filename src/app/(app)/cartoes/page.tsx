@@ -50,7 +50,7 @@ export default function Cartoes() {
   const [faturas, setFaturas] = useState<Record<string,any>>({})
   const [loading, setLoading] = useState(true)
 
-  useEffect(()=>{load()},[])
+  useEffect(()=>{ load() },[])
 
   async function load() {
     const s=createClient()
@@ -82,41 +82,40 @@ export default function Cartoes() {
   const totalPendente=credito.reduce((s,c)=>s+(faturas[c.id]?.pendente||0),0)
 
   if(loading) return (
-    <div style={{background:BG,minHeight:'100%',display:'flex',justifyContent:'center',alignItems:'center'}}>
+    <div style={{background:BG,minHeight:'100%',display:'flex',justifyContent:'center',alignItems:'center',paddingTop:80}}>
       <div style={{width:24,height:24,border:`2px solid ${TERRA}`,borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
     </div>
   )
 
   return (
-    <div style={{background:BG,minHeight:'100%',padding:'14px 14px 120px'}}>
+    <div style={{background:BG,minHeight:'100%',padding:'14px 14px 130px'}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
-      {/* Visão Geral — 4 métricas */}
-      <div style={{background:'linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))',borderRadius:24,padding:'16px 18px',marginBottom:20,border:'0.5px solid rgba(255,255,255,0.09)'}}>
+      {/* ── Visão Geral ── */}
+      <div style={{background:'rgba(255,255,255,0.05)',borderRadius:24,padding:'16px 18px',marginBottom:20,border:'0.5px solid rgba(255,255,255,0.08)'}}>
         <p style={{fontSize:11,fontWeight:700,color:TEXTMU,margin:'0 0 12px',textTransform:'uppercase',letterSpacing:'0.09em'}}>
           Visão Geral ({mes})
         </p>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-          <div style={{background:'rgba(74,140,92,0.18)',borderRadius:16,padding:'11px 14px',border:'0.5px solid rgba(93,224,138,0.2)'}}>
+          <div style={{background:'rgba(74,140,92,0.2)',borderRadius:16,padding:'12px 14px',border:'0.5px solid rgba(93,224,138,0.2)'}}>
             <p style={{fontSize:10,color:'rgba(93,224,138,0.6)',margin:'0 0 3px'}}>Crédito Disponível</p>
             <p style={{fontSize:17,fontWeight:800,color:GREEN,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalDisp)}</p>
           </div>
-          <div style={{background:'rgba(196,98,45,0.18)',borderRadius:16,padding:'11px 14px',border:'0.5px solid rgba(255,138,92,0.2)'}}>
+          <div style={{background:'rgba(196,98,45,0.2)',borderRadius:16,padding:'12px 14px',border:'0.5px solid rgba(255,138,92,0.2)'}}>
             <p style={{fontSize:10,color:'rgba(255,138,92,0.6)',margin:'0 0 3px'}}>Crédito Utilizado</p>
             <p style={{fontSize:17,fontWeight:800,color:'#FF8A5C',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalUsado)}</p>
           </div>
-          <div style={{background:'rgba(74,140,92,0.1)',borderRadius:16,padding:'11px 14px',border:'0.5px solid rgba(93,224,138,0.12)'}}>
+          <div style={{background:'rgba(74,140,92,0.1)',borderRadius:16,padding:'12px 14px',border:'0.5px solid rgba(93,224,138,0.1)'}}>
             <p style={{fontSize:10,color:'rgba(93,224,138,0.5)',margin:'0 0 3px'}}>Total Pago</p>
             <p style={{fontSize:15,fontWeight:700,color:GREEN,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalPago)}</p>
           </div>
-          <div style={{background:'rgba(196,98,45,0.1)',borderRadius:16,padding:'11px 14px',border:'0.5px solid rgba(255,138,92,0.12)'}}>
+          <div style={{background:'rgba(196,98,45,0.1)',borderRadius:16,padding:'12px 14px',border:'0.5px solid rgba(255,138,92,0.1)'}}>
             <p style={{fontSize:10,color:'rgba(255,138,92,0.5)',margin:'0 0 3px'}}>A Pagar</p>
             <p style={{fontSize:15,fontWeight:700,color:'#FF8A5C',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalPendente)}</p>
           </div>
         </div>
       </div>
 
-      {/* Lista */}
       <p style={{fontSize:13,fontWeight:700,color:TEXTLT,margin:'0 0 12px'}}>Cartões & Contas</p>
 
       {cards.length===0 ? (
@@ -138,69 +137,66 @@ export default function Cartoes() {
 
             return (
               <div key={c.id} style={{borderRadius:28,overflow:'hidden',boxShadow:'0 8px 32px rgba(0,0,0,0.55)',border:'0.5px solid rgba(255,255,255,0.07)'}}>
-                <div style={{background:grad,padding:'20px 22px 18px',position:'relative',overflow:'hidden'}}>
-                  {/* Efeitos de luz sebble */}
+                {/* Corpo do cartão */}
+                <div style={{background:grad,padding:'20px 22px 16px',position:'relative',overflow:'hidden'}}>
                   <div style={{position:'absolute',top:-40,right:-40,width:160,height:160,borderRadius:'50%',background:'rgba(255,255,255,0.05)',pointerEvents:'none'}}/>
                   <div style={{position:'absolute',bottom:-60,left:-30,width:180,height:180,borderRadius:'50%',background:'rgba(255,255,255,0.03)',pointerEvents:'none'}}/>
 
-                  {/* Header */}
+                  {/* Header banco + dias */}
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16,position:'relative'}}>
                     <div style={{display:'flex',alignItems:'center',gap:10}}>
                       <div style={{width:38,height:38,borderRadius:13,background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
                         <span style={{fontSize:11,fontWeight:800,color:'#fff',letterSpacing:'-0.5px'}}>{sigla}</span>
                       </div>
                       <div>
-                        <p style={{fontSize:11,color:'rgba(255,255,255,0.55)',margin:'0 0 1px'}}>{c.bank}</p>
+                        <p style={{fontSize:11,color:'rgba(255,255,255,0.5)',margin:'0 0 1px'}}>{c.bank}</p>
                         <p style={{fontSize:15,fontWeight:700,color:'#fff',margin:0}}>{c.name} | {c.holder}</p>
                       </div>
                     </div>
                     <div style={{background:'rgba(255,255,255,0.13)',borderRadius:20,padding:'4px 12px',backdropFilter:'blur(4px)'}}>
-                      <p style={{fontSize:10,fontWeight:600,color:'rgba(255,255,255,0.85)',margin:0}}>
-                        Vence em {dias}d
-                      </p>
+                      <p style={{fontSize:10,fontWeight:600,color:'rgba(255,255,255,0.85)',margin:0}}>Vence em {dias}d</p>
                     </div>
                   </div>
 
                   {/* Fatura + disponível */}
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:14,position:'relative'}}>
                     <div>
-                      <p style={{fontSize:11,color:'rgba(255,255,255,0.45)',margin:'0 0 3px'}}>Fatura {mes}</p>
+                      <p style={{fontSize:11,color:'rgba(255,255,255,0.4)',margin:'0 0 3px'}}>Fatura {mes}</p>
                       <p style={{fontSize:28,fontWeight:800,color:'#fff',margin:0,letterSpacing:'-0.5px',fontVariantNumeric:'tabular-nums'}}>{formatCurrency(f.gasto)}</p>
                     </div>
-                    {c.credit_limit>0 && (
+                    {c.credit_limit>0&&(
                       <div style={{textAlign:'right'}}>
-                        <p style={{fontSize:10,color:'rgba(255,255,255,0.4)',margin:'0 0 2px'}}>Disponível</p>
-                        <p style={{fontSize:14,fontWeight:700,color: over?'rgba(255,120,120,0.9)':'rgba(93,224,138,0.9)',margin:0,fontVariantNumeric:'tabular-nums'}}>
-                          {formatCurrency(disponivel)}
-                        </p>
+                        <p style={{fontSize:10,color:'rgba(255,255,255,0.35)',margin:'0 0 2px'}}>Disponível</p>
+                        <p style={{fontSize:14,fontWeight:700,color:over?'rgba(255,120,120,0.9)':'rgba(93,224,138,0.9)',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(disponivel)}</p>
                       </div>
                     )}
                   </div>
 
-                  {/* Barra de progresso fluida */}
-                  {c.credit_limit>0 && (
+                  {/* Barra de progresso */}
+                  {c.credit_limit>0&&(
                     <div style={{position:'relative'}}>
-                      <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'rgba(255,255,255,0.35)',marginBottom:5}}>
+                      <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'rgba(255,255,255,0.3)',marginBottom:5}}>
                         <span>Limite: {formatCurrency(c.credit_limit)}</span>
-                        <span style={{color:over?'rgba(255,120,120,0.8)':'rgba(255,255,255,0.35)'}}>
-                          {over?`⚠️ ${pct.toFixed(0)}%`:`${pct.toFixed(0)}% usado`}
-                        </span>
+                        <span style={{color:over?'rgba(255,120,120,0.8)':'rgba(255,255,255,0.3)'}}>{over?`⚠️ ${pct.toFixed(0)}%`:`${pct.toFixed(0)}% usado`}</span>
                       </div>
-                      <div style={{height:4,background:'rgba(255,255,255,0.12)',borderRadius:99,overflow:'hidden'}}>
-                        <div style={{
-                          height:'100%',borderRadius:99,
-                          width:`${Math.min(pct,100)}%`,
-                          background:over?'linear-gradient(90deg,#FF6B6B,#FF4444)':'linear-gradient(90deg,rgba(93,224,138,0.6),rgba(93,224,138,0.9))',
-                          transition:'width 0.5s ease',
-                        }}/>
+                      <div style={{height:4,background:'rgba(255,255,255,0.1)',borderRadius:99,overflow:'hidden'}}>
+                        <div style={{height:'100%',borderRadius:99,width:`${Math.min(pct,100)}%`,background:over?'linear-gradient(90deg,#FF6B6B,#FF4444)':'linear-gradient(90deg,rgba(93,224,138,0.5),rgba(93,224,138,0.8))',transition:'width 0.5s'}}/>
                       </div>
                     </div>
                   )}
+                  <p style={{fontSize:10,color:'rgba(255,255,255,0.25)',margin:'10px 0 0',position:'relative'}}>Fecha dia {c.closing_day} · Vence dia {c.due_day}</p>
+                </div>
 
-                  {/* Fecha/Vence — discreto */}
-                  <p style={{fontSize:10,color:'rgba(255,255,255,0.28)',margin:'10px 0 0',position:'relative'}}>
-                    Fecha dia {c.closing_day} · Vence dia {c.due_day}
-                  </p>
+                {/* ── Rodapé Pago / Pendente ── */}
+                <div style={{background:'linear-gradient(145deg,#2A1C0E,#1E1408)',padding:'12px 16px',borderTop:'0.5px solid rgba(255,255,255,0.05)',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  <div style={{background:'rgba(74,140,92,0.15)',borderRadius:14,padding:'9px 12px',border:'0.5px solid rgba(93,224,138,0.15)',display:'flex',flexDirection:'column',gap:2}}>
+                    <p style={{fontSize:10,color:'rgba(93,224,138,0.55)',margin:0,letterSpacing:'0.04em'}}>✓ Pago</p>
+                    <p style={{fontSize:15,fontWeight:700,color:GREEN,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(f.pago)}</p>
+                  </div>
+                  <div style={{background:'rgba(196,98,45,0.15)',borderRadius:14,padding:'9px 12px',border:'0.5px solid rgba(255,138,92,0.15)',display:'flex',flexDirection:'column',gap:2}}>
+                    <p style={{fontSize:10,color:'rgba(255,138,92,0.55)',margin:0,letterSpacing:'0.04em'}}>⏳ Pendente</p>
+                    <p style={{fontSize:15,fontWeight:700,color:'#FF8A5C',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(f.pendente)}</p>
+                  </div>
                 </div>
               </div>
             )
