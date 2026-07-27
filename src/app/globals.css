@@ -12,28 +12,13 @@ html, body {
 
 #__next { height: 100%; }
 
-/* ── Paleta Espresso Gemini ───────────────────────────
-  BG_DEEP   = #1A110A  (fundo profundo)
-  BG_PAGE   = #231509  (fundo de página)
-  PEBBLE    = linear-gradient(145deg,#3D2810,#2C1C0E)  (sebble escuro)
-  PEBBLE_LT = linear-gradient(145deg,#4A3218,#382410)  (sebble médio)
-  BRONZE    = linear-gradient(145deg,#8B6340,#6B4828)  (sebble bronze)
-  TEXT      = #F4EFE8  (texto primário creme)
-  TEXTLT    = #C8B89A  (texto secundário)
-  TEXTMU    = #8B7A6A  (texto muted)
-  GREEN     = #4A8C5C  (receita/disponível)
-  GREENBG   = rgba(74,140,92,0.18)
-  TERRA     = #C4622D  (despesa/destaque)
-  TERRABG   = rgba(196,98,45,0.18)
-  GOLD      = #C8963C  (bronze/ouro)
-─────────────────────────────────────────────────── */
+/* ── Paleta Espresso Gemini ─────────────────────────── */
 
-/* Input pebble */
 .input-pebble {
   width: 100%;
   height: 48px;
-  background: rgba(255,255,255,0.06);
-  border: 0.5px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.07);
+  border: 0.5px solid rgba(255,255,255,0.12);
   border-radius: 24px;
   padding: 0 18px;
   font-size: 15px;
@@ -43,9 +28,8 @@ html, body {
   font-weight: 500;
 }
 .input-pebble::placeholder { color: rgba(244,239,232,0.3); }
-.input-pebble:focus { background: rgba(255,255,255,0.09); border-color: rgba(200,150,60,0.4); }
+.input-pebble:focus { background: rgba(255,255,255,0.1); border-color: rgba(200,150,60,0.4); }
 
-/* Botão primário terracota */
 .btn-primary {
   width: 100%;
   height: 52px;
@@ -65,30 +49,118 @@ html, body {
 .btn-primary:active { opacity: 0.88; }
 .btn-primary:disabled { opacity: 0.5; }
 
-/* Sebble escuro */
+/* Sebble escuro padrão */
 .sebble {
   background: linear-gradient(145deg,#3D2810,#2C1C0E);
   border-radius: 28px;
   padding: 18px 20px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
 }
-/* Sebble bronze */
-.sebble-bronze {
-  background: linear-gradient(145deg,#5A3C20,#3D2610);
-  border-radius: 28px;
-  padding: 18px 20px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(200,150,60,0.15);
+
+/* Card para relatórios e seções */
+.card {
+  background: linear-gradient(145deg,#3D2810,#2C1C0E);
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+  margin-bottom: 12px;
 }
 
-/* Badge status */
-.badge-pago     { display:inline-flex; align-items:center; gap:4px; background:rgba(74,140,92,0.2); color:#6EC98A; font-size:10px; font-weight:700; padding:2px 9px; border-radius:20px; border:1px solid rgba(74,140,92,0.3); letter-spacing:0.04em; }
-.badge-pendente { display:inline-flex; align-items:center; gap:4px; background:rgba(196,98,45,0.2); color:#E8855A; font-size:10px; font-weight:700; padding:2px 9px; border-radius:20px; border:1px solid rgba(196,98,45,0.3); letter-spacing:0.04em; }
-.badge-previsto { display:inline-flex; align-items:center; gap:4px; background:rgba(200,150,60,0.15); color:#C8963C; font-size:10px; font-weight:600; padding:2px 9px; border-radius:20px; border:1px solid rgba(200,150,60,0.2); letter-spacing:0.04em; }
-.badge-atrasado { display:inline-flex; align-items:center; gap:4px; background:rgba(200,60,60,0.18); color:#E87070; font-size:10px; font-weight:700; padding:2px 9px; border-radius:20px; border:1px solid rgba(200,60,60,0.3); letter-spacing:0.04em; }
+/* ── Badges — distinção forte entre pago e pendente ─── */
 
-/* Dot animado para pendente */
-.badge-pendente::before { content:''; width:5px; height:5px; border-radius:50%; background:#E8855A; animation: pulse 1.6s ease-in-out infinite; }
-.badge-pago::before     { content:''; width:5px; height:5px; border-radius:50%; background:#6EC98A; }
+/* PAGO: verde vibrante, fundo verde escuro */
+.badge-pago {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(34,120,60,0.35);
+  color: #5DE08A;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(93,224,138,0.4);
+  letter-spacing: 0.03em;
+}
+.badge-pago::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5DE08A;
+  flex-shrink: 0;
+}
+
+/* PENDENTE: laranja/terracota vibrante, fundo terracota escuro */
+.badge-pendente {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(180,60,20,0.35);
+  color: #FF8A5C;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,138,92,0.45);
+  letter-spacing: 0.03em;
+}
+.badge-pendente::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #FF8A5C;
+  flex-shrink: 0;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+/* PREVISTO: âmbar/dourado */
+.badge-previsto {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(160,110,10,0.3);
+  color: #FFCC55;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,204,85,0.35);
+  letter-spacing: 0.03em;
+}
+.badge-previsto::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #FFCC55;
+  flex-shrink: 0;
+}
+
+/* ATRASADO: vermelho */
+.badge-atrasado {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(180,30,30,0.35);
+  color: #FF6B6B;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,107,107,0.4);
+  letter-spacing: 0.03em;
+}
+.badge-atrasado::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #FF6B6B;
+  flex-shrink: 0;
+  animation: pulse 1s ease-in-out infinite;
+}
 
 @keyframes fadeInUp {
   from { opacity:0; transform:translateY(8px); }
@@ -97,16 +169,17 @@ html, body {
 .animate-in { animation: fadeInUp 0.2s ease-out; }
 
 @keyframes spin  { to { transform: rotate(360deg); } }
-@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.5)} }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.35;transform:scale(1.6)} }
 
 ::-webkit-scrollbar { display: none; }
 * { -ms-overflow-style: none; scrollbar-width: none; }
 
 select {
-  background: rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.07);
   color: #F4EFE8;
-  border: 0.5px solid rgba(255,255,255,0.1);
+  border: 0.5px solid rgba(255,255,255,0.12);
   border-radius: 24px;
+  appearance: none;
 }
 select option {
   background: #2C1C0E;

@@ -47,12 +47,12 @@ export default function Parametros() {
   }
 
   const inp = {width:'100%',height:46,background:'rgba(255,255,255,0.07)',border:'0.5px solid rgba(255,255,255,0.12)',borderRadius:22,padding:'0 16px',fontSize:14,color:'#F4EFE8',outline:'none',boxSizing:'border-box' as const}
-  const seg = (on:boolean)=>({flex:1,height:38,borderRadius:19,border:'none',background:on?TERRA:'rgba(61,44,32,0.1)',color:on?CREAM:TEXT,fontSize:13,fontWeight:on?600:400 as any,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'})
+  const seg = (on:boolean)=>({flex:1,height:38,borderRadius:19,border:'none',background:on?TERRA:'rgba(255,255,255,0.07)',color:on?CREAM:TEXT,fontSize:13,fontWeight:on?600:400 as any,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'})
 
   if (sec==='cartoes') return (
     <div style={{ background:BG,minHeight:'100%',padding:'14px 14px 100px' }}>
       <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:16 }}>
-        <button onClick={()=>setSec('main')} style={{ background:'rgba(61,44,32,0.1)',border:'none',borderRadius:12,padding:'6px 12px',cursor:'pointer',fontSize:13,color:TEXT,fontWeight:600 }}>← Voltar</button>
+        <button onClick={()=>setSec('main')} style={{ background:'rgba(255,255,255,0.07)',border:'none',borderRadius:12,padding:'6px 12px',cursor:'pointer',fontSize:13,color:TEXT,fontWeight:600 }}>← Voltar</button>
         <h2 style={{ fontSize:17,fontWeight:700,color:TEXT,flex:1 }}>Cartões e Contas</h2>
         <button onClick={openNew} style={{ width:34,height:34,background:TERRA,borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',border:'none',cursor:'pointer' }}>
           <Plus size={18} color={CREAM}/>
@@ -61,13 +61,13 @@ export default function Parametros() {
 
       <div style={{ display:'flex',flexDirection:'column',gap:10 }}>
         {cards.map(c=>(
-          <div key={c.id} style={{ background:SEBBLE,borderRadius:24,padding:'14px 16px',display:'flex',alignItems:'center',gap:12,boxShadow:'0 3px 10px rgba(61,44,32,0.12),inset 0 1px 0 rgba(255,255,255,0.25)',opacity:c.is_active?1:0.5 }}>
+          <div key={c.id} style={{ background:SEBBLE,borderRadius:24,padding:'14px 16px',display:'flex',alignItems:'center',gap:12,boxShadow:'0 3px 10px rgba(255,255,255,0.08),inset 0 1px 0 rgba(255,255,255,0.25)',opacity:c.is_active?1:0.5 }}>
             <div style={{ width:38,height:38,borderRadius:12,background:c.color,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:13,fontWeight:700,flexShrink:0 }}>{c.name[0]}</div>
             <div style={{ flex:1,minWidth:0 }}>
               <p style={{ fontSize:13,fontWeight:600,color:TEXT }}>{c.name} — {c.holder}</p>
               <p style={{ fontSize:10,color:TEXTMU }}>Fecha {c.closing_day} · Vence {c.due_day} · {c.credit_limit.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</p>
             </div>
-            <button onClick={()=>openEdit(c)} style={{ padding:'6px 8px',background:'rgba(61,44,32,0.1)',borderRadius:10,border:'none',cursor:'pointer' }}><Pencil size={13} color={TEXTMU}/></button>
+            <button onClick={()=>openEdit(c)} style={{ padding:'6px 8px',background:'rgba(255,255,255,0.07)',borderRadius:10,border:'none',cursor:'pointer' }}><Pencil size={13} color={TEXTMU}/></button>
             <button onClick={async()=>{await createClient().from('cards').update({is_active:!c.is_active}).eq('id',c.id);toast.success(c.is_active?'Arquivado':'Ativado');load()}}
               style={{ padding:'4px 10px',background:c.is_active?'rgba(196,98,45,0.1)':'rgba(80,130,90,0.1)',borderRadius:10,border:'none',cursor:'pointer',fontSize:11,fontWeight:600,color:c.is_active?TERRA:'#3D7A4A' }}>
               {c.is_active?'Arquivar':'Ativar'}
@@ -78,14 +78,14 @@ export default function Parametros() {
 
       {showC&&(
         <div style={{ position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end' }} onClick={()=>setShowC(false)}>
-          <div style={{ position:'absolute',inset:0,background:'rgba(61,44,32,0.55)',backdropFilter:'blur(8px)' }}/>
+          <div style={{ position:'absolute',inset:0,background:'rgba(0,0,0,0.7)',backdropFilter:'blur(8px)' }}/>
           <div style={{ position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'linear-gradient(180deg,#3D2810,#2C1C0E)',borderRadius:'32px 32px 0 0',maxHeight:'92vh',display:'flex',flexDirection:'column' }} onClick={e=>e.stopPropagation()}>
-            <div style={{ padding:'18px 20px 12px',borderBottom:'0.5px solid rgba(61,44,32,0.12)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between' }}>
+            <div style={{ padding:'18px 20px 12px',borderBottom:'0.5px solid rgba(255,255,255,0.08)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between' }}>
               <h3 style={{ fontSize:16,fontWeight:700,color:TEXT }}>{editC?'Editar cartão':'Novo cartão'}</h3>
               <button onClick={()=>setShowC(false)} style={{ background:'none',border:'none',cursor:'pointer' }}><X size={20} color={TEXTMU}/></button>
             </div>
-            <div style={{ overflowY:'auto',overscrollBehavior:'none',flex:1 }}>
-              <form onSubmit={saveCard} style={{ padding:'16px 20px 60px',display:'flex',flexDirection:'column',gap:14 }}>
+            <div style={{ overflowY:'auto',overscrollBehavior:'none',flex:1,background:'linear-gradient(145deg,#3D2810,#2C1C0E)' }}>
+              <form onSubmit={saveCard} style={{ padding:'16px 20px 60px',background:'linear-gradient(145deg,#3D2810,#2C1C0E)',display:'flex',flexDirection:'column',gap:14 }}>
                 {/* Preview */}
                 <div style={{ borderRadius:20,padding:'16px',background:prevColor,position:'relative',overflow:'hidden' }}>
                   <div style={{ position:'absolute',right:-10,top:-10,width:70,height:70,borderRadius:'50%',background:'rgba(255,255,255,0.12)' }}/>
@@ -118,11 +118,11 @@ export default function Parametros() {
                   <div style={{ display:'flex',flexWrap:'wrap',gap:8,marginBottom:8 }}>
                     {CARD_COLORS.map(c=>(
                       <button key={c.hex} type="button" onClick={()=>{sf('color',c.hex);setPrevColor(c.hex)}} title={c.name}
-                        style={{ width:32,height:32,borderRadius:'50%',background:c.hex,border:form.color===c.hex?`3px solid ${TEXT}`:'2px solid transparent',cursor:'pointer',flexShrink:0,boxShadow:form.color===c.hex?'0 0 0 2px rgba(61,44,32,0.3)':undefined }}/>
+                        style={{ width:32,height:32,borderRadius:'50%',background:c.hex,border:form.color===c.hex?`3px solid ${TEXT}`:'2px solid transparent',cursor:'pointer',flexShrink:0,boxShadow:form.color===c.hex?'0 0 0 2px rgba(255,255,255,0.15)':undefined }}/>
                     ))}
                   </div>
                   <div style={{ display:'flex',alignItems:'center',gap:8 }}>
-                    <input type="color" value={form.color} onChange={e=>{sf('color',e.target.value);setPrevColor(e.target.value)}} style={{ width:36,height:36,borderRadius:12,border:'0.5px solid rgba(61,44,32,0.2)',cursor:'pointer',padding:2 }}/>
+                    <input type="color" value={form.color} onChange={e=>{sf('color',e.target.value);setPrevColor(e.target.value)}} style={{ width:36,height:36,borderRadius:12,border:'0.5px solid rgba(255,255,255,0.1)',cursor:'pointer',padding:2 }}/>
                     <span style={{ fontSize:11,color:TEXTMU }}>Cor personalizada</span>
                   </div>
                 </div>
@@ -150,8 +150,8 @@ export default function Parametros() {
           {s:'categorias',Icon:Tag,label:'Categorias',desc:'Gerenciar categorias e subcategorias'},
         ].map(item=>(
           <button key={item.s} onClick={()=>item.s==='cartoes'?setSec('cartoes'):toast.info('Em breve!')}
-            style={{ background:SEBBLE,borderRadius:28,padding:'16px 20px',display:'flex',alignItems:'center',gap:14,textAlign:'left',cursor:'pointer',boxShadow:'0 4px 12px rgba(61,44,32,0.15),inset 0 1px 0 rgba(255,255,255,0.25)',border:'none',width:'100%' }}>
-            <div style={{ width:44,height:44,background:'rgba(61,44,32,0.1)',borderRadius:15,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+            style={{ background:SEBBLE,borderRadius:28,padding:'16px 20px',display:'flex',alignItems:'center',gap:14,textAlign:'left',cursor:'pointer',boxShadow:'0 4px 12px rgba(255,255,255,0.06),inset 0 1px 0 rgba(255,255,255,0.25)',border:'none',width:'100%' }}>
+            <div style={{ width:44,height:44,background:'rgba(255,255,255,0.07)',borderRadius:15,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
               <item.Icon size={20} color={TERRA}/>
             </div>
             <div style={{ flex:1 }}>

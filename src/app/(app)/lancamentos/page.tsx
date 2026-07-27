@@ -142,10 +142,10 @@ export default function Lancamentos() {
             {grouped.map(([d,list])=>(
               <div key={d}>
                 <p style={{ fontSize:13,fontWeight:600,color:TEXTLT,marginBottom:8 }}>{format(parseISO(d),"dd 'de' MMMM",{locale:ptBR})}</p>
-                <div style={{ background:SEBBLE,borderRadius:24,overflow:'hidden',boxShadow:'0 4px 12px rgba(61,44,32,0.15),inset 0 1px 0 rgba(255,255,255,0.25)' }}>
+                <div style={{ background:SEBBLE,borderRadius:24,overflow:'hidden',boxShadow:'0 4px 16px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.06)' }}>
                   {list.map((tx,i)=>(
                     <button key={tx.id} onClick={()=>setSel(tx)}
-                      style={{ width:'100%',display:'flex',alignItems:'center',gap:12,padding:'14px 16px',borderTop:i>0?`0.5px solid rgba(61,44,32,0.1)`:undefined,background:'none',border:'none',cursor:'pointer',textAlign:'left' }}>
+                      style={{ width:'100%',display:'flex',alignItems:'center',gap:12,padding:'14px 16px',borderTop:i>0?`0.5px solid rgba(255,255,255,0.07)`:undefined,background:'none',border:'none',cursor:'pointer',textAlign:'left' }}>
                       <div style={{ width:38,height:38,borderRadius:12,background:tx.transaction_type==='receita'?GREENBG:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,flexShrink:0 }}>
                         {CAT_ICONS[tx.category]||'📦'}
                       </div>
@@ -173,9 +173,9 @@ export default function Lancamentos() {
       {/* Bottom sheet */}
       {sel&&(
         <div style={{ position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end' }} onClick={()=>setSel(null)}>
-          <div style={{ position:'absolute',inset:0,background:'rgba(61,44,32,0.55)',backdropFilter:'blur(8px)' }}/>
-          <div style={{ position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'linear-gradient(180deg,#3D2810,#2C1C0E)',borderRadius:'32px 32px 0 0',padding:'20px 20px 48px',boxShadow:'0 -8px 32px rgba(61,44,32,0.2)' }} onClick={e=>e.stopPropagation()}>
-            <div style={{ width:36,height:3,background:'rgba(61,44,32,0.2)',borderRadius:2,margin:'0 auto 18px' }}/>
+          <div style={{ position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',backdropFilter:'blur(8px)' }}/>
+          <div style={{ position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'linear-gradient(180deg,#3D2810,#2C1C0E)',borderRadius:'32px 32px 0 0',padding:'20px 20px 48px',boxShadow:'0 -8px 32px rgba(255,255,255,0.1)' }} onClick={e=>e.stopPropagation()}>
+            <div style={{ width:36,height:3,background:'rgba(255,255,255,0.1)',borderRadius:2,margin:'0 auto 18px' }}/>
             <div style={{ display:'flex',alignItems:'center',gap:12,marginBottom:16,paddingBottom:16,borderBottom:`0.5px solid rgba(255,255,255,0.06)` }}>
               <div style={{ width:44,height:44,borderRadius:14,background:sel.transaction_type==='receita'?GREENBG:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20 }}>{CAT_ICONS[sel.category]||'📦'}</div>
               <div style={{ flex:1 }}>
@@ -194,7 +194,7 @@ export default function Lancamentos() {
                 <button onClick={()=>markPaid(sel)} style={{ width:'100%',height:50,background:TERRA,color:CREAM,fontWeight:700,fontSize:15,borderRadius:24,border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(196,98,45,0.3)' }}>✓ Marcar como pago</button>
               )}
               <Link href={`/lancamentos/editar/${sel.id}`} onClick={()=>setSel(null)}
-                style={{ width:'100%',height:46,background:'rgba(61,44,32,0.1)',color:TEXT,fontWeight:600,fontSize:14,borderRadius:24,display:'flex',alignItems:'center',justifyContent:'center' }}>
+                style={{ width:'100%',height:46,background:'rgba(255,255,255,0.07)',color:TEXT,fontWeight:600,fontSize:14,borderRadius:24,display:'flex',alignItems:'center',justifyContent:'center' }}>
                 ✏️ Editar
               </Link>
               <button onClick={()=>del(sel)} style={{ width:'100%',height:46,background:TERRABG,color:TERRA,fontWeight:600,fontSize:14,borderRadius:24,border:'none',cursor:'pointer' }}>🗑 Apagar</button>
