@@ -54,7 +54,7 @@ export default function Metas() {
   const seg = (on:boolean,col?:string)=>({flex:1,height:38,borderRadius:19,border:'none',background:on?(col||TERRA):'rgba(255,255,255,0.07)',color:on?CREAM:TEXTLT,fontSize:13,fontWeight:on?700:400 as any,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'})
 
   return (
-    <div style={{background:BG,minHeight:'100%',padding:'14px 14px 130px'}}>
+    <div style={{background:BG,minHeight:'100%',padding:'14px 14px 160px'}}>
 
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>

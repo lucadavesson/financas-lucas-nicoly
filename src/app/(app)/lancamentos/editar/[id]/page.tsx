@@ -124,7 +124,7 @@ export default function EditarLancamento() {
         </button>
       </div>
 
-      <form onSubmit={save} style={{ padding:'18px 16px 100px', display:'flex', flexDirection:'column', gap:16 }}>
+      <form onSubmit={save} style={{ padding:'18px 16px 160px', display:'flex', flexDirection:'column', gap:16 }}>
 
         {/* Info do lançamento (somente leitura) */}
         <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:20, padding:'14px 16px', border:'0.5px solid rgba(255,255,255,0.07)' }}>

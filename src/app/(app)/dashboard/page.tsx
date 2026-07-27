@@ -117,7 +117,7 @@ export default function Dashboard() {
   )
 
   return (
-    <div style={{ background:BG, minHeight:'100%', padding:'14px 14px 130px' }}>
+    <div style={{ background:BG, minHeight:'100%', padding:'14px 14px 160px' }}>
       <style>{`
         @keyframes spin  { to { transform:rotate(360deg) } }
         @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.5)} }

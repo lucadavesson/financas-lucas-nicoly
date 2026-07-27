@@ -239,7 +239,7 @@ export default function NovoLancamento() {
   const S = {
     page:  { minHeight:'100%', background:'#1A110A' },
     hdr:   { position:'sticky' as const, top:0, background:'#1A110A', borderBottom:'0.5px solid rgba(255,255,255,0.08)', padding:'12px 16px', display:'flex', alignItems:'center', gap:10, zIndex:10 },
-    form:  { padding:'16px', display:'flex', flexDirection:'column' as const, gap:16, paddingBottom:120 },
+    form:  { padding:'16px', display:'flex', flexDirection:'column' as const, gap:16, paddingBottom:160 },
     lbl:   { fontSize:11, fontWeight:600 as const, color:'#8B7A6A', textTransform:'uppercase' as const, letterSpacing:'0.05em', display:'block', marginBottom:6 },
     inp:   { width:'100%', height:44, background:'rgba(255,255,255,0.07)', border:'0.5px solid rgba(255,255,255,0.12)', borderRadius:12, padding:'0 14px', fontSize:15, color:'#F4EFE8', outline:'none' },
     inpMoney: { width:'100%', height:52, background:'rgba(255,255,255,0.07)', border:'0.5px solid rgba(255,255,255,0.12)', borderRadius:12, padding:'0 14px', fontSize:20, fontWeight:700 as const, color:'#F4EFE8', outline:'none', fontVariantNumeric:'tabular-nums' as const },

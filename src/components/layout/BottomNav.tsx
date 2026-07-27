@@ -20,21 +20,21 @@ export default function BottomNav() {
       width:'100%', maxWidth:480, zIndex:50,
       background:'#2A1C0E',
       borderTop:'0.5px solid rgba(255,255,255,0.08)',
-      display:'flex', alignItems:'center',
-      paddingTop:8,
-      paddingBottom:'env(safe-area-inset-bottom,14px)',
+      display:'flex', alignItems:'flex-end',
+      paddingTop:10,
+      paddingBottom:'max(env(safe-area-inset-bottom, 0px), 12px)',
+      minHeight:72,
     }}>
       {items.map((item) => {
         if (item.fab) return (
-          <div key="fab" style={{ flex:1, display:'flex', justifyContent:'center', alignItems:'center', marginTop:-28 }}>
-            <Link href="/lancamentos/novo" style={{ display:'block' }}>
+          <div key="fab" style={{ flex:1, display:'flex', justifyContent:'center', alignItems:'flex-end', marginBottom:6 }}>
+            <Link href="/lancamentos/novo" style={{ display:'block', marginBottom:8 }}>
               <div style={{
-                width:54, height:54,
+                width:52, height:52,
                 background:'radial-gradient(circle at 35% 35%, #E8A070, #C4622D 60%, #A04010)',
                 borderRadius:'50%',
                 display:'flex', alignItems:'center', justifyContent:'center',
                 boxShadow:'0 4px 20px rgba(196,98,45,0.5)',
-                border:'2px solid #2A1C0E',
               }}>
                 <Plus size={24} color="#F4EFE8" strokeWidth={2.5}/>
               </div>
@@ -44,10 +44,13 @@ export default function BottomNav() {
         const active = path === item.href || (item.href !== '/dashboard' && path.startsWith(item.href!))
         const Icon = item.icon
         return (
-          <Link key={item.href} href={item.href!} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:3, padding:'4px 4px 4px', textDecoration:'none' }}>
-            <div style={{ width:4, height:4, borderRadius:'50%', background:active?'#C4622D':'transparent', marginBottom:1 }}/>
-            <Icon size={21} strokeWidth={active?2.5:1.6} color={active?'#F4EFE8':'#8B7A6A'}/>
+          <Link key={item.href} href={item.href!} style={{
+            flex:1, display:'flex', flexDirection:'column', alignItems:'center',
+            gap:4, paddingBottom:8, paddingTop:4, textDecoration:'none',
+          }}>
+            <Icon size={22} strokeWidth={active?2.5:1.6} color={active?'#F4EFE8':'#8B7A6A'}/>
             <span style={{ fontSize:10, fontWeight:active?700:400, color:active?'#F4EFE8':'#8B7A6A' }}>{item.label}</span>
+            {active && <div style={{ width:4, height:4, borderRadius:'50%', background:'#C4622D', marginTop:-2 }}/>}
           </Link>
         )
       })}

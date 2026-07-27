@@ -112,7 +112,7 @@ export default function Cartoes() {
   )
 
   return (
-    <div style={{background:BG,minHeight:'100%',padding:'14px 14px 130px'}}>
+    <div style={{background:BG,minHeight:'100%',padding:'14px 14px 160px'}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       {/* Visão Geral */}

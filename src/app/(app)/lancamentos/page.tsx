@@ -155,7 +155,7 @@ export default function Lancamentos() {
       </div>
 
       {/* Lista */}
-      <div style={{ flex:1,overflowY:'auto',overscrollBehavior:'none',padding:'12px 14px 100px' }}>
+      <div style={{ flex:1,overflowY:'auto',overscrollBehavior:'none',padding:'12px 14px 160px' }}>
         {load?(
           <div style={{ display:'flex',justifyContent:'center',padding:40 }}>
             <div style={{ width:22,height:22,border:`2px solid ${TERRA}`,borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.8s linear infinite' }}/>

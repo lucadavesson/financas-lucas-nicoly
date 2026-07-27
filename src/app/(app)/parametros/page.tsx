@@ -50,7 +50,7 @@ export default function Parametros() {
   const seg = (on:boolean)=>({flex:1,height:38,borderRadius:19,border:'none',background:on?TERRA:'rgba(255,255,255,0.07)',color:on?CREAM:TEXT,fontSize:13,fontWeight:on?600:400 as any,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'})
 
   if (sec==='cartoes') return (
-    <div style={{ background:BG,minHeight:'100%',padding:'14px 14px 100px' }}>
+    <div style={{ background:BG,minHeight:'100%',padding:'14px 14px 160px' }}>
       <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:16 }}>
         <button onClick={()=>setSec('main')} style={{ background:'rgba(255,255,255,0.07)',border:'none',borderRadius:12,padding:'6px 12px',cursor:'pointer',fontSize:13,color:TEXT,fontWeight:600 }}>← Voltar</button>
         <h2 style={{ fontSize:17,fontWeight:700,color:TEXT,flex:1 }}>Cartões e Contas</h2>
@@ -139,7 +139,7 @@ export default function Parametros() {
 
   // Tela principal
   return (
-    <div style={{ background:BG,minHeight:'100%',padding:'14px 14px 100px' }}>
+    <div style={{ background:BG,minHeight:'100%',padding:'14px 14px 160px' }}>
       <h1 style={{ fontSize:24,fontWeight:700,color:TEXT,marginBottom:4 }}>Parâmetros</h1>
       <p style={{ fontSize:13,color:TEXTMU,marginBottom:20 }}>Configure o app do seu jeito</p>
       <div style={{ display:'flex',flexDirection:'column',gap:12 }}>
