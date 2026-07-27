@@ -243,8 +243,8 @@ export default function NovoLancamento() {
     lbl:   { fontSize:11, fontWeight:600 as const, color:'#8B7A6A', textTransform:'uppercase' as const, letterSpacing:'0.05em', display:'block', marginBottom:6 },
     inp:   { width:'100%', height:44, background:'rgba(255,255,255,0.07)', border:'0.5px solid rgba(255,255,255,0.12)', borderRadius:12, padding:'0 14px', fontSize:15, color:'#F4EFE8', outline:'none' },
     inpMoney: { width:'100%', height:52, background:'rgba(255,255,255,0.07)', border:'0.5px solid rgba(255,255,255,0.12)', borderRadius:12, padding:'0 14px', fontSize:20, fontWeight:700 as const, color:'#F4EFE8', outline:'none', fontVariantNumeric:'tabular-nums' as const },
-    seg:   (on:boolean, accent='#2C1810') => ({
-      flex:1, height:40, borderRadius:10, border: on?`1px solid ${accent}`:'0.5px solid #D4C4B0',
+    seg:   (on:boolean, accent='#C4622D') => ({
+      flex:1, height:40, borderRadius:10, border: on?`1px solid ${accent}`:'0.5px solid rgba(255,255,255,0.12)',
       background: on?accent:'rgba(255,255,255,0.07)', color: on?'#F4EFE8':'#C8B89A',
       fontSize:13, fontWeight: on?600:400 as any, cursor:'pointer',
       display:'flex', alignItems:'center', justifyContent:'center', gap:5,
@@ -271,7 +271,7 @@ export default function NovoLancamento() {
           { t:'receita' as TipoLanc,    emoji:'↑', label:'Receita',           desc:'Salário, renda extra, investimento recebido',    bg:'rgba(74,140,92,0.2)', border:'rgba(74,140,92,0.4)', ec:'#F4EFE8' },
           { t:'parcelada' as TipoLanc,  emoji:'💳', label:'Compra parcelada',  desc:'Pagamento em várias vezes no cartão de crédito', bg:'rgba(196,98,45,0.2)', border:'rgba(196,98,45,0.4)', ec:'#F4EFE8' },
           { t:'avista' as TipoLanc,     emoji:'💵', label:'Compra à vista',    desc:'Crédito, débito, PIX, dinheiro ou boleto',       bg:'rgba(196,98,45,0.15)', border:'rgba(196,98,45,0.35)', ec:'#F4EFE8' },
-          { t:'recorrente' as TipoLanc, emoji:'🔄', label:'Conta recorrente',  desc:'Energia, assinatura, financiamento...',           bg:'rgba(100,100,200,0.15)', border:'rgba(100,100,200,0.3)', ec:'#F4EFE8' },
+          { t:'recorrente' as TipoLanc, emoji:'🔄', label:'Conta recorrente',  desc:'Energia, assinatura, financiamento...',           bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.12)', ec:'#F4EFE8' },
         ].map(item => (
           <button key={item.t} onClick={()=>changeTipo(item.t)} style={{
             width:'100%', background:'rgba(255,255,255,0.05)', borderRadius:18,

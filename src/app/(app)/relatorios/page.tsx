@@ -101,7 +101,7 @@ export default function Relatorios() {
   )
 
   return (
-    <div style={{ background:BG, minHeight:'100%', padding:'14px 14px 120px' }}>
+    <div style={{ background:BG, minHeight:'100%', padding:'14px 14px 130px' }}>
 
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
