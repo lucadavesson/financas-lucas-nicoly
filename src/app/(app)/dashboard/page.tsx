@@ -8,7 +8,7 @@ import { ChevronRight, ArrowUpRight, ArrowDownRight, Wallet, TrendingUp } from '
 import Link from 'next/link'
 import { toast } from 'sonner'
 
-type Tx = { id:string;holder:string;description:string;category:string;amount:number;status:string;purchase_date:string;transaction_type:string;installment_value?:number }
+type Tx = { id:string;holder:string;description:string;category:string;amount:number;status:string;purchase_date:string;transaction_type:string;installment_value?:number;payment_method?:string;card_name?:string }
 
 const BG     = '#1A110A'
 const PEBBLE = 'linear-gradient(145deg,#3D2810,#2C1C0E)'
@@ -64,19 +64,19 @@ export default function Dashboard() {
   const hoje = new Date()
   const em7  = addDays(hoje, 7)
 
-  // Próximos pagamentos (pendentes, ordenados por data)
+  // Próximos pagamentos: só contas avulsas (não itens de cartão)
+  const isCartao = (t: Tx) => t.payment_method === 'cartao_credito' || t.transaction_type === 'parcelada' || (t.card_name && !t.payment_method)
   const proximos = despesas
-    .filter(t => t.status !== 'pago' && t.status !== 'cancelado')
+    .filter(t => t.status !== 'pago' && t.status !== 'cancelado' && !isCartao(t))
     .sort((a,b) => a.purchase_date.localeCompare(b.purchase_date))
     .slice(0, 5)
 
   // Atrasados
-  // Atrasados: só contas avulsas (débito/PIX/boleto) com data passada
-  // Compras de cartão de crédito não são "atrasadas" pela data de compra
+  // Atrasados: só contas avulsas com data passada (não compras de cartão)
   const atrasados = despesas.filter(t =>
     t.status === 'atrasado' || (
       t.status === 'pendente' &&
-      t.payment_method !== 'cartao_credito' &&
+      !isCartao(t) &&
       new Date(t.purchase_date + 'T12:00:00') < hoje
     )
   )

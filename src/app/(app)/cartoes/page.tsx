@@ -78,11 +78,10 @@ export default function Cartoes() {
 
   // Agrupa txs por cartão
   function txsDoCartao(card: Card): Tx[] {
+    const nomeCompleto = `${card.name} — ${card.holder}`
     return txs.filter(t =>
-      t.payment_method === 'cartao_credito' && (
-        t.card_name === `${card.name} — ${card.holder}` ||
-        t.card_name === card.name
-      )
+      (t.payment_method === 'cartao_credito' || t.transaction_type === 'parcelada' || (t.card_name && !t.payment_method)) &&
+      (t.card_name === nomeCompleto || t.card_name === card.name)
     )
   }
 

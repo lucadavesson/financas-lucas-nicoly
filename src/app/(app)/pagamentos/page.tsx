@@ -129,10 +129,20 @@ export default function Pagamentos() {
 
   // ── Separação lógica ──────────────────────────────────────────
   // 1. Transações de cartão de crédito (pagamento é da fatura, não individual)
-  const txCartao = txs.filter(t => t.payment_method === 'cartao_credito')
+  // Transações de cartão de crédito: payment_method explícito OU parcelada com card_name
+  const txCartao = txs.filter(t => 
+    t.payment_method === 'cartao_credito' || 
+    (t.transaction_type === 'parcelada' && t.card_name) ||
+    (t.card_name && !t.payment_method) // legado: tem cartão mas sem método
+  )
 
   // 2. Transações avulsas (débito, PIX, boleto, dinheiro — pagas individualmente)
-  const txAvulsas = txs.filter(t => t.payment_method !== 'cartao_credito')
+  // Contas avulsas: tudo que NÃO é cartão de crédito
+  const txAvulsas = txs.filter(t => 
+    t.payment_method !== 'cartao_credito' && 
+    t.transaction_type !== 'parcelada' &&
+    !(t.card_name && !t.payment_method)
+  )
   const avulsasPendentes = txAvulsas.filter(t => t.status !== 'pago' && t.status !== 'cancelado')
   const avulsasPagas     = txAvulsas.filter(t => t.status === 'pago')
 
