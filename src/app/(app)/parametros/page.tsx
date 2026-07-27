@@ -79,7 +79,7 @@ export default function Parametros() {
       {showC&&(
         <div style={{ position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end' }} onClick={()=>setShowC(false)}>
           <div style={{ position:'absolute',inset:0,background:'rgba(61,44,32,0.55)',backdropFilter:'blur(8px)' }}/>
-          <div style={{ position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'linear-gradient(180deg,#C4A882,#B89068)',borderRadius:'32px 32px 0 0',maxHeight:'92vh',display:'flex',flexDirection:'column' }} onClick={e=>e.stopPropagation()}>
+          <div style={{ position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'linear-gradient(180deg,#3D2810,#2C1C0E)',borderRadius:'32px 32px 0 0',maxHeight:'92vh',display:'flex',flexDirection:'column' }} onClick={e=>e.stopPropagation()}>
             <div style={{ padding:'18px 20px 12px',borderBottom:'0.5px solid rgba(61,44,32,0.12)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between' }}>
               <h3 style={{ fontSize:16,fontWeight:700,color:TEXT }}>{editC?'Editar cartão':'Novo cartão'}</h3>
               <button onClick={()=>setShowC(false)} style={{ background:'none',border:'none',cursor:'pointer' }}><X size={20} color={TEXTMU}/></button>
