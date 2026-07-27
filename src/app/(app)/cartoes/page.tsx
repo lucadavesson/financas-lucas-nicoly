@@ -184,19 +184,19 @@ export default function Cartoes() {
                       </div>
                     </div>
                   )}
-                  <p style={{fontSize:10,color:'rgba(255,255,255,0.25)',margin:'10px 0 0',position:'relative'}}>Fecha dia {c.closing_day} · Vence dia {c.due_day}</p>
-                </div>
+                  {/* ── Pago / Pendente — dentro do card, mesmo gradiente ── */}
+                  <div style={{marginTop:14,paddingTop:12,borderTop:'0.5px solid rgba(255,255,255,0.12)',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,position:'relative'}}>
+                    <div style={{background:'rgba(0,0,0,0.2)',borderRadius:14,padding:'9px 12px',backdropFilter:'blur(4px)'}}>
+                      <p style={{fontSize:10,color:'rgba(255,255,255,0.5)',margin:'0 0 3px',letterSpacing:'0.04em'}}>✓ Pago</p>
+                      <p style={{fontSize:15,fontWeight:700,color:'rgba(93,224,138,0.9)',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(f.pago)}</p>
+                    </div>
+                    <div style={{background:'rgba(0,0,0,0.2)',borderRadius:14,padding:'9px 12px',backdropFilter:'blur(4px)'}}>
+                      <p style={{fontSize:10,color:'rgba(255,255,255,0.5)',margin:'0 0 3px',letterSpacing:'0.04em'}}>⏳ Pendente</p>
+                      <p style={{fontSize:15,fontWeight:700,color:'rgba(255,180,100,0.95)',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(f.pendente)}</p>
+                    </div>
+                  </div>
 
-                {/* ── Rodapé Pago / Pendente ── */}
-                <div style={{background:'linear-gradient(145deg,#2A1C0E,#1E1408)',padding:'12px 16px',borderTop:'0.5px solid rgba(255,255,255,0.05)',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                  <div style={{background:'rgba(74,140,92,0.15)',borderRadius:14,padding:'9px 12px',border:'0.5px solid rgba(93,224,138,0.15)',display:'flex',flexDirection:'column',gap:2}}>
-                    <p style={{fontSize:10,color:'rgba(93,224,138,0.55)',margin:0,letterSpacing:'0.04em'}}>✓ Pago</p>
-                    <p style={{fontSize:15,fontWeight:700,color:GREEN,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(f.pago)}</p>
-                  </div>
-                  <div style={{background:'rgba(196,98,45,0.15)',borderRadius:14,padding:'9px 12px',border:'0.5px solid rgba(255,138,92,0.15)',display:'flex',flexDirection:'column',gap:2}}>
-                    <p style={{fontSize:10,color:'rgba(255,138,92,0.55)',margin:0,letterSpacing:'0.04em'}}>⏳ Pendente</p>
-                    <p style={{fontSize:15,fontWeight:700,color:'#FF8A5C',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(f.pendente)}</p>
-                  </div>
+                  <p style={{fontSize:10,color:'rgba(255,255,255,0.25)',margin:'10px 0 0',position:'relative'}}>Fecha dia {c.closing_day} · Vence dia {c.due_day}</p>
                 </div>
               </div>
             )
