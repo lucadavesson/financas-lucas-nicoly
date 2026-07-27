@@ -13,9 +13,9 @@ type Tx = { id:string;holder:string;description:string;category:string;subcatego
 const BADGE: Record<string,string> = { pago:'badge-pago',pendente:'badge-pendente',previsto:'badge-previsto',atrasado:'badge-atrasado',cancelado:'badge-previsto' }
 const BADGE_LABEL: Record<string,string> = { pago:'Pago',pendente:'Pendente',previsto:'Previsto',atrasado:'Atrasado',cancelado:'Cancelado' }
 
-const BG='#C4A882'; const SEBBLE='linear-gradient(145deg,#CEAD8A,#B89068)'; const SEBBLE_DK='linear-gradient(145deg,#6B4C2E,#4A3020)'
-const TEXT='#3D2C20'; const TEXTMU='#8B7060'; const TEXTLT='#6B5040'
-const GREEN='#3D7A4A'; const GREENBG='rgba(80,130,90,0.15)'; const TERRA='#C4622D'; const TERRABG='rgba(196,98,45,0.15)'; const CREAM='#F4EFE8'
+const BG='#1A110A'; const SEBBLE='linear-gradient(145deg,#3D2810,#2C1C0E)'; const SEBBLE_DK='linear-gradient(145deg,#2A1C0E,#1A1208)'
+const TEXT='#F4EFE8'; const TEXTMU='#8B7A6A'; const TEXTLT='#C8B89A'
+const GREEN='#4A8C5C'; const GREENBG='rgba(74,140,92,0.18)'; const TERRA='#C4622D'; const TERRABG='rgba(196,98,45,0.18)'; const CREAM='#F4EFE8'
 
 export default function Lancamentos() {
   const [txs,setTxs]   = useState<Tx[]>([])
@@ -70,7 +70,7 @@ export default function Lancamentos() {
   return (
     <div style={{ display:'flex',flexDirection:'column',height:'100%',background:BG }}>
       {/* Header */}
-      <div style={{ background:'linear-gradient(180deg,#4A3828,#3D2C20)', padding:'12px 16px 14px', flexShrink:0 }}>
+      <div style={{ background:'linear-gradient(180deg,#1A1208,#0E0A06)', padding:'12px 16px 14px', flexShrink:0 }}>
         {/* Navegação de mês */}
         <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14 }}>
           <button onClick={()=>setDate(d=>subMonths(d,1))} style={{ width:32,height:32,background:'rgba(244,239,232,0.1)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
@@ -174,9 +174,9 @@ export default function Lancamentos() {
       {sel&&(
         <div style={{ position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end' }} onClick={()=>setSel(null)}>
           <div style={{ position:'absolute',inset:0,background:'rgba(61,44,32,0.55)',backdropFilter:'blur(8px)' }}/>
-          <div style={{ position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:SEBBLE,borderRadius:'32px 32px 0 0',padding:'20px 20px 48px',boxShadow:'0 -8px 32px rgba(61,44,32,0.2)' }} onClick={e=>e.stopPropagation()}>
+          <div style={{ position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'linear-gradient(180deg,#3D2810,#2C1C0E)',borderRadius:'32px 32px 0 0',padding:'20px 20px 48px',boxShadow:'0 -8px 32px rgba(61,44,32,0.2)' }} onClick={e=>e.stopPropagation()}>
             <div style={{ width:36,height:3,background:'rgba(61,44,32,0.2)',borderRadius:2,margin:'0 auto 18px' }}/>
-            <div style={{ display:'flex',alignItems:'center',gap:12,marginBottom:16,paddingBottom:16,borderBottom:`0.5px solid rgba(61,44,32,0.12)` }}>
+            <div style={{ display:'flex',alignItems:'center',gap:12,marginBottom:16,paddingBottom:16,borderBottom:`0.5px solid rgba(255,255,255,0.06)` }}>
               <div style={{ width:44,height:44,borderRadius:14,background:sel.transaction_type==='receita'?GREENBG:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20 }}>{CAT_ICONS[sel.category]||'📦'}</div>
               <div style={{ flex:1 }}>
                 <p style={{ fontSize:15,fontWeight:600,color:TEXT }}>{sel.description}</p>

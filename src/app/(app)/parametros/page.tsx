@@ -4,8 +4,8 @@ import { createClient } from '@/lib/supabase/client'
 import { CreditCard, Target, PiggyBank, Tag, ChevronRight, Plus, Pencil, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-const BG='#C4A882'; const SEBBLE='linear-gradient(145deg,#CEAD8A,#B89068)'; const SEBBLE_DK='linear-gradient(145deg,#6B4C2E,#4A3020)'
-const TEXT='#3D2C20'; const TEXTMU='#8B7060'; const TERRA='#C4622D'; const CREAM='#F4EFE8'
+const BG='#1A110A'; const SEBBLE='linear-gradient(145deg,#3D2810,#2C1C0E)'; const SEBBLE_DK='linear-gradient(145deg,#2A1C0E,#1A1208)'
+const TEXT='#F4EFE8'; const TEXTMU='#8B7A6A'; const TERRA='#C4622D'; const CREAM='#F4EFE8'
 
 const CARD_COLORS = [
   {name:'Nubank',hex:'#6B3FA0'},{name:'Roxo',hex:'#8B5CF6'},{name:'Santander',hex:'#CC0000'},
@@ -46,7 +46,7 @@ export default function Parametros() {
     toast.success(editC?'Atualizado!':'Adicionado!');setShowC(false);load();setSaving(false)
   }
 
-  const inp = {width:'100%',height:46,background:'rgba(61,44,32,0.1)',border:'0.5px solid rgba(61,44,32,0.2)',borderRadius:22,padding:'0 16px',fontSize:14,color:TEXT,outline:'none',boxSizing:'border-box' as const}
+  const inp = {width:'100%',height:46,background:'rgba(255,255,255,0.07)',border:'0.5px solid rgba(255,255,255,0.12)',borderRadius:22,padding:'0 16px',fontSize:14,color:'#F4EFE8',outline:'none',boxSizing:'border-box' as const}
   const seg = (on:boolean)=>({flex:1,height:38,borderRadius:19,border:'none',background:on?TERRA:'rgba(61,44,32,0.1)',color:on?CREAM:TEXT,fontSize:13,fontWeight:on?600:400 as any,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'})
 
   if (sec==='cartoes') return (
@@ -162,7 +162,7 @@ export default function Parametros() {
           </button>
         ))}
       </div>
-      <div style={{ marginTop:20,background:'rgba(61,44,32,0.08)',borderRadius:20,padding:'12px 16px',display:'flex',alignItems:'center',gap:10 }}>
+      <div style={{ marginTop:20,background:'rgba(255,255,255,0.05)',borderRadius:20,padding:'12px 16px',display:'flex',alignItems:'center',gap:10 }}>
         <span style={{ fontSize:16 }}>🔄</span>
         <p style={{ fontSize:13,color:TEXTMU,fontWeight:500 }}>Sincronização: Automática</p>
       </div>
