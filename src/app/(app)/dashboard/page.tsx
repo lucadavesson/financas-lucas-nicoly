@@ -13,6 +13,35 @@ type Tx = { id:string;holder:string;description:string;category:string;amount:nu
 const BADGE: Record<string,string>       = { pago:'badge-pago',pendente:'badge-pendente',previsto:'badge-previsto',atrasado:'badge-atrasado',cancelado:'badge-previsto' }
 const BADGE_LABEL: Record<string,string> = { pago:'Pago',pendente:'Pendente',previsto:'Previsto',atrasado:'Atrasado',cancelado:'Cancelado' }
 
+function BadgeInline({status}: {status:string}) {
+  const cfg: Record<string,{bg:string;color:string;border:string;label:string;pulse:boolean}> = {
+    pago:      {bg:'rgba(34,120,60,0.35)',   color:'#5DE08A', border:'rgba(93,224,138,0.4)',  label:'Pago',      pulse:false},
+    pendente:  {bg:'rgba(180,60,20,0.35)',   color:'#FF8A5C', border:'rgba(255,138,92,0.45)', label:'Pendente',  pulse:true},
+    previsto:  {bg:'rgba(160,110,10,0.3)',   color:'#FFCC55', border:'rgba(255,204,85,0.35)', label:'Previsto',  pulse:false},
+    atrasado:  {bg:'rgba(180,30,30,0.35)',   color:'#FF6B6B', border:'rgba(255,107,107,0.4)', label:'Atrasado',  pulse:true},
+    cancelado: {bg:'rgba(100,100,100,0.2)',  color:'#9B9B9B', border:'rgba(155,155,155,0.2)', label:'Cancelado', pulse:false},
+  }
+  const c = cfg[status] || cfg.pendente
+  return (
+    <span style={{
+      display:'inline-flex', alignItems:'center', gap:5,
+      background:c.bg, color:c.color,
+      fontSize:11, fontWeight:700,
+      padding:'3px 10px', borderRadius:20,
+      border:`1px solid ${c.border}`,
+      letterSpacing:'0.03em', flexShrink:0,
+    }}>
+      <span style={{
+        width:6, height:6, borderRadius:'50%',
+        background:c.color, flexShrink:0,
+        animation: c.pulse ? 'pulse 1.6s ease-in-out infinite' : 'none',
+      }}/>
+      {c.label}
+    </span>
+  )
+}
+
+
 // ── Paleta Gemini Espresso ────────────────────────────────────────────────────
 const BG       = '#1A110A'
 const PEBBLE   = 'linear-gradient(145deg,#3D2810,#2C1C0E)'
@@ -227,7 +256,7 @@ export default function Dashboard() {
                           <p style={{ fontSize:14,fontWeight:700,color:isRec?GREEN:TERRA,fontVariantNumeric:'tabular-nums' as const,margin:'0 0 4px' }}>
                             {isRec?'+':'-'}{v(tx.installment_value||tx.amount)}
                           </p>
-                          <span className={BADGE[tx.status]||'badge-pendente'}>{BADGE_LABEL[tx.status]||tx.status}</span>
+                          <BadgeInline status={tx.status}/>
                         </div>
                       </button>
                     )
@@ -255,7 +284,7 @@ export default function Dashboard() {
                 <p style={{ fontSize:17,fontWeight:700,color:sel.transaction_type==='receita'?GREEN:TERRA,fontVariantNumeric:'tabular-nums' as const,margin:'0 0 4px' }}>
                   {sel.transaction_type==='receita'?'+':'-'}{formatCurrency(sel.installment_value||sel.amount)}
                 </p>
-                <span className={BADGE[sel.status]||'badge-pendente'}>{BADGE_LABEL[sel.status]||sel.status}</span>
+                <BadgeInline status={sel.status}/>
               </div>
             </div>
             <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
