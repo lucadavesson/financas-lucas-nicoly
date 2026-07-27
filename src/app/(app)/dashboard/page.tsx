@@ -71,9 +71,14 @@ export default function Dashboard() {
     .slice(0, 5)
 
   // Atrasados
+  // Atrasados: só contas avulsas (débito/PIX/boleto) com data passada
+  // Compras de cartão de crédito não são "atrasadas" pela data de compra
   const atrasados = despesas.filter(t =>
-    (t.status === 'pendente' || t.status === 'atrasado') &&
-    new Date(t.purchase_date + 'T12:00:00') < hoje
+    t.status === 'atrasado' || (
+      t.status === 'pendente' &&
+      t.payment_method !== 'cartao_credito' &&
+      new Date(t.purchase_date + 'T12:00:00') < hoje
+    )
   )
 
   // Top categorias

@@ -49,7 +49,7 @@ interface Tx {
   transaction_type:string; payment_method?:string; card_name?:string
   due_day?: number; billing_month?: string
 }
-interface Card { id:string; name:string; bank:string; holder:string; due_day:number; closing_day:number; credit_limit:number; color:string }
+interface Card { id:string; name:string; bank:string; holder:string; card_type?:string; due_day:number; closing_day:number; credit_limit:number; color:string }
 
 function BadgeStatus({ status }: { status: string }) {
   const cfg: Record<string,{bg:string;color:string;label:string;pulse:boolean}> = {
