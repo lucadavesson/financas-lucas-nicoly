@@ -65,7 +65,7 @@ export default function Dashboard() {
   const em7  = addDays(hoje, 7)
 
   // Próximos pagamentos: só contas avulsas (não itens de cartão)
-  const isCartao = (t: Tx) => t.payment_method === 'cartao_credito' || t.transaction_type === 'parcelada' || (t.card_name && !t.payment_method)
+  const isCartao = (t: Tx) => t.payment_method === 'cartao_credito' || t.transaction_type === 'parcelada'
   const proximos = despesas
     .filter(t => t.status !== 'pago' && t.status !== 'cancelado' && !isCartao(t))
     .sort((a,b) => a.purchase_date.localeCompare(b.purchase_date))
