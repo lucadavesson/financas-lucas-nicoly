@@ -5,13 +5,13 @@ import { formatCurrency } from '@/lib/utils'
 import { Plus, Pencil, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-const BG     = '#1A110A'
-const PEBBLE = 'linear-gradient(145deg,#3D2810,#2C1C0E)'
-const TEXT   = '#F4EFE8'
-const TEXTLT = '#C8B89A'
-const TEXTMU = '#8B7A6A'
+const BG     = '#F5F5F7'
+const PEBBLE = '#FFFFFF'
+const TEXT   = '#1C1C1E'
+const TEXTLT = '#48484A'
+const TEXTMU = '#8E8E93'
 const TERRA  = '#C4622D'
-const CREAM  = '#F4EFE8'
+const CREAM  = '#FFFFFF'
 
 const ICONS_MAP:Record<string,string>={diamond:'💍',plane:'✈️',home:'🏠',shield:'🛡️',star:'⭐',target:'🎯',car:'🚗',ring:'💍',piggy:'🐷',book:'📚'}
 const GOAL_COLORS=['#1D9E75','#7F77DD','#378ADD','#C8963C','#E24B4A','#C4622D','#0F6E56','#9B59B6']
@@ -50,8 +50,8 @@ export default function Metas() {
     load();setSaving(false)
   }
 
-  const inp = {width:'100%',height:46,background:'rgba(255,255,255,0.07)',border:'0.5px solid rgba(255,255,255,0.12)',borderRadius:22,padding:'0 16px',fontSize:14,color:TEXT,outline:'none',boxSizing:'border-box' as const}
-  const seg = (on:boolean,col?:string)=>({flex:1,height:38,borderRadius:19,border:'none',background:on?(col||TERRA):'rgba(255,255,255,0.07)',color:on?CREAM:TEXTLT,fontSize:13,fontWeight:on?700:400 as any,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'})
+  const inp = {width:'100%',height:46,background:'rgba(0,0,0,0.03)',border:'0.5px solid rgba(0,0,0,0.08)',borderRadius:22,padding:'0 16px',fontSize:14,color:TEXT,outline:'none',boxSizing:'border-box' as const}
+  const seg = (on:boolean,col?:string)=>({flex:1,height:38,borderRadius:19,border:'none',background:on?(col||TERRA):'rgba(0,0,0,0.03)',color:on?CREAM:TEXTLT,fontSize:13,fontWeight:on?700:400 as any,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'})
 
   return (
     <div style={{background:BG,minHeight:'100%',padding:'14px 14px 160px'}}>
@@ -88,7 +88,7 @@ export default function Metas() {
             const rem=g.target_amount-g.current_amount
             const proj=g.monthly_target&&g.monthly_target>0&&rem>0?`~${Math.ceil(rem/g.monthly_target)} meses no ritmo atual`:rem<=0?'🎉 Meta atingida!':''
             return(
-              <div key={g.id} style={{background:PEBBLE,borderRadius:24,padding:'16px 18px',boxShadow:'0 4px 16px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.06)'}}>
+              <div key={g.id} style={{background:PEBBLE,borderRadius:24,padding:'16px 18px',boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
                 <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
                   <div style={{width:42,height:42,borderRadius:14,background:`${g.color}25`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0}}>{ICONS_MAP[g.icon]||'🎯'}</div>
                   <div style={{flex:1,minWidth:0}}>
@@ -98,14 +98,14 @@ export default function Metas() {
                   <div style={{display:'flex',alignItems:'center',gap:8}}>
                     <p style={{fontSize:14,fontWeight:800,margin:0,color:g.color,fontVariantNumeric:'tabular-nums'}}>{pct.toFixed(0)}%</p>
                     <button onClick={()=>{setForm({name:g.name,holder:g.holder,target_amount:g.target_amount.toString(),current_amount:g.current_amount.toString(),monthly_target:g.monthly_target?.toString()||'',deadline:g.deadline?.slice(0,7)||'',icon:g.icon||'target',color:g.color||'#1D9E75'});setEditId(g.id);setShow(true)}}
-                      style={{width:30,height:30,background:'rgba(255,255,255,0.07)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      style={{width:30,height:30,background:'rgba(0,0,0,0.03)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
                       <Pencil size={13} color={TEXTMU}/>
                     </button>
                   </div>
                 </div>
 
                 {/* Barra de progresso */}
-                <div style={{height:8,background:'rgba(255,255,255,0.07)',borderRadius:99,overflow:'hidden',marginBottom:8}}>
+                <div style={{height:8,background:'rgba(0,0,0,0.03)',borderRadius:99,overflow:'hidden',marginBottom:8}}>
                   <div style={{height:'100%',borderRadius:99,width:`${pct}%`,background:g.color,transition:'width 0.5s ease'}}/>
                 </div>
 
@@ -128,9 +128,9 @@ export default function Metas() {
       {/* Bottom sheet form */}
       {show&&(
         <div style={{position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end'}} onClick={()=>setShow(false)}>
-          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',backdropFilter:'blur(10px)'}}/>
-          <div style={{position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'linear-gradient(180deg,#3D2810,#2C1C0E)',borderRadius:'28px 28px 0 0',maxHeight:'92vh',display:'flex',flexDirection:'column',boxShadow:'0 -8px 40px rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
-            <div style={{padding:'18px 20px 12px',borderBottom:'0.5px solid rgba(255,255,255,0.08)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(10px)'}}/>
+          <div style={{position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'#FFFFFF',borderRadius:'28px 28px 0 0',maxHeight:'92vh',display:'flex',flexDirection:'column',boxShadow:'0 -8px 40px rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
+            <div style={{padding:'18px 20px 12px',borderBottom:'0.5px solid rgba(0,0,0,0.04)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <h3 style={{fontSize:16,fontWeight:700,color:TEXT,margin:0}}>{editId?'Editar meta':'Nova meta'}</h3>
               <button onClick={()=>setShow(false)} style={{background:'none',border:'none',cursor:'pointer'}}><X size={20} color={TEXTMU}/></button>
             </div>
@@ -144,7 +144,7 @@ export default function Metas() {
                     {[{v:'target',l:'🎯 Meta'},{v:'diamond',l:'💍 Casamento'},{v:'plane',l:'✈️ Viagem'},{v:'home',l:'🏠 Casa'},{v:'shield',l:'🛡️ Reserva'},{v:'car',l:'🚗 Veículo'}].map(i=>(
                       <button key={i.v} type="button" onClick={()=>sf('icon',i.v)}
                         style={{height:40,borderRadius:14,fontSize:12,fontWeight:500,cursor:'pointer',border:'none',
-                          background:form.icon===i.v?`${TERRA}30`:'rgba(255,255,255,0.07)',
+                          background:form.icon===i.v?`${TERRA}30`:'rgba(0,0,0,0.03)',
                           color:form.icon===i.v?TERRA:TEXTLT,
                           outline:form.icon===i.v?`1px solid ${TERRA}40`:'none'
                         }}>{i.l}</button>

@@ -7,204 +7,115 @@ html, body {
   overflow: hidden;
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
-  background: #1A110A;
+  background: #F5F5F7;
 }
 
 #__next { height: 100%; }
 
-/* ── Paleta Espresso Gemini ─────────────────────────── */
+/* ── Paleta Clean Banking ────────────────────────────
+  BG       = #F5F5F7  (fundo cinza gelo)
+  CARD     = #FFFFFF  (cards brancos)
+  TEXT     = #1C1C1E  (texto principal)
+  TEXTLT   = #48484A  (texto secundário)
+  TEXTMU   = #8E8E93  (texto muted)
+  GREEN    = #34C759  (positivo — estilo Apple)
+  GREENBG  = rgba(52,199,89,0.08)
+  RED      = #FF3B30  (negativo)
+  REDBG    = rgba(255,59,48,0.06)
+  ACCENT   = #007AFF (azul destaque — estilo iOS)
+  TERRA    = #C4622D  (terracota — identidade L&N)
+  BORDER   = rgba(0,0,0,0.06)
+─────────────────────────────────────────────────── */
 
-.input-pebble {
+.input-pebble, .input-base {
   width: 100%;
   height: 48px;
-  background: rgba(255,255,255,0.07);
-  border: 0.5px solid rgba(255,255,255,0.12);
-  border-radius: 24px;
-  padding: 0 18px;
+  background: #FFFFFF;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 12px;
+  padding: 0 16px;
   font-size: 15px;
-  color: #F4EFE8;
+  color: #1C1C1E;
   outline: none;
   box-sizing: border-box;
-  font-weight: 500;
+  font-weight: 400;
 }
-.input-pebble::placeholder { color: rgba(244,239,232,0.3); }
-.input-pebble:focus { background: rgba(255,255,255,0.1); border-color: rgba(200,150,60,0.4); }
+.input-pebble::placeholder, .input-base::placeholder { color: #C7C7CC; }
+.input-pebble:focus, .input-base:focus { border-color: #C4622D; box-shadow: 0 0 0 3px rgba(196,98,45,0.08); }
 
 .btn-primary {
   width: 100%;
   height: 52px;
-  background: #C4622D;
-  color: #F4EFE8;
-  font-weight: 700;
-  font-size: 15px;
-  border-radius: 26px;
+  background: #1C1C1E;
+  color: #FFFFFF;
+  font-weight: 600;
+  font-size: 16px;
+  border-radius: 14px;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: 0 4px 20px rgba(196,98,45,0.4);
 }
-.btn-primary:active { opacity: 0.88; }
-.btn-primary:disabled { opacity: 0.5; }
+.btn-primary:active { opacity: 0.85; }
+.btn-primary:disabled { opacity: 0.4; }
 
-/* Sebble escuro padrão */
-.sebble {
-  background: linear-gradient(145deg,#3D2810,#2C1C0E);
-  border-radius: 28px;
-  padding: 18px 20px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
-}
-
-/* Card para relatórios e seções */
+/* Card padrão */
 .card {
-  background: linear-gradient(145deg,#3D2810,#2C1C0E);
-  border-radius: 24px;
+  background: #FFFFFF;
+  border-radius: 16px;
   padding: 16px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   margin-bottom: 12px;
 }
 
-/* ── Badges — distinção forte entre pago e pendente ─── */
-
-/* PAGO: verde vibrante, fundo verde escuro */
+/* Badges */
 .badge-pago {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: rgba(34,120,60,0.35);
-  color: #5DE08A;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 20px;
-  border: 1px solid rgba(93,224,138,0.4);
-  letter-spacing: 0.03em;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(52,199,89,0.1); color: #30A14E;
+  font-size: 11px; font-weight: 600; padding: 3px 10px;
+  border-radius: 20px; letter-spacing: 0.02em;
 }
-.badge-pago::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #5DE08A;
-  flex-shrink: 0;
-}
+.badge-pago::before { content:''; width:5px; height:5px; border-radius:50%; background:#30A14E; }
 
-/* PENDENTE: laranja/terracota vibrante, fundo terracota escuro */
 .badge-pendente {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: rgba(180,60,20,0.35);
-  color: #FF8A5C;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 20px;
-  border: 1px solid rgba(255,138,92,0.45);
-  letter-spacing: 0.03em;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(255,149,0,0.1); color: #CC7700;
+  font-size: 11px; font-weight: 600; padding: 3px 10px;
+  border-radius: 20px; letter-spacing: 0.02em;
 }
-.badge-pendente::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #FF8A5C;
-  flex-shrink: 0;
-  animation: pulse 1.6s ease-in-out infinite;
-}
+.badge-pendente::before { content:''; width:5px; height:5px; border-radius:50%; background:#CC7700; animation: pulse 1.5s ease-in-out infinite; }
 
-/* PREVISTO: âmbar/dourado */
 .badge-previsto {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: rgba(160,110,10,0.3);
-  color: #FFCC55;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 20px;
-  border: 1px solid rgba(255,204,85,0.35);
-  letter-spacing: 0.03em;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(0,122,255,0.08); color: #007AFF;
+  font-size: 11px; font-weight: 600; padding: 3px 10px;
+  border-radius: 20px; letter-spacing: 0.02em;
 }
-.badge-previsto::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #FFCC55;
-  flex-shrink: 0;
-}
+.badge-previsto::before { content:''; width:5px; height:5px; border-radius:50%; background:#007AFF; }
 
-/* ATRASADO: vermelho */
 .badge-atrasado {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: rgba(180,30,30,0.35);
-  color: #FF6B6B;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 20px;
-  border: 1px solid rgba(255,107,107,0.4);
-  letter-spacing: 0.03em;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(255,59,48,0.08); color: #FF3B30;
+  font-size: 11px; font-weight: 600; padding: 3px 10px;
+  border-radius: 20px; letter-spacing: 0.02em;
 }
-.badge-atrasado::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #FF6B6B;
-  flex-shrink: 0;
-  animation: pulse 1s ease-in-out infinite;
-}
+.badge-atrasado::before { content:''; width:5px; height:5px; border-radius:50%; background:#FF3B30; animation: pulse 1s ease-in-out infinite; }
 
-@keyframes fadeInUp {
-  from { opacity:0; transform:translateY(8px); }
-  to   { opacity:1; transform:translateY(0); }
-}
+@keyframes fadeInUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 .animate-in { animation: fadeInUp 0.2s ease-out; }
-
-@keyframes spin  { to { transform: rotate(360deg); } }
-@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.35;transform:scale(1.6)} }
+@keyframes spin { to { transform:rotate(360deg) } }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.35;transform:scale(1.5)} }
 
 ::-webkit-scrollbar { display: none; }
 * { -ms-overflow-style: none; scrollbar-width: none; }
 
 select {
-  background: rgba(255,255,255,0.07);
-  color: #F4EFE8;
-  border: 0.5px solid rgba(255,255,255,0.12);
-  border-radius: 24px;
+  background: #FFFFFF;
+  color: #1C1C1E;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 12px;
   appearance: none;
 }
-select option {
-  background: #2C1C0E;
-  color: #F4EFE8;
-}
-
-/* input-base — compatibilidade com código legado */
-.input-base {
-  width: 100%;
-  height: 48px;
-  background: rgba(255,255,255,0.07);
-  border: 0.5px solid rgba(255,255,255,0.12);
-  border-radius: 22px;
-  padding: 0 16px;
-  font-size: 14px;
-  color: #F4EFE8;
-  outline: none;
-  box-sizing: border-box;
-  display: block;
-}
-.input-base::placeholder { color: rgba(244,239,232,0.3); }
-.input-base:focus { border-color: rgba(196,98,45,0.4); background: rgba(255,255,255,0.1); }
-
-/* brand colors para componentes legados */
-.text-brand-600 { color: #C4622D; }
-.bg-brand-50 { background: rgba(196,98,45,0.12); }
-.border-brand-300 { border-color: rgba(196,98,45,0.4); }
-.bg-brand-400 { background: #C4622D; }
+select option { background: #FFFFFF; color: #1C1C1E; }

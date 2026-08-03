@@ -13,30 +13,29 @@ const items = [
 
 export default function BottomNav() {
   const path = usePathname()
-
   return (
     <nav style={{
       position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)',
       width:'100%', maxWidth:480, zIndex:50,
-      background:'#2A1C0E',
-      borderTop:'0.5px solid rgba(255,255,255,0.08)',
+      background:'#FFFFFF',
+      borderTop:'1px solid rgba(0,0,0,0.06)',
       display:'flex', alignItems:'flex-end',
-      paddingTop:10,
-      paddingBottom:'max(env(safe-area-inset-bottom, 0px), 12px)',
-      minHeight:72,
+      paddingTop:8,
+      paddingBottom:'max(env(safe-area-inset-bottom, 0px), 10px)',
+      minHeight:70,
     }}>
       {items.map((item) => {
         if (item.fab) return (
-          <div key="fab" style={{ flex:1, display:'flex', justifyContent:'center', alignItems:'flex-end', marginBottom:6 }}>
-            <Link href="/lancamentos/novo" style={{ display:'block', marginBottom:8 }}>
+          <div key="fab" style={{ flex:1, display:'flex', justifyContent:'center', marginBottom:10 }}>
+            <Link href="/lancamentos/novo" style={{ display:'block' }}>
               <div style={{
-                width:52, height:52,
-                background:'radial-gradient(circle at 35% 35%, #E8A070, #C4622D 60%, #A04010)',
+                width:50, height:50,
+                background:'linear-gradient(135deg,#C4622D,#A04818)',
                 borderRadius:'50%',
                 display:'flex', alignItems:'center', justifyContent:'center',
-                boxShadow:'0 4px 20px rgba(196,98,45,0.5)',
+                boxShadow:'0 4px 16px rgba(196,98,45,0.35)',
               }}>
-                <Plus size={24} color="#F4EFE8" strokeWidth={2.5}/>
+                <Plus size={22} color="#fff" strokeWidth={2.5}/>
               </div>
             </Link>
           </div>
@@ -46,11 +45,10 @@ export default function BottomNav() {
         return (
           <Link key={item.href} href={item.href!} style={{
             flex:1, display:'flex', flexDirection:'column', alignItems:'center',
-            gap:4, paddingBottom:8, paddingTop:4, textDecoration:'none',
+            gap:3, paddingBottom:6, paddingTop:2, textDecoration:'none',
           }}>
-            <Icon size={22} strokeWidth={active?2.5:1.6} color={active?'#F4EFE8':'#8B7A6A'}/>
-            <span style={{ fontSize:10, fontWeight:active?700:400, color:active?'#F4EFE8':'#8B7A6A' }}>{item.label}</span>
-            {active && <div style={{ width:4, height:4, borderRadius:'50%', background:'#C4622D', marginTop:-2 }}/>}
+            <Icon size={22} strokeWidth={active?2.2:1.5} color={active?'#C4622D':'#8E8E93'}/>
+            <span style={{ fontSize:10, fontWeight:active?600:400, color:active?'#C4622D':'#8E8E93' }}>{item.label}</span>
           </Link>
         )
       })}

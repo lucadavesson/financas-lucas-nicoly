@@ -237,21 +237,21 @@ export default function NovoLancamento() {
 
   // ── ESTILOS base ────────────────────────────────────
   const S = {
-    page:  { minHeight:'100%', background:'#1A110A' },
-    hdr:   { position:'sticky' as const, top:0, background:'#1A110A', borderBottom:'0.5px solid rgba(255,255,255,0.08)', padding:'12px 16px', display:'flex', alignItems:'center', gap:10, zIndex:10 },
+    page:  { minHeight:'100%', background:'#F5F5F7' },
+    hdr:   { position:'sticky' as const, top:0, background:'#F5F5F7', borderBottom:'0.5px solid rgba(255,255,255,0.08)', padding:'12px 16px', display:'flex', alignItems:'center', gap:10, zIndex:10 },
     form:  { padding:'16px', display:'flex', flexDirection:'column' as const, gap:16, paddingBottom:160 },
-    lbl:   { fontSize:11, fontWeight:600 as const, color:'#8B7A6A', textTransform:'uppercase' as const, letterSpacing:'0.05em', display:'block', marginBottom:6 },
-    inp:   { width:'100%', height:44, background:'rgba(255,255,255,0.07)', border:'0.5px solid rgba(255,255,255,0.12)', borderRadius:12, padding:'0 14px', fontSize:15, color:'#F4EFE8', outline:'none' },
-    inpMoney: { width:'100%', height:52, background:'rgba(255,255,255,0.07)', border:'0.5px solid rgba(255,255,255,0.12)', borderRadius:12, padding:'0 14px', fontSize:20, fontWeight:700 as const, color:'#F4EFE8', outline:'none', fontVariantNumeric:'tabular-nums' as const },
+    lbl:   { fontSize:11, fontWeight:600 as const, color:'#8E8E93', textTransform:'uppercase' as const, letterSpacing:'0.05em', display:'block', marginBottom:6 },
+    inp:   { width:'100%', height:44, background:'#FFFFFF', border:'1px solid rgba(0,0,0,0.08)', borderRadius:12, padding:'0 14px', fontSize:15, color:'#1C1C1E', outline:'none' },
+    inpMoney: { width:'100%', height:52, background:'#FFFFFF', border:'1px solid rgba(0,0,0,0.08)', borderRadius:12, padding:'0 14px', fontSize:20, fontWeight:700 as const, color:'#1C1C1E', outline:'none', fontVariantNumeric:'tabular-nums' as const },
     seg:   (on:boolean, accent='#C4622D') => ({
       flex:1, height:40, borderRadius:10, border: on?`1px solid ${accent}`:'0.5px solid rgba(255,255,255,0.12)',
       background: on?accent:'rgba(255,255,255,0.07)', color: on?'#F4EFE8':'#C8B89A',
       fontSize:13, fontWeight: on?600:400 as any, cursor:'pointer',
       display:'flex', alignItems:'center', justifyContent:'center', gap:5,
     }),
-    card:  { background:'rgba(255,255,255,0.05)', borderRadius:16, border:'0.5px solid rgba(255,255,255,0.1)', padding:'14px' },
-    btn:   { width:'100%', height:52, background:'#C4622D', color:'#F4EFE8', borderRadius:16, border:'none', fontSize:15, fontWeight:600 as const, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:8 },
-    sel:   { width:'100%', height:44, background:'rgba(255,255,255,0.07)', border:'0.5px solid rgba(255,255,255,0.12)', borderRadius:12, padding:'0 14px', fontSize:14, color:'#F4EFE8', outline:'none', appearance:'none' as const },
+    card:  { background:'#FFFFFF', borderRadius:16, border:'0.5px solid rgba(255,255,255,0.1)', padding:'14px' },
+    btn:   { width:'100%', height:52, background:'#C4622D', color:'#1C1C1E', borderRadius:16, border:'none', fontSize:15, fontWeight:600 as const, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:8 },
+    sel:   { width:'100%', height:44, background:'#FFFFFF', border:'1px solid rgba(0,0,0,0.08)', borderRadius:12, padding:'0 14px', fontSize:14, color:'#1C1C1E', outline:'none', appearance:'none' as const },
   }
 
   // ── TELA DE ESCOLHA ──────────────────────────────────
@@ -261,7 +261,7 @@ export default function NovoLancamento() {
         <button onClick={()=>router.back()} style={{background:'none',border:'none',cursor:'pointer',padding:4}}>
           <ChevronLeft size={22} color="#C8B89A"/>
         </button>
-        <span style={{fontSize:16,fontWeight:600,color:'#F4EFE8'}}>Novo lançamento</span>
+        <span style={{fontSize:16,fontWeight:600,color:'#1C1C1E'}}>Novo lançamento</span>
       </div>
       <div style={{padding:'20px 16px'}}>
         <p style={{fontSize:12,fontWeight:600,color:'#C8963C',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:16}}>
@@ -274,7 +274,7 @@ export default function NovoLancamento() {
           { t:'recorrente' as TipoLanc, emoji:'🔄', label:'Conta recorrente',  desc:'Energia, assinatura, financiamento...',           bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.12)', ec:'#F4EFE8' },
         ].map(item => (
           <button key={item.t} onClick={()=>changeTipo(item.t)} style={{
-            width:'100%', background:'rgba(255,255,255,0.05)', borderRadius:18,
+            width:'100%', background:'#FFFFFF', borderRadius:18,
             border:`0.5px solid ${item.border}`, padding:'14px 16px',
             display:'flex', alignItems:'center', gap:14, textAlign:'left',
             marginBottom:10, cursor:'pointer',
@@ -283,8 +283,8 @@ export default function NovoLancamento() {
               {item.emoji}
             </div>
             <div style={{flex:1}}>
-              <p style={{fontSize:15,fontWeight:600,color:'#F4EFE8',marginBottom:3}}>{item.label}</p>
-              <p style={{fontSize:12,color:'#8B7A6A'}}>{item.desc}</p>
+              <p style={{fontSize:15,fontWeight:600,color:'#1C1C1E',marginBottom:3}}>{item.label}</p>
+              <p style={{fontSize:12,color:'#8E8E93'}}>{item.desc}</p>
             </div>
             <ChevronDown size={16} color="#C7C7CC" style={{transform:'rotate(-90deg)'}}/>
           </button>
@@ -375,11 +375,11 @@ export default function NovoLancamento() {
               <input type="text" value={newSubName} onChange={e=>setNewSubName(e.target.value)}
                 placeholder="Nome da nova subcategoria" style={{...S.inp,flex:1,height:40,fontSize:13}} autoFocus/>
               <button type="button" onClick={addCustomSub}
-                style={{height:40,padding:'0 14px',background:'#C4622D',color:'#F4EFE8',borderRadius:10,border:'none',cursor:'pointer',fontSize:13,fontWeight:600}}>
+                style={{height:40,padding:'0 14px',background:'#C4622D',color:'#1C1C1E',borderRadius:10,border:'none',cursor:'pointer',fontSize:13,fontWeight:600}}>
                 OK
               </button>
               <button type="button" onClick={()=>setShowAddSub(false)}
-                style={{height:40,padding:'0 10px',background:'rgba(255,255,255,0.07)',borderRadius:10,border:'none',cursor:'pointer'}}>
+                style={{height:40,padding:'0 10px',background:'#FFFFFF',borderRadius:10,border:'none',cursor:'pointer'}}>
                 <X size={14} color="#C8963C"/>
               </button>
             </div>
@@ -396,7 +396,7 @@ export default function NovoLancamento() {
         <button onClick={()=>changeTipo('escolha')} style={{background:'none',border:'none',cursor:'pointer',padding:4}}>
           <ChevronLeft size={22} color="#C8B89A"/>
         </button>
-        <span style={{fontSize:16,fontWeight:600,color:'#F4EFE8'}}>{tipoLabel[tipo]}</span>
+        <span style={{fontSize:16,fontWeight:600,color:'#1C1C1E'}}>{tipoLabel[tipo]}</span>
       </div>
 
       <form onSubmit={handleSave} style={S.form}>
@@ -461,7 +461,7 @@ export default function NovoLancamento() {
               </button>
             </div>
             {hasEntry && (
-              <div style={{background:'rgba(255,255,255,0.07)',borderRadius:14,padding:14,display:'flex',flexDirection:'column',gap:10}}>
+              <div style={{background:'#FFFFFF',borderRadius:14,padding:14,display:'flex',flexDirection:'column',gap:10}}>
                 <div>
                   <label style={S.lbl}>Valor da entrada</label>
                   <input type="text" inputMode="numeric" value={entryRaw}
@@ -560,7 +560,7 @@ export default function NovoLancamento() {
                     border:`0.5px solid ${recTipo===rt.v?'#C4622D':'rgba(255,255,255,0.1)'}`,
                     background:recTipo===rt.v?'rgba(196,98,45,0.2)':'rgba(255,255,255,0.05)',cursor:'pointer'
                   }}>
-                  <p style={{fontSize:13,fontWeight:600,color:'#F4EFE8'}}>{rt.emoji} {rt.l}</p>
+                  <p style={{fontSize:13,fontWeight:600,color:'#1C1C1E'}}>{rt.emoji} {rt.l}</p>
                   <p style={{fontSize:11,color:'#8E8E93',marginTop:2}}>{rt.d}</p>
                 </button>
               ))}
@@ -651,7 +651,7 @@ export default function NovoLancamento() {
               </button>
             </div>
             {recIsRec && (
-              <div style={{background:'rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 12px',fontSize:12,color:'#C8B89A'}}>
+              <div style={{background:'#FFFFFF',borderRadius:12,padding:'10px 12px',fontSize:12,color:'#C8B89A'}}>
                 Ficará como <strong>previsto</strong> até você confirmar o valor real recebido.
               </div>
             )}

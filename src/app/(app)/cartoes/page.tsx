@@ -6,14 +6,14 @@ import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
 
-const BG     = '#1A110A'
-const TEXT   = '#F4EFE8'
-const TEXTLT = '#C8B89A'
-const TEXTMU = '#8B7A6A'
-const GREEN  = '#5DE08A'
+const BG     = '#F5F5F7'
+const TEXT   = '#1C1C1E'
+const TEXTLT = '#48484A'
+const TEXTMU = '#8E8E93'
+const GREEN  = '#34C759'
 const TERRA  = '#C4622D'
-const TERRABG= 'rgba(196,98,45,0.18)'
-const GREENBG= 'rgba(74,140,92,0.18)'
+const TERRABG= 'rgba(255,59,48,0.06)'
+const GREENBG= 'rgba(52,199,89,0.08)'
 
 const BANK_GRADIENT: Record<string,string> = {
   nubank:     'linear-gradient(145deg,#5B2D8A,#3A1860)',
@@ -116,7 +116,7 @@ export default function Cartoes() {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       {/* Visão Geral */}
-      <div style={{background:'rgba(255,255,255,0.04)',borderRadius:24,padding:'16px 18px',marginBottom:20,border:'0.5px solid rgba(255,255,255,0.07)'}}>
+      <div style={{background:'rgba(0,0,0,0.02)',borderRadius:24,padding:'16px 18px',marginBottom:20,border:'1px solid rgba(0,0,0,0.06)'}}>
         <p style={{fontSize:11,fontWeight:700,color:TEXTMU,margin:'0 0 12px',textTransform:'uppercase',letterSpacing:'0.09em'}}>
           Visão Geral ({mes})
         </p>
@@ -127,7 +127,7 @@ export default function Cartoes() {
           </div>
           <div style={{background:TERRABG,borderRadius:16,padding:'12px 14px',border:'0.5px solid rgba(255,138,92,0.2)'}}>
             <p style={{fontSize:10,color:'rgba(255,138,92,0.6)',margin:'0 0 3px'}}>Crédito Utilizado</p>
-            <p style={{fontSize:17,fontWeight:800,color:'#FF8A5C',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalUsado)}</p>
+            <p style={{fontSize:17,fontWeight:800,color:'#FF3B30',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalUsado)}</p>
           </div>
           <div style={{background:GREENBG,borderRadius:16,padding:'12px 14px',border:'0.5px solid rgba(93,224,138,0.1)',opacity:0.8}}>
             <p style={{fontSize:10,color:'rgba(93,224,138,0.5)',margin:'0 0 3px'}}>Total Pago</p>
@@ -135,7 +135,7 @@ export default function Cartoes() {
           </div>
           <div style={{background:TERRABG,borderRadius:16,padding:'12px 14px',border:'0.5px solid rgba(255,138,92,0.1)',opacity:0.8}}>
             <p style={{fontSize:10,color:'rgba(255,138,92,0.5)',margin:'0 0 3px'}}>A Pagar</p>
-            <p style={{fontSize:15,fontWeight:700,color:'#FF8A5C',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalPend)}</p>
+            <p style={{fontSize:15,fontWeight:700,color:'#FF3B30',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalPend)}</p>
           </div>
         </div>
       </div>
@@ -165,7 +165,7 @@ export default function Cartoes() {
             const isExpanded = expanded === c.id
 
             return (
-              <div key={c.id} style={{borderRadius:28,overflow:'hidden',boxShadow:'0 8px 32px rgba(0,0,0,0.55)',border:'0.5px solid rgba(255,255,255,0.07)'}}>
+              <div key={c.id} style={{borderRadius:28,overflow:'hidden',boxShadow:'0 2px 8px rgba(0,0,0,0.12)',border:'1px solid rgba(0,0,0,0.06)'}}>
 
                 {/* ── Card principal (clicável para expandir fatura) ── */}
                 <button onClick={()=>setExpanded(isExpanded?null:c.id)}
@@ -236,7 +236,7 @@ export default function Cartoes() {
 
                 {/* ── Fatura expandida: itens de compra ── */}
                 {isExpanded && (
-                  <div style={{background:'#1A1208',borderTop:'0.5px solid rgba(255,255,255,0.05)'}}>
+                  <div style={{background:'#F8F8FA',borderTop:'0.5px solid rgba(255,255,255,0.05)'}}>
                     {itens.length === 0 ? (
                       <div style={{padding:'20px 18px',textAlign:'center'}}>
                         <p style={{fontSize:12,color:TEXTMU,margin:0}}>Nenhuma compra nesta fatura</p>

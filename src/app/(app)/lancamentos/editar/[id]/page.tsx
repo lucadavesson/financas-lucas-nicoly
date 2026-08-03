@@ -8,18 +8,18 @@ import { toast } from 'sonner'
 import { format } from 'date-fns'
 
 // ── Paleta v3 Espresso ────────────────────────────────────────────────────────
-const BG    = '#1A110A'
-const TEXT  = '#F4EFE8'
-const TEXTMU= '#8B7A6A'
+const BG    = '#F5F5F7'
+const TEXT  = '#1C1C1E'
+const TEXTMU= '#8E8E93'
 const TERRA = '#C4622D'
-const CREAM = '#F4EFE8'
+const CREAM = '#1C1C1E'
 const GREENBG = 'rgba(74,140,92,0.18)'
 const TERRABG = 'rgba(196,98,45,0.18)'
 
 const inp: React.CSSProperties = {
   width:'100%', height:48,
-  background:'rgba(255,255,255,0.07)',
-  border:'0.5px solid rgba(255,255,255,0.12)',
+  background:'rgba(0,0,0,0.03)',
+  border:'0.5px solid rgba(0,0,0,0.08)',
   borderRadius:22, padding:'0 16px',
   fontSize:14, color:TEXT, outline:'none',
   boxSizing:'border-box',
@@ -31,15 +31,15 @@ const lbl: React.CSSProperties = {
 }
 const seg = (on: boolean, accent = TERRA): React.CSSProperties => ({
   flex:1, height:42, borderRadius:21, border:'none',
-  background: on ? accent : 'rgba(255,255,255,0.07)',
+  background: on ? accent : 'rgba(0,0,0,0.03)',
   color: on ? CREAM : TEXTMU,
   fontSize:13, fontWeight: on ? 700 : 400,
   cursor:'pointer', transition:'all 0.15s',
 })
 
 const STATUS_CFG: Record<string,{label:string;color:string;bg:string}> = {
-  pendente: { label:'Pendente', color:'#FF8A5C', bg:'rgba(196,98,45,0.25)' },
-  pago:     { label:'Pago',     color:'#5DE08A', bg:'rgba(74,140,92,0.25)' },
+  pendente: { label:'Pendente', color:'#FF3B30', bg:'rgba(196,98,45,0.25)' },
+  pago:     { label:'Pago',     color:'#34C759', bg:'rgba(74,140,92,0.25)' },
   previsto: { label:'Previsto', color:'#FFCC55', bg:'rgba(160,110,10,0.25)' },
   atrasado: { label:'Atrasado', color:'#FF6B6B', bg:'rgba(180,30,30,0.25)' },
   cancelado:{ label:'Cancelado',color:'#9B9B9B', bg:'rgba(100,100,100,0.2)' },
@@ -114,7 +114,7 @@ export default function EditarLancamento() {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       {/* Header */}
-      <div style={{ position:'sticky', top:0, background:'#1A110A', borderBottom:'0.5px solid rgba(255,255,255,0.08)', padding:'12px 16px', display:'flex', alignItems:'center', gap:10, zIndex:10 }}>
+      <div style={{ position:'sticky', top:0, background:'#F5F5F7', borderBottom:'0.5px solid rgba(0,0,0,0.04)', padding:'12px 16px', display:'flex', alignItems:'center', gap:10, zIndex:10 }}>
         <button onClick={()=>router.back()} style={{ background:'none',border:'none',cursor:'pointer',padding:'4px',display:'flex',alignItems:'center' }}>
           <ChevronLeft size={22} color={TEXTMU}/>
         </button>
@@ -127,7 +127,7 @@ export default function EditarLancamento() {
       <form onSubmit={save} style={{ padding:'18px 16px 160px', display:'flex', flexDirection:'column', gap:16 }}>
 
         {/* Info do lançamento (somente leitura) */}
-        <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:20, padding:'14px 16px', border:'0.5px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:20, padding:'14px 16px', border:'0.5px solid rgba(0,0,0,0.03)' }}>
           <p style={{ fontSize:11, color:TEXTMU, margin:'0 0 4px', letterSpacing:'0.05em', textTransform:'uppercase' }}>
             {isReceita ? '↑ Receita' : '↓ Despesa'} · {tx.transaction_type}
           </p>
@@ -155,7 +155,7 @@ export default function EditarLancamento() {
         <div>
           <label style={lbl}>Valor (R$)</label>
           <input type="number" inputMode="decimal" value={form.amount||''} onChange={e=>sf('amount',e.target.value)}
-            required style={{ ...inp, fontSize:18, fontWeight:700, color: isReceita ? '#5DE08A' : '#FF8A5C' }}
+            required style={{ ...inp, fontSize:18, fontWeight:700, color: isReceita ? '#34C759' : '#FF3B30' }}
             step="0.01" min="0.01"/>
         </div>
 
@@ -201,7 +201,7 @@ export default function EditarLancamento() {
               <button key={s} type="button" onClick={()=>sf('status',s)}
                 style={{
                   height:40, borderRadius:20, border:'none', cursor:'pointer',
-                  background: form.status===s ? cfg.bg : 'rgba(255,255,255,0.06)',
+                  background: form.status===s ? cfg.bg : 'rgba(0,0,0,0.04)',
                   color: form.status===s ? cfg.color : TEXTMU,
                   fontSize:12, fontWeight: form.status===s ? 700 : 400,
                   outline: form.status===s ? `1px solid ${cfg.color}40` : 'none',
@@ -216,7 +216,7 @@ export default function EditarLancamento() {
         {/* Confirmação de pagamento */}
         {(form.status==='pago') && (
           <div style={{ background:GREENBG, borderRadius:20, padding:'14px 16px', border:'0.5px solid rgba(74,140,92,0.2)' }}>
-            <p style={{ fontSize:12, fontWeight:700, color:'#5DE08A', margin:'0 0 12px' }}>Confirmação de pagamento</p>
+            <p style={{ fontSize:12, fontWeight:700, color:'#34C759', margin:'0 0 12px' }}>Confirmação de pagamento</p>
             <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
               <div>
                 <label style={{ ...lbl, color:'rgba(93,224,138,0.6)' }}>Valor pago (R$)</label>

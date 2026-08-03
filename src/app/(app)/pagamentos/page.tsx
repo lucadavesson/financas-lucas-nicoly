@@ -8,15 +8,15 @@ import { Check, ChevronDown, ChevronUp, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
-const BG     = '#1A110A'
-const PEBBLE = 'linear-gradient(145deg,#3D2810,#2C1C0E)'
-const TEXT   = '#F4EFE8'
-const TEXTLT = '#C8B89A'
-const TEXTMU = '#8B7A6A'
-const GREEN  = '#5DE08A'
+const BG     = '#F5F5F7'
+const PEBBLE = '#FFFFFF'
+const TEXT   = '#1C1C1E'
+const TEXTLT = '#48484A'
+const TEXTMU = '#8E8E93'
+const GREEN  = '#34C759'
 const TERRA  = '#C4622D'
-const TERRABG= 'rgba(196,98,45,0.18)'
-const GREENBG= 'rgba(74,140,92,0.18)'
+const TERRABG= 'rgba(255,59,48,0.06)'
+const GREENBG= 'rgba(52,199,89,0.08)'
 
 // Gradientes dos bancos para os cards de fatura
 const BANK_GRAD: Record<string,string> = {
@@ -53,8 +53,8 @@ interface Card { id:string; name:string; bank:string; holder:string; card_type?:
 
 function BadgeStatus({ status }: { status: string }) {
   const cfg: Record<string,{bg:string;color:string;label:string;pulse:boolean}> = {
-    pago:     { bg:'rgba(34,120,60,0.35)',  color:'#5DE08A', label:'Pago',     pulse:false },
-    pendente: { bg:'rgba(180,60,20,0.35)',  color:'#FF8A5C', label:'Pendente', pulse:true  },
+    pago:     { bg:'rgba(34,120,60,0.35)',  color:'#34C759', label:'Pago',     pulse:false },
+    pendente: { bg:'rgba(180,60,20,0.35)',  color:'#CC7700', label:'Pendente', pulse:true  },
     atrasado: { bg:'rgba(180,30,30,0.35)',  color:'#FF6B6B', label:'Atrasado', pulse:true  },
     previsto: { bg:'rgba(160,110,10,0.3)',  color:'#FFCC55', label:'Previsto', pulse:false },
   }
@@ -191,27 +191,27 @@ export default function Pagamentos() {
       </div>
 
       {/* Resumo consolidado */}
-      <div style={{background:'rgba(255,255,255,0.04)',borderRadius:24,padding:'16px 18px',marginBottom:16,border:'0.5px solid rgba(255,255,255,0.07)'}}>
+      <div style={{background:'rgba(255,255,255,0.04)',borderRadius:24,padding:'16px 18px',marginBottom:16,border:'0.5px solid rgba(0,0,0,0.03)'}}>
         {/* Barra */}
         <div style={{marginBottom:12}}>
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
             <span style={{fontSize:11,color:TEXTMU}}>Progresso do mês</span>
             <span style={{fontSize:13,fontWeight:800,color:pctPago>=100?GREEN:TEXTLT}}>{pctPago.toFixed(0)}% pago</span>
           </div>
-          <div style={{height:8,background:'rgba(255,255,255,0.07)',borderRadius:99,overflow:'hidden'}}>
-            <div style={{height:'100%',borderRadius:99,width:`${pctPago}%`,background:pctPago>=100?'linear-gradient(90deg,#4A8C5C,#5DE08A)':'linear-gradient(90deg,rgba(93,224,138,0.5),rgba(93,224,138,0.85))',transition:'width 0.5s'}}/>
+          <div style={{height:8,background:'rgba(0,0,0,0.03)',borderRadius:99,overflow:'hidden'}}>
+            <div style={{height:'100%',borderRadius:99,width:`${pctPago}%`,background:pctPago>=100?'linear-gradient(90deg,#4A8C5C,#34C759)':'linear-gradient(90deg,rgba(93,224,138,0.5),rgba(93,224,138,0.85))',transition:'width 0.5s'}}/>
           </div>
         </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
           <div style={{textAlign:'center',background:TERRABG,borderRadius:14,padding:'10px 4px',border:'0.5px solid rgba(255,138,92,0.15)'}}>
             <p style={{fontSize:9,color:'rgba(255,138,92,0.6)',margin:'0 0 3px',letterSpacing:'0.05em'}}>A PAGAR</p>
-            <p style={{fontSize:14,fontWeight:800,color:'#FF8A5C',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalFaturas+totalAvulsas)}</p>
+            <p style={{fontSize:14,fontWeight:800,color:'#CC7700',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalFaturas+totalAvulsas)}</p>
           </div>
           <div style={{textAlign:'center',background:GREENBG,borderRadius:14,padding:'10px 4px',border:'0.5px solid rgba(93,224,138,0.15)'}}>
             <p style={{fontSize:9,color:'rgba(93,224,138,0.6)',margin:'0 0 3px',letterSpacing:'0.05em'}}>PAGO</p>
             <p style={{fontSize:14,fontWeight:800,color:GREEN,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalPago)}</p>
           </div>
-          <div style={{textAlign:'center',background:'rgba(255,255,255,0.05)',borderRadius:14,padding:'10px 4px',border:'0.5px solid rgba(255,255,255,0.07)'}}>
+          <div style={{textAlign:'center',background:'rgba(0,0,0,0.02)',borderRadius:14,padding:'10px 4px',border:'0.5px solid rgba(0,0,0,0.03)'}}>
             <p style={{fontSize:9,color:TEXTMU,margin:'0 0 3px',letterSpacing:'0.05em'}}>TOTAL</p>
             <p style={{fontSize:14,fontWeight:800,color:TEXT,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalGeral)}</p>
           </div>
@@ -233,9 +233,9 @@ export default function Pagamentos() {
               {faturas.map(f => (
                 <div key={f.card.id} style={{marginBottom:12}}>
                   {/* Card da fatura — visual do banco */}
-                  <div style={{borderRadius:22,overflow:'hidden',boxShadow:'0 6px 24px rgba(0,0,0,0.5)'}}>
+                  <div style={{borderRadius:22,overflow:'hidden',boxShadow:'0 2px 8px rgba(0,0,0,0.1)'}}>
                     <div style={{background:bankGrad(f.card.bank),padding:'16px 18px',position:'relative',overflow:'hidden'}}>
-                      <div style={{position:'absolute',top:-30,right:-30,width:120,height:120,borderRadius:'50%',background:'rgba(255,255,255,0.05)',pointerEvents:'none'}}/>
+                      <div style={{position:'absolute',top:-30,right:-30,width:120,height:120,borderRadius:'50%',background:'rgba(0,0,0,0.02)',pointerEvents:'none'}}/>
 
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
                         <div>
@@ -243,7 +243,7 @@ export default function Pagamentos() {
                           <p style={{fontSize:14,fontWeight:700,color:'#fff',margin:0}}>{f.card.name} | {f.card.holder}</p>
                         </div>
                         {f.isPago ? (
-                          <span style={{background:'rgba(74,140,92,0.3)',color:'#5DE08A',fontSize:11,fontWeight:700,padding:'4px 12px',borderRadius:20,border:'1px solid rgba(93,224,138,0.4)'}}>
+                          <span style={{background:'rgba(74,140,92,0.3)',color:'#34C759',fontSize:11,fontWeight:700,padding:'4px 12px',borderRadius:20,border:'1px solid rgba(93,224,138,0.4)'}}>
                             ✓ Paga
                           </span>
                         ) : (
@@ -280,7 +280,7 @@ export default function Pagamentos() {
                         <button
                           onClick={()=>pagarFatura(f.card.id, `${f.card.name} — ${f.card.holder}`)}
                           disabled={paying===f.card.id}
-                          style={{width:'100%',height:42,background:'rgba(255,255,255,0.15)',backdropFilter:'blur(4px)',border:'0.5px solid rgba(255,255,255,0.2)',borderRadius:16,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}
+                          style={{width:'100%',height:42,background:'rgba(0,0,0,0.08)',backdropFilter:'blur(4px)',border:'0.5px solid rgba(255,255,255,0.2)',borderRadius:16,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}
                         >
                           {paying===f.card.id ? '...' : `✓ Marcar fatura como paga — ${formatCurrency(f.pendente)}`}
                         </button>
@@ -289,7 +289,7 @@ export default function Pagamentos() {
 
                     {/* Itens da fatura — colapsável */}
                     <button onClick={()=>tog(f.card.id)}
-                      style={{width:'100%',background:'#1E1408',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 18px',borderTop:'0.5px solid rgba(255,255,255,0.05)'}}>
+                      style={{width:'100%',background:'#F8F8FA',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 18px',borderTop:'0.5px solid rgba(0,0,0,0.02)'}}>
                       <p style={{fontSize:12,color:TEXTMU,margin:0,fontWeight:600}}>
                         {openGrp[f.card.id] ? 'Ocultar' : 'Ver'} compras desta fatura
                       </p>
@@ -297,9 +297,9 @@ export default function Pagamentos() {
                     </button>
 
                     {openGrp[f.card.id] && (
-                      <div style={{background:'#1E1408',padding:'0 16px 12px'}}>
+                      <div style={{background:'#F8F8FA',padding:'0 16px 12px'}}>
                         {f.txs.map((tx,i) => (
-                          <div key={tx.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderTop:i>0?'0.5px solid rgba(255,255,255,0.05)':undefined}}>
+                          <div key={tx.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderTop:i>0?'0.5px solid rgba(0,0,0,0.02)':undefined}}>
                             <div style={{width:32,height:32,borderRadius:10,background:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>
                               {CAT_ICONS[tx.category]||'📦'}
                             </div>
@@ -329,11 +329,11 @@ export default function Pagamentos() {
 
               {/* Pendentes */}
               {avulsasPendentes.length > 0 && (
-                <div style={{background:PEBBLE,borderRadius:22,padding:'0 16px',boxShadow:'0 4px 16px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.06)',marginBottom:10}}>
+                <div style={{background:PEBBLE,borderRadius:22,padding:'0 16px',boxShadow:'0 1px 3px rgba(0,0,0,0.06)',marginBottom:10}}>
                   {avulsasPendentes.map((tx,i) => (
                     <button key={tx.id} onClick={()=>toggleAvulsa(tx)} disabled={paying===tx.id}
-                      style={{width:'100%',background:'none',border:'none',cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderTop:i>0?'0.5px solid rgba(255,255,255,0.05)':undefined,opacity:paying===tx.id?0.5:1}}>
-                      <div style={{width:26,height:26,borderRadius:8,background:'rgba(255,255,255,0.06)',border:'1.5px solid rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                      style={{width:'100%',background:'none',border:'none',cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderTop:i>0?'0.5px solid rgba(0,0,0,0.02)':undefined,opacity:paying===tx.id?0.5:1}}>
+                      <div style={{width:26,height:26,borderRadius:8,background:'rgba(0,0,0,0.04)',border:'1.5px solid rgba(0,0,0,0.08)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                       </div>
                       <div style={{width:32,height:32,borderRadius:10,background:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>
                         {CAT_ICONS[tx.category]||'📦'}
@@ -363,10 +363,10 @@ export default function Pagamentos() {
                     </div>
                   </button>
                   {openGrp['avulsas_pagas'] && (
-                    <div style={{background:PEBBLE,borderRadius:22,padding:'0 16px',boxShadow:'0 4px 16px rgba(0,0,0,0.4)'}}>
+                    <div style={{background:PEBBLE,borderRadius:22,padding:'0 16px',boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
                       {avulsasPagas.map((tx,i) => (
                         <button key={tx.id} onClick={()=>toggleAvulsa(tx)}
-                          style={{width:'100%',background:'none',border:'none',cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderTop:i>0?'0.5px solid rgba(255,255,255,0.05)':undefined}}>
+                          style={{width:'100%',background:'none',border:'none',cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderTop:i>0?'0.5px solid rgba(0,0,0,0.02)':undefined}}>
                           <div style={{width:26,height:26,borderRadius:8,background:'rgba(74,140,92,0.25)',border:'1.5px solid rgba(93,224,138,0.4)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                             <Check size={13} color={GREEN} strokeWidth={2.5}/>
                           </div>
@@ -386,7 +386,7 @@ export default function Pagamentos() {
 
           {/* Estado vazio */}
           {faturas.length===0 && txAvulsas.length===0 && (
-            <div style={{background:PEBBLE,borderRadius:24,padding:'32px 20px',textAlign:'center',boxShadow:'0 4px 16px rgba(0,0,0,0.4)'}}>
+            <div style={{background:PEBBLE,borderRadius:24,padding:'32px 20px',textAlign:'center',boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
               <p style={{fontSize:36,margin:'0 0 10px'}}>🎉</p>
               <p style={{fontSize:15,fontWeight:700,color:GREEN,margin:'0 0 4px'}}>Nenhuma conta esse mês!</p>
               <p style={{fontSize:12,color:TEXTMU,margin:0}}>Adicione lançamentos para ver aqui</p>
