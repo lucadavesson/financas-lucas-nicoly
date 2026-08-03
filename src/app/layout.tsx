@@ -19,8 +19,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR">
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="theme-color" content="#F5F5F7" />
+        <meta name="theme-color" content="#C4622D" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="icon" type="image/svg+xml" href="/icon-192.svg" />
       </head>
       <body>
         {children}

@@ -1,4 +1,11 @@
-<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 192 192'>
-  <rect width='192' height='192' rx='42' fill='#1D9E75'/>
-  <text x='96' y='115' font-family='system-ui' font-size='80' font-weight='bold' fill='white' text-anchor='middle'>💰</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C4622D"/>
+      <stop offset="100%" stop-color="#8B3A14"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
+  <text x="256" y="210" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="120" font-weight="800" fill="white" letter-spacing="-4">L&N</text>
+  <text x="256" y="340" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="52" font-weight="600" fill="rgba(255,255,255,0.7)" letter-spacing="1">FINANÇAS</text>
 </svg>
