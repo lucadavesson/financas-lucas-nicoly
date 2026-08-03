@@ -220,7 +220,7 @@ export default function Lancamentos() {
             </div>
             <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
               {sel.transaction_type!=='receita'&&sel.status!=='pago'&&(
-                <button onClick={()=>markPaid(sel)} style={{ width:'100%',height:50,background:TERRA,color:CREAM,fontWeight:700,fontSize:15,borderRadius:24,border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(196,98,45,0.3)' }}>✓ Marcar como pago</button>
+                <button onClick={()=>openPay(sel!)} style={{ width:'100%',height:50,background:TERRA,color:CREAM,fontWeight:700,fontSize:15,borderRadius:24,border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(196,98,45,0.3)' }}>✓ Marcar como pago</button>
               )}
               <Link href={`/lancamentos/editar/${sel.id}`} onClick={()=>setSel(null)}
                 style={{ width:'100%',height:46,background:'rgba(0,0,0,0.03)',color:TEXT,fontWeight:600,fontSize:14,borderRadius:24,display:'flex',alignItems:'center',justifyContent:'center' }}>

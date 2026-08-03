@@ -10,16 +10,9 @@ import { ptBR } from 'date-fns/locale'
 
 type TipoLanc = 'escolha' | 'parcelada' | 'avista' | 'recorrente' | 'receita'
 
-const CARDS_CREDITO = [
-  'Nubank — Lucas','Nubank — Nicoly','Santander — Lucas','Santander — Nicoly',
-  'Banco do Brasil — Lucas','Banco do Brasil — Nicoly','C6 Bank — Lucas','C6 Bank — Nicoly',
-  'Bradesco — Lucas','Bradesco — Nicoly','Mercado Pago — Lucas','Mercado Pago — Nicoly',
-  'Caixa — Lucas','Caixa — Nicoly'
-]
-const CONTAS_DEBITO = [
-  'Nubank — Lucas','Nubank — Nicoly','Banco do Brasil — Lucas','Banco do Brasil — Nicoly',
-  'C6 Bank — Lucas','C6 Bank — Nicoly','Caixa — Lucas','Caixa — Nicoly'
-]
+// Cartões carregados do Supabase (só ativos)
+const CARDS_CREDITO_FALLBACK: string[] = []
+const CONTAS_DEBITO_FALLBACK: string[] = []
 const CARD_CLOSING: Record<string,number> = {
   'Nubank — Lucas':2,'Nubank — Nicoly':9,'Santander — Lucas':13,'Santander — Nicoly':13,
   'Banco do Brasil — Lucas':1,'Banco do Brasil — Nicoly':1,'C6 Bank — Lucas':5,'C6 Bank — Nicoly':5,
@@ -66,28 +59,53 @@ export default function NovoLancamento() {
   const [notes, setNotes]   = useState('')
 
   // Parcelada
-  const [card, setCard]         = useState('Nubank — Lucas')
+  // Cartões do Supabase
+  const [cardsCredito, setCardsCredito] = useState<string[]>([])
+  const [contasDebito, setContasDebito] = useState<string[]>([])
+  const [cardClosing, setCardClosing]   = useState<Record<string,number>>({})
+
+  useEffect(() => {
+    async function loadCards() {
+      const { data } = await createClient().from('cards').select('name,holder,card_type,closing_day').eq('is_active', true)
+      if (data) {
+        const cred = data.filter(c => !c.card_type || c.card_type === 'credito').map(c => `${c.name} — ${c.holder}`)
+        const deb  = data.map(c => `${c.name} — ${c.holder}`)
+        const closing: Record<string,number> = {}
+        data.forEach(c => { closing[`${c.name} — ${c.holder}`] = c.closing_day || 1 })
+        setCardsCredito(cred)
+        setContasDebito(deb)
+        setCardClosing(closing)
+        if (cred.length > 0) { setCard(cred[0]); setEntryCard(cred[0]); setDebitCard(cred[0]); setRecCard(cred[0]); setRecAccount(deb[0]) }
+      }
+    }
+    loadCards()
+  }, [])
+
+  const CARDS_CREDITO = cardsCredito.length > 0 ? cardsCredito : CARDS_CREDITO_FALLBACK
+  const CONTAS_DEBITO = contasDebito.length > 0 ? contasDebito : CONTAS_DEBITO_FALLBACK
+
+  const [card, setCard]         = useState('')
   const [installments, setInst] = useState('')
   const [instRaw, setInstRaw]   = useState('')
   const [hasEntry, setHasEntry] = useState(false)
   const [entryRaw, setEntryRaw] = useState('')
   const [entryMethod, setEntryMethod] = useState('pix')
-  const [entryCard, setEntryCard]     = useState('Nubank — Lucas')
+  const [entryCard, setEntryCard]     = useState('')
 
   // À vista
   const [method, setMethod]       = useState('pix')
-  const [debitCard, setDebitCard] = useState('Nubank — Lucas')
+  const [debitCard, setDebitCard] = useState('')
 
   // Recorrente
   const [recTipo, setRecTipo]   = useState('')
   const [recItem, setRecItem]   = useState('')
   const [recDay, setRecDay]     = useState('')
   const [recMethod, setRecMethod] = useState('debito_automatico')
-  const [recCard, setRecCard]   = useState('Nubank — Lucas')
+  const [recCard, setRecCard]   = useState('')
 
   // Receita
   const [recIsRec, setRecIsRec]   = useState(false)
-  const [recAccount, setRecAccount] = useState('Nubank — Lucas')
+  const [recAccount, setRecAccount] = useState('')
 
   // Subcategoria customizada
   const [customSubs, setCustomSubs] = useState<Record<string,string[]>>({})
@@ -114,9 +132,9 @@ export default function NovoLancamento() {
   const pctJuros     = (amount - entryAmt) > 0 && totalJuros > 0 ? (totalJuros / (amount - entryAmt) * 100) : 0
 
   const billingMonth = tipo === 'parcelada' && date && card
-    ? calcBillingMonth(parseISO(date), CARD_CLOSING[card] || 1)
+    ? calcBillingMonth(parseISO(date), cardClosing[card] || 1)
     : tipo === 'avista' && method === 'cartao_credito' && date && debitCard
-    ? calcBillingMonth(parseISO(date), CARD_CLOSING[debitCard] || 1)
+    ? calcBillingMonth(parseISO(date), cardClosing[debitCard] || 1)
     : null
 
   const allCats = tipo === 'receita' ? [...CATS_RECEITA,...Object.keys(customSubs).filter(k=>!CATS_RECEITA.includes(k))]
@@ -170,7 +188,7 @@ export default function NovoLancamento() {
         // Entrada separada
         if (hasEntry && entryAmt > 0) {
           const entBm = entryMethod==='cartao_credito'
-            ? format(calcBillingMonth(parseISO(date),CARD_CLOSING[entryCard]||1),'yyyy-MM-dd') : null
+            ? format(calcBillingMonth(parseISO(date),cardClosing[entryCard]||1),'yyyy-MM-dd') : null
           await supabase.from('transactions').insert({
             owner_id:user.id, holder, transaction_type:'avista',
             description:`${desc} — entrada`, amount:entryAmt,
@@ -183,7 +201,7 @@ export default function NovoLancamento() {
 
       } else if (tipo === 'avista') {
         const isCredito = method === 'cartao_credito'
-        const bm = isCredito ? format(calcBillingMonth(parseISO(date),CARD_CLOSING[debitCard]||1),'yyyy-MM-dd') : null
+        const bm = isCredito ? format(calcBillingMonth(parseISO(date),cardClosing[debitCard]||1),'yyyy-MM-dd') : null
         const { error } = await supabase.from('transactions').insert({
           owner_id:user.id, holder, transaction_type:'avista',
           description:desc, amount, category:cat, subcategory:subcat||null,
@@ -197,7 +215,7 @@ export default function NovoLancamento() {
         const finalCat  = cat || (recTipo==='contas_casa'?'Moradia':recTipo==='assinatura'?'Lazer e Entretenimento':'Dívidas e Financiamentos')
         const finalDesc = desc || recItem
         const bm = recMethod==='cartao_credito'
-          ? format(calcBillingMonth(parseISO(date),CARD_CLOSING[recCard]||1),'yyyy-MM-dd') : null
+          ? format(calcBillingMonth(parseISO(date),cardClosing[recCard]||1),'yyyy-MM-dd') : null
         const { error } = await supabase.from('transactions').insert({
           owner_id:user.id, holder, transaction_type:'recorrente',
           description:finalDesc, amount, category:finalCat,
