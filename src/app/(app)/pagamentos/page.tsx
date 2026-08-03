@@ -114,13 +114,37 @@ export default function Pagamentos() {
     load()
   }
 
-  async function toggleAvulsa(tx: Tx) {
-    setPaying(tx.id)
-    const novo = tx.status === 'pago' ? 'pendente' : 'pago'
-    await createClient().from('transactions')
-      .update({ status: novo, paid_date: novo==='pago' ? format(new Date(),'yyyy-MM-dd') : null })
-      .eq('id', tx.id)
-    toast.success(novo==='pago' ? `✓ "${tx.description}" pago!` : 'Desmarcado')
+  // Modal de confirmação de pagamento
+  const [payConfirm, setPayConfirm] = useState<Tx|null>(null)
+  const [payDate, setPayDate]       = useState(format(new Date(),'yyyy-MM-dd'))
+  const [payValue, setPayValue]     = useState('')
+
+  function toggleAvulsa(tx: Tx) {
+    if (tx.status === 'pago') {
+      // Desmarcar direto
+      setPaying(tx.id)
+      createClient().from('transactions')
+        .update({ status: 'pendente', paid_date: null, paid_amount: null })
+        .eq('id', tx.id)
+        .then(() => { toast.success('Desmarcado'); setPaying(null); load() })
+    } else {
+      // Abrir modal de confirmação
+      setPayDate(format(new Date(),'yyyy-MM-dd'))
+      setPayValue((tx.installment_value||tx.amount).toFixed(2))
+      setPayConfirm(tx)
+    }
+  }
+
+  async function confirmPay() {
+    if (!payConfirm) return
+    setPaying(payConfirm.id)
+    await createClient().from('transactions').update({
+      status: 'pago',
+      paid_date: payDate,
+      paid_amount: parseFloat(payValue) || payConfirm.amount,
+    }).eq('id', payConfirm.id)
+    toast.success(`✓ "${payConfirm.description}" pago!`)
+    setPayConfirm(null)
     setPaying(null)
     load()
   }
@@ -393,6 +417,28 @@ export default function Pagamentos() {
             </div>
           )}
         </>
+      )}
+      {/* Modal confirmar pagamento */}
+      {payConfirm&&(
+        <div style={{position:'fixed',inset:0,zIndex:70,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setPayConfirm(null)}>
+          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.3)',backdropFilter:'blur(4px)'}}/>
+          <div style={{position:'relative',width:'90%',maxWidth:360,background:'#fff',borderRadius:20,padding:'24px 20px',boxShadow:'0 8px 40px rgba(0,0,0,0.15)'}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{fontSize:16,fontWeight:700,color:'#1C1C1E',margin:'0 0 4px'}}>Confirmar pagamento</h3>
+            <p style={{fontSize:13,color:'#8E8E93',margin:'0 0 18px'}}>{payConfirm.description}</p>
+            <div style={{marginBottom:14}}>
+              <label style={{fontSize:11,fontWeight:600,color:'#8E8E93',display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.05em'}}>Data do pagamento</label>
+              <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} style={{width:'100%',height:44,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:10,padding:'0 14px',fontSize:14,color:'#1C1C1E',outline:'none',boxSizing:'border-box'}}/>
+            </div>
+            <div style={{marginBottom:20}}>
+              <label style={{fontSize:11,fontWeight:600,color:'#8E8E93',display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.05em'}}>Valor pago (R$)</label>
+              <input type="number" inputMode="decimal" step="0.01" value={payValue} onChange={e=>setPayValue(e.target.value)} style={{width:'100%',height:44,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:10,padding:'0 14px',fontSize:16,fontWeight:700,color:'#1C1C1E',outline:'none',boxSizing:'border-box'}}/>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setPayConfirm(null)} style={{flex:1,height:46,background:'#F5F5F7',color:'#48484A',borderRadius:12,border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancelar</button>
+              <button onClick={confirmPay} style={{flex:1,height:46,background:'#34C759',color:'#fff',borderRadius:12,border:'none',fontSize:14,fontWeight:700,cursor:'pointer'}}>✓ Confirmar</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
