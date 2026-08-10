@@ -172,7 +172,7 @@ export default function NovoLancamento() {
         const iVal = instValue || (amount - entryAmt) / (nParcelas || 1)
         const bm   = billingMonth ? format(billingMonth,'yyyy-MM-dd') : null
         const { error } = await supabase.from('transactions').insert({
-          owner_id:user.id, owner_name:ownerName, holder, transaction_type:'parcelada', nature:'despesa',
+          owner_id:user.id, owner_name:ownerName, holder, transaction_type:'parcelada', type:'parcelada', nature:'despesa',
           description:desc, amount, category:cat, subcategory:subcat||null,
           purchase_date:date, notes:notes||null,
           card_name:card, billing_month:bm, status:'pendente',
@@ -191,7 +191,7 @@ export default function NovoLancamento() {
           const entBm = entryMethod==='cartao_credito'
             ? format(calcBillingMonth(parseISO(date),cardClosing[entryCard]||1),'yyyy-MM-dd') : null
           await supabase.from('transactions').insert({
-            owner_id:user.id, owner_name:ownerName, holder, transaction_type:'avista', nature:'despesa',
+            owner_id:user.id, owner_name:ownerName, holder, transaction_type:'avista', type:'avista', nature:'despesa',
             description:`${desc} — entrada`, amount:entryAmt,
             category:cat, subcategory:subcat||null,
             purchase_date:date, payment_method:entryMethod,
@@ -204,7 +204,7 @@ export default function NovoLancamento() {
         const isCredito = method === 'cartao_credito'
         const bm = isCredito ? format(calcBillingMonth(parseISO(date),cardClosing[debitCard]||1),'yyyy-MM-dd') : null
         const { error } = await supabase.from('transactions').insert({
-          owner_id:user.id, owner_name:ownerName, holder, transaction_type:'avista', nature:'despesa',
+          owner_id:user.id, owner_name:ownerName, holder, transaction_type:'avista', type:'avista', nature:'despesa',
           description:desc, amount, category:cat, subcategory:subcat||null,
           purchase_date:date, notes:notes||null,
           payment_method:method, card_name:debitCard, billing_month:bm,
@@ -218,7 +218,7 @@ export default function NovoLancamento() {
         const bm = recMethod==='cartao_credito'
           ? format(calcBillingMonth(parseISO(date),cardClosing[recCard]||1),'yyyy-MM-dd') : null
         const { error } = await supabase.from('transactions').insert({
-          owner_id:user.id, owner_name:ownerName, holder, transaction_type:'recorrente', nature:'despesa',
+          owner_id:user.id, owner_name:ownerName, holder, transaction_type:'recorrente', type:'recorrente', nature:'despesa',
           description:finalDesc, amount, category:finalCat,
           subcategory:recItem||subcat||null,
           purchase_date:date, notes:notes||null,
@@ -231,7 +231,7 @@ export default function NovoLancamento() {
 
       } else if (tipo === 'receita') {
         const { error } = await supabase.from('transactions').insert({
-          owner_id:user.id, owner_name:ownerName, holder, transaction_type:'receita', nature:'receita',
+          owner_id:user.id, owner_name:ownerName, holder, transaction_type:'receita', type:'receita', nature:'receita',
           description:desc, amount,
           expected_amount:recIsRec?amount:null,
           category:cat, subcategory:subcat||null,
