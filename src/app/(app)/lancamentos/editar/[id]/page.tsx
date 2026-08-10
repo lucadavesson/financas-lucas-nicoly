@@ -38,9 +38,9 @@ const seg = (on: boolean, accent = TERRA): React.CSSProperties => ({
 })
 
 const STATUS_CFG: Record<string,{label:string;color:string;bg:string}> = {
-  pendente: { label:'Pendente', color:'#FF3B30', bg:'rgba(196,98,45,0.25)' },
-  pago:     { label:'Pago',     color:'#34C759', bg:'rgba(74,140,92,0.25)' },
-  previsto: { label:'Previsto', color:'#FFCC55', bg:'rgba(160,110,10,0.25)' },
+  Pendente: { label:'Pendente', color:'#FF3B30', bg:'rgba(196,98,45,0.25)' },
+  Pago:     { label:'Pago',     color:'#34C759', bg:'rgba(74,140,92,0.25)' },
+  Previsto: { label:'Previsto', color:'#FFCC55', bg:'rgba(160,110,10,0.25)' },
   atrasado: { label:'Atrasado', color:'#FF6B6B', bg:'rgba(180,30,30,0.25)' },
   cancelado:{ label:'Cancelado',color:'#9B9B9B', bg:'rgba(100,100,100,0.2)' },
 }
@@ -214,7 +214,7 @@ export default function EditarLancamento() {
         </div>
 
         {/* Confirmação de pagamento */}
-        {(form.status==='pago') && (
+        {(form.status==='Pago') && (
           <div style={{ background:GREENBG, borderRadius:20, padding:'14px 16px', border:'0.5px solid rgba(74,140,92,0.2)' }}>
             <p style={{ fontSize:12, fontWeight:700, color:'#34C759', margin:'0 0 12px' }}>Confirmação de pagamento</p>
             <div style={{ display:'flex', flexDirection:'column', gap:10 }}>

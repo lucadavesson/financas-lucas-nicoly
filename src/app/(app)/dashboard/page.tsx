@@ -63,7 +63,7 @@ export default function Dashboard() {
   async function confirmPay() {
     if (!payModal) return
     await createClient().from('transactions').update({
-      status:'pago',
+      status:'Pago',
       paid_date: payDate,
       paid_amount: unmaskCurrency(payValue) || payModal.amount,
     }).eq('id', payModal.id)
@@ -75,11 +75,11 @@ export default function Dashboard() {
   const v=(n:number)=>hide?'•••':formatCurrency(n)
   const despesas=txs.filter(t=>t.transaction_type!=='receita')
   const receitas=txs.filter(t=>t.transaction_type==='receita')
-  const totalEntrou=receitas.filter(t=>t.status==='pago').reduce((s,t)=>s+t.amount,0)
-  const totalPrevisto=receitas.filter(t=>t.status==='previsto').reduce((s,t)=>s+t.amount,0)
+  const totalEntrou=receitas.filter(t=>t.status==='Pago').reduce((s,t)=>s+t.amount,0)
+  const totalPrevisto=receitas.filter(t=>t.status==='Previsto').reduce((s,t)=>s+t.amount,0)
   const totalGastou=despesas.reduce((s,t)=>s+(t.installment_value||t.amount),0)
-  const totalPago=despesas.filter(t=>t.status==='pago').reduce((s,t)=>s+(t.installment_value||t.amount),0)
-  const totalPendente=despesas.filter(t=>t.status!=='pago'&&t.status!=='cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)
+  const totalPago=despesas.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.installment_value||t.amount),0)
+  const totalPendente=despesas.filter(t=>t.status!=='Pago'&&t.status!=='cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)
   const saldo=totalEntrou-totalPago
   const pctPago=totalGastou>0?Math.min(100,(totalPago/totalGastou)*100):0
   const diasRest=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate()-new Date().getDate()
@@ -87,8 +87,8 @@ export default function Dashboard() {
 
   const hoje=new Date()
   const isCartao=(t:Tx)=>t.payment_method==='cartao_credito'||t.transaction_type==='parcelada'
-  const proximos=despesas.filter(t=>t.status!=='pago'&&t.status!=='cancelado'&&!isCartao(t)).sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date)).slice(0,5)
-  const atrasados=despesas.filter(t=>t.status==='atrasado'||(t.status==='pendente'&&!isCartao(t)&&new Date(t.purchase_date+'T12:00:00')<hoje))
+  const proximos=despesas.filter(t=>t.status!=='Pago'&&t.status!=='cancelado'&&!isCartao(t)).sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date)).slice(0,5)
+  const atrasados=despesas.filter(t=>t.status==='Atrasado'||(t.status==='Pendente'&&!isCartao(t)&&new Date(t.purchase_date+'T12:00:00')<hoje))
 
   const catMap:Record<string,number>={}
   despesas.forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+(t.installment_value||t.amount)})

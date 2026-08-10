@@ -103,11 +103,11 @@ export default function Pagamentos() {
     setPaying(cardId)
     const txsDoCartao = txs.filter(t =>
       (t.card_name === cardName || t.card_name?.includes(cardName.split('—')[0]?.trim())) &&
-      t.payment_method === 'cartao_credito' && t.status !== 'pago'
+      t.payment_method === 'cartao_credito' && t.status !== 'Pago'
     )
     if (txsDoCartao.length === 0) { setPaying(null); return }
     await createClient().from('transactions')
-      .update({ status: 'pago', paid_date: format(new Date(),'yyyy-MM-dd') })
+      .update({ status: 'Pago', paid_date: format(new Date(),'yyyy-MM-dd') })
       .in('id', txsDoCartao.map(t=>t.id))
     toast.success(`Fatura ${cardName.split('—')[0]?.trim()} paga! ${txsDoCartao.length} lançamentos atualizados`)
     setPaying(null)
@@ -120,10 +120,10 @@ export default function Pagamentos() {
   const [payValue, setPayValue]     = useState('')
 
   function toggleAvulsa(tx: Tx) {
-    if (tx.status === 'pago') {
+    if (tx.status === 'Pago') {
       setPaying(tx.id)
       createClient().from('transactions')
-        .update({ status: 'pendente', paid_date: null, paid_amount: null })
+        .update({ status: 'Pendente', paid_date: null, paid_amount: null })
         .eq('id', tx.id)
         .then(() => { toast.success('Desmarcado'); setPaying(null); load() })
     } else {
@@ -137,7 +137,7 @@ export default function Pagamentos() {
     if (!payConfirm) return
     setPaying(payConfirm.id)
     await createClient().from('transactions').update({
-      status: 'pago',
+      status: 'Pago',
       paid_date: payDate,
       paid_amount: unmaskCurrency(payValue) || payConfirm.amount,
     }).eq('id', payConfirm.id)
@@ -163,8 +163,8 @@ export default function Pagamentos() {
     t.payment_method !== 'cartao_credito' && 
     t.transaction_type !== 'parcelada'
   )
-  const avulsasPendentes = txAvulsas.filter(t => t.status !== 'pago' && t.status !== 'cancelado')
-  const avulsasPagas     = txAvulsas.filter(t => t.status === 'pago')
+  const avulsasPendentes = txAvulsas.filter(t => t.status !== 'Pago' && t.status !== 'cancelado')
+  const avulsasPagas     = txAvulsas.filter(t => t.status === 'Pago')
 
   // 3. Faturas por cartão
   type FaturaCard = {
@@ -184,7 +184,7 @@ export default function Pagamentos() {
         t.holder === card.holder && t.card_name?.toLowerCase().includes(card.name.toLowerCase().split(' ')[0])
       )
       const total    = itens.reduce((s,t)=>s+(t.installment_value||t.amount),0)
-      const pago     = itens.filter(t=>t.status==='pago').reduce((s,t)=>s+(t.installment_value||t.amount),0)
+      const pago     = itens.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.installment_value||t.amount),0)
       const pendente = total - pago
       return { card, txs: itens, total, pago, pendente, isPago: total>0&&pendente===0 }
     })

@@ -11,13 +11,13 @@ import { toast } from 'sonner'
 type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;status:string;purchase_date:string;transaction_type:string }
 
 const BADGE: Record<string,string> = { pago:'badge-pago',pendente:'badge-pendente',previsto:'badge-previsto',atrasado:'badge-atrasado',cancelado:'badge-previsto' }
-const BADGE_LABEL: Record<string,string> = { pago:'Pago',pendente:'Pendente',previsto:'Previsto',atrasado:'Atrasado',cancelado:'Cancelado' }
+const BADGE_LABEL: Record<string,string> = { Pago:'Pago',Pendente:'Pendente',Previsto:'Previsto',Atrasado:'Atrasado',Cancelado:'Cancelado' }
 
 function BadgeInline({status}: {status:string}) {
   const cfg: Record<string,{bg:string;color:string;border:string;label:string;pulse:boolean}> = {
-    pago:      {bg:'rgba(34,120,60,0.35)',   color:'#5DE08A', border:'rgba(93,224,138,0.4)',  label:'Pago',      pulse:false},
-    pendente:  {bg:'rgba(180,60,20,0.35)',   color:'#FF8A5C', border:'rgba(255,138,92,0.45)', label:'Pendente',  pulse:true},
-    previsto:  {bg:'rgba(160,110,10,0.3)',   color:'#FFCC55', border:'rgba(255,204,85,0.35)', label:'Previsto',  pulse:false},
+    Pago:      {bg:'rgba(34,120,60,0.35)',   color:'#5DE08A', border:'rgba(93,224,138,0.4)',  label:'Pago',      pulse:false},
+    Pendente:  {bg:'rgba(180,60,20,0.35)',   color:'#FF8A5C', border:'rgba(255,138,92,0.45)', label:'Pendente',  pulse:true},
+    Previsto:  {bg:'rgba(160,110,10,0.3)',   color:'#FFCC55', border:'rgba(255,204,85,0.35)', label:'Previsto',  pulse:false},
     atrasado:  {bg:'rgba(180,30,30,0.35)',   color:'#FF6B6B', border:'rgba(255,107,107,0.4)', label:'Atrasado',  pulse:true},
     cancelado: {bg:'rgba(100,100,100,0.2)',  color:'#9B9B9B', border:'rgba(155,155,155,0.2)', label:'Cancelado', pulse:false},
   }
@@ -80,7 +80,7 @@ export default function Lancamentos() {
   async function confirmPay() {
     if (!payConfirm) return
     await createClient().from('transactions').update({
-      status:'pago', paid_date: payDate,
+      status:'Pago', paid_date: payDate,
       paid_amount: unmaskCurrency(payValue) || payConfirm.amount,
     }).eq('id', payConfirm.id)
     toast.success(`✓ "${payConfirm.description}" pago`)
@@ -110,8 +110,8 @@ export default function Lancamentos() {
 
   const totalR=filtered.filter(t=>t.transaction_type==='receita').reduce((s,t)=>s+t.amount,0)
   const totalD=filtered.filter(t=>t.transaction_type!=='receita').reduce((s,t)=>s+(t.installment_value||t.amount),0)
-  const aConfirmar=filtered.filter(t=>t.transaction_type==='receita'&&t.status==='previsto').reduce((s,t)=>s+t.amount,0)
-  const aPagar=filtered.filter(t=>t.transaction_type!=='receita'&&['pendente','atrasado'].includes(t.status)).reduce((s,t)=>s+(t.installment_value||t.amount),0)
+  const aConfirmar=filtered.filter(t=>t.transaction_type==='receita'&&t.status==='Previsto').reduce((s,t)=>s+t.amount,0)
+  const aPagar=filtered.filter(t=>t.transaction_type!=='receita'&&['Pendente','Atrasado'].includes(t.status)).reduce((s,t)=>s+(t.installment_value||t.amount),0)
 
   return (
     <div style={{ display:'flex',flexDirection:'column',height:'100%',background:BG }}>
@@ -198,8 +198,8 @@ export default function Lancamentos() {
                       <div style={{ flex:1,minWidth:0 }}>
                         <p style={{ fontSize:15,fontWeight:500,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{tx.description}</p>
                         <p style={{ fontSize:11,color:TEXTMU,marginTop:2 }}>{tx.category}{tx.subcategory?` › ${tx.subcategory}`:''} | {tx.holder}</p>
-                        {tx.status==='pago'&&<p style={{ fontSize:10,color:GREEN,marginTop:1 }}>Pago - Confirmado</p>}
-                        {tx.status==='pendente'&&<p style={{ fontSize:10,color:TERRA,marginTop:1 }}>Pendente - {tx.installment_value?`Parcela`:''}{tx.installment_total?` (${tx.installment_total}x)`:''}</p>}
+                        {tx.status==='Pago'&&<p style={{ fontSize:10,color:GREEN,marginTop:1 }}>Pago - Confirmado</p>}
+                        {tx.status==='Pendente'&&<p style={{ fontSize:10,color:TERRA,marginTop:1 }}>Pendente - {tx.installment_value?`Parcela`:''}{tx.installment_total?` (${tx.installment_total}x)`:''}</p>}
                       </div>
                       <div style={{ textAlign:'right',flexShrink:0 }}>
                         <p style={{ fontSize:14,fontWeight:700,color:tx.transaction_type==='receita'?GREEN:TERRA,fontVariantNumeric:'tabular-nums' as const }}>
@@ -236,7 +236,7 @@ export default function Lancamentos() {
               </div>
             </div>
             <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
-              {sel.transaction_type!=='receita'&&sel.status!=='pago'&&(
+              {sel.transaction_type!=='receita'&&sel.status!=='Pago'&&(
                 <button onClick={()=>openPay(sel!)} style={{ width:'100%',height:50,background:TERRA,color:CREAM,fontWeight:700,fontSize:15,borderRadius:24,border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(196,98,45,0.3)' }}>✓ Marcar como pago</button>
               )}
               <Link href={`/lancamentos/editar/${sel.id}`} onClick={()=>setSel(null)}

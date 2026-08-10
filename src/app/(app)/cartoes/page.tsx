@@ -95,12 +95,12 @@ export default function Cartoes() {
   }, 0)
   const totalDisp  = credito.reduce((s,c)=>s+c.credit_limit,0) - totalUsado
   const totalPago  = credito.reduce((s,c) => {
-    return s + txsDoCartao(c).filter(t=>t.status==='pago').reduce((ss,t)=>ss+(t.installment_value||t.amount),0)
+    return s + txsDoCartao(c).filter(t=>t.status==='Pago').reduce((ss,t)=>ss+(t.installment_value||t.amount),0)
   }, 0)
   const totalPend  = credito.reduce((s,c) => {
     const items = txsDoCartao(c)
     const gasto = items.reduce((ss,t)=>ss+(t.installment_value||t.amount),0)
-    const pago  = items.filter(t=>t.status==='pago').reduce((ss,t)=>ss+(t.installment_value||t.amount),0)
+    const pago  = items.filter(t=>t.status==='Pago').reduce((ss,t)=>ss+(t.installment_value||t.amount),0)
     return s + (gasto - pago)
   }, 0)
 
@@ -153,7 +153,7 @@ export default function Cartoes() {
           {[...credito,...contas].map(c=>{
             const itens  = txsDoCartao(c)
             const gasto  = itens.reduce((s,t)=>s+(t.installment_value||t.amount),0)
-            const pago   = itens.filter(t=>t.status==='pago').reduce((s,t)=>s+(t.installment_value||t.amount),0)
+            const pago   = itens.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.installment_value||t.amount),0)
             const pendente = gasto - pago
             const bk     = getBankKey(c.bank)
             const grad   = BANK_GRADIENT[bk]||BANK_GRADIENT.default

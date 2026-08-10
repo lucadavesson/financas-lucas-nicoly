@@ -175,7 +175,7 @@ export default function NovoLancamento() {
           owner_id:user.id, owner_name:ownerName, holder, transaction_type:'parcelada', type:'parcelada',
           description:desc, amount, category:cat, subcategory:subcat||null,
           purchase_date:date, notes:notes||null,
-          card_name:card, billing_month:bm, status:'pendente',
+          card_name:card, billing_month:bm, status:'Pendente',
           payment_method:'cartao_credito',
           installment_total:nParcelas||1, installment_value:iVal,
           installment_interest:totalJuros,
@@ -196,7 +196,7 @@ export default function NovoLancamento() {
             category:cat, subcategory:subcat||null,
             purchase_date:date, payment_method:entryMethod,
             card_name:entryCard, billing_month:entBm,
-            status:['pix','dinheiro','debito'].includes(entryMethod)?'pago':'pendente',
+            status:['pix','dinheiro','debito'].includes(entryMethod)?'Pago':'Pendente',
           })
         }
 
@@ -208,7 +208,7 @@ export default function NovoLancamento() {
           description:desc, amount, category:cat, subcategory:subcat||null,
           purchase_date:date, notes:notes||null,
           payment_method:method, card_name:debitCard, billing_month:bm,
-          status:['pix','dinheiro','debito'].includes(method)?'pago':'pendente',
+          status:['pix','dinheiro','debito'].includes(method)?'Pago':'Pendente',
         })
         if (error) throw error
 
@@ -225,7 +225,7 @@ export default function NovoLancamento() {
           payment_method:recMethod, card_name:recContaTipo!=='nenhum'?recCard:null,
           billing_month:bm, is_recurring:true,
           recurring_day:recDay?parseInt(recDay):null,
-          status:'pendente',
+          status:'Pendente',
         })
         if (error) throw error
 
@@ -238,7 +238,7 @@ export default function NovoLancamento() {
           purchase_date:date, notes:notes||null,
           received_account:recAccount,
           is_recurring:recIsRec,
-          status:recIsRec?'previsto':'pago',
+          status:recIsRec?'Previsto':'Pago',
         })
         if (error) throw error
       }
