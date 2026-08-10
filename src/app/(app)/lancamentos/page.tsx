@@ -62,9 +62,13 @@ export default function Lancamentos() {
     const {data}=await createClient().from('transactions').select('*')
       .gte('purchase_date',format(startOfMonth(date),'yyyy-MM-dd'))
       .lte('purchase_date',format(endOfMonth(date),'yyyy-MM-dd'))
-      .neq('transaction_type','parcelada')
       .order('purchase_date',{ascending:false})
-    setTxs(data||[]); setLoad(false)
+    // Exclui parcelas (ficam em Pagamentos/Cartões)
+    const filtered = (data||[]).filter(t => {
+      const parcelas = t.installment_total || t.total_installments || 0
+      return parcelas <= 1 && t.transaction_type !== 'parcelada'
+    })
+    setTxs(filtered); setLoad(false)
   }
 
   const [payConfirm, setPayConfirm] = useState<Tx|null>(null)
