@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency, CAT_ICONS } from '@/lib/utils'
+import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronRight, ArrowUpRight, ArrowDownRight, Wallet, TrendingUp } from 'lucide-react'
@@ -51,7 +51,7 @@ export default function Dashboard() {
 
   function openPayModal(id:string, desc:string, amount:number) {
     setPayDate(format(new Date(),'yyyy-MM-dd'))
-    setPayValue(amount.toFixed(2))
+    setPayValue(maskCurrency(Math.round(amount*100).toString()))
     setPayModal({id,desc,amount})
   }
 
@@ -60,7 +60,7 @@ export default function Dashboard() {
     await createClient().from('transactions').update({
       status:'pago',
       paid_date: payDate,
-      paid_amount: parseFloat(payValue) || payModal.amount,
+      paid_amount: unmaskCurrency(payValue) || payModal.amount,
     }).eq('id', payModal.id)
     toast.success(`✓ "${payModal.desc}" pago`)
     setPayModal(null)
@@ -243,16 +243,21 @@ export default function Dashboard() {
       {payModal&&(
         <div style={{position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setPayModal(null)}>
           <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.3)',backdropFilter:'blur(4px)'}}/>
-          <div style={{position:'relative',width:'90%',maxWidth:360,background:'#fff',borderRadius:20,padding:'24px 20px',boxShadow:'0 8px 40px rgba(0,0,0,0.15)'}} onClick={e=>e.stopPropagation()}>
+          <div style={{position:'relative',width:'88%',maxWidth:340,background:'#fff',borderRadius:20,padding:'24px 16px',boxShadow:'0 8px 40px rgba(0,0,0,0.15)'}} onClick={e=>e.stopPropagation()}>
             <h3 style={{fontSize:16,fontWeight:700,color:'#1C1C1E',margin:'0 0 4px'}}>Confirmar pagamento</h3>
             <p style={{fontSize:13,color:'#8E8E93',margin:'0 0 18px'}}>{payModal.desc}</p>
             <div style={{marginBottom:14}}>
               <label style={{fontSize:11,fontWeight:600,color:'#8E8E93',display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.05em'}}>Data do pagamento</label>
-              <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} style={{width:'100%',height:44,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:10,padding:'0 14px',fontSize:14,color:'#1C1C1E',outline:'none',boxSizing:'border-box'}}/>
+              <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} style={{width:'100%',height:44,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:10,padding:'0 12px',fontSize:14,color:'#1C1C1E',outline:'none',boxSizing:'border-box',WebkitAppearance:'none',maxWidth:'100%'}}/>
             </div>
             <div style={{marginBottom:20}}>
-              <label style={{fontSize:11,fontWeight:600,color:'#8E8E93',display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.05em'}}>Valor pago (R$)</label>
-              <input type="number" inputMode="decimal" step="0.01" value={payValue} onChange={e=>setPayValue(e.target.value)} style={{width:'100%',height:44,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:10,padding:'0 14px',fontSize:16,fontWeight:700,color:'#1C1C1E',outline:'none',boxSizing:'border-box'}}/>
+              <label style={{fontSize:11,fontWeight:600,color:'#8E8E93',display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.05em'}}>Valor pago</label>
+              <div style={{position:'relative'}}>
+                <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:14,color:'#8E8E93',fontWeight:600}}>R$</span>
+                <input type="text" inputMode="numeric" value={payValue}
+                  onChange={e=>setPayValue(maskCurrency(e.target.value))}
+                  style={{width:'100%',height:44,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:10,padding:'0 14px 0 40px',fontSize:16,fontWeight:700,color:'#1C1C1E',outline:'none',boxSizing:'border-box'}}/>
+              </div>
             </div>
             <div style={{display:'flex',gap:8}}>
               <button onClick={()=>setPayModal(null)} style={{flex:1,height:46,background:'#F5F5F7',color:'#48484A',borderRadius:12,border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancelar</button>
