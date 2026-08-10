@@ -33,17 +33,22 @@ function BadgeInline({status}: {status:string}) {
 
 export default function Dashboard() {
   const [txs,setTxs]=useState<Tx[]>([]); const [loading,setLoad]=useState(true); const [hide,setHide]=useState(false)
-  useEffect(()=>{load()}, [])
+  const [curMonth, setCurMonth] = useState(new Date())
+  useEffect(()=>{load()}, [curMonth])
 
   async function load() {
     setLoad(true)
-    const now=new Date()
     const {data}=await createClient().from('transactions').select('*')
-      .gte('purchase_date',format(startOfMonth(now),'yyyy-MM-dd'))
-      .lte('purchase_date',format(endOfMonth(now),'yyyy-MM-dd'))
+      .gte('purchase_date',format(startOfMonth(curMonth),'yyyy-MM-dd'))
+      .lte('purchase_date',format(endOfMonth(curMonth),'yyyy-MM-dd'))
       .order('purchase_date',{ascending:false})
     setTxs(data||[]); setLoad(false)
   }
+
+  function prevMonth(){setCurMonth(m=>new Date(m.getFullYear(),m.getMonth()-1,1))}
+  function nextMonth(){setCurMonth(m=>new Date(m.getFullYear(),m.getMonth()+1,1))}
+  const monthLabel = format(curMonth,'MMMM yyyy',{locale:ptBR})
+  const isCurrentMonth = format(curMonth,'yyyy-MM')===format(new Date(),'yyyy-MM')
 
   const [payModal, setPayModal] = useState<{id:string;desc:string;amount:number}|null>(null)
   const [payDate, setPayDate]   = useState(format(new Date(),'yyyy-MM-dd'))
@@ -97,9 +102,14 @@ export default function Dashboard() {
     <div style={{background:BG,minHeight:'100%',padding:'16px 16px 160px'}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.5)}}`}</style>
 
-      {/* Mês + ocultar */}
+      {/* Mês navegável + ocultar */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-        <p style={{fontSize:12,fontWeight:700,color:TEXTMU,textTransform:'uppercase',letterSpacing:'0.08em',margin:0}}>{format(new Date(),'MMMM yyyy',{locale:ptBR})}</p>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <button onClick={prevMonth} style={{width:28,height:28,background:'rgba(0,0,0,0.04)',borderRadius:8,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:TEXTLT}}>‹</button>
+          <p style={{fontSize:13,fontWeight:700,color:TEXT,textTransform:'capitalize',margin:0,minWidth:110,textAlign:'center'}}>{monthLabel}</p>
+          <button onClick={nextMonth} style={{width:28,height:28,background:'rgba(0,0,0,0.04)',borderRadius:8,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:TEXTLT}}>›</button>
+          {!isCurrentMonth&&<button onClick={()=>setCurMonth(new Date())} style={{fontSize:10,color:TERRA,background:'rgba(196,98,45,0.08)',border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer',fontWeight:600}}>Hoje</button>}
+        </div>
         <button onClick={()=>setHide(h=>!h)} style={{fontSize:12,color:TEXTMU,background:'none',border:'none',cursor:'pointer'}}>{hide?'Mostrar':'Ocultar'}</button>
       </div>
 
