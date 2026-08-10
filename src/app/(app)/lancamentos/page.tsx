@@ -15,11 +15,11 @@ const BADGE_LABEL: Record<string,string> = { Pago:'Pago',Pendente:'Pendente',Pre
 
 function BadgeInline({status}: {status:string}) {
   const cfg: Record<string,{bg:string;color:string;border:string;label:string;pulse:boolean}> = {
-    Pago:      {bg:'rgba(34,120,60,0.35)',   color:'#5DE08A', border:'rgba(93,224,138,0.4)',  label:'Pago',      pulse:false},
-    Pendente:  {bg:'rgba(180,60,20,0.35)',   color:'#FF8A5C', border:'rgba(255,138,92,0.45)', label:'Pendente',  pulse:true},
-    Previsto:  {bg:'rgba(160,110,10,0.3)',   color:'#FFCC55', border:'rgba(255,204,85,0.35)', label:'Previsto',  pulse:false},
-    atrasado:  {bg:'rgba(180,30,30,0.35)',   color:'#FF6B6B', border:'rgba(255,107,107,0.4)', label:'Atrasado',  pulse:true},
-    cancelado: {bg:'rgba(100,100,100,0.2)',  color:'#9B9B9B', border:'rgba(155,155,155,0.2)', label:'Cancelado', pulse:false},
+    Pago:      {bg:'rgba(34,199,89,0.12)',    color:'#1B8A3A', border:'rgba(34,199,89,0.25)', label:'Pago',      pulse:false},
+    Pendente:  {bg:'rgba(196,98,45,0.12)',    color:'#C4622D', border:'rgba(196,98,45,0.25)', label:'Pendente',  pulse:true},
+    Previsto:  {bg:'rgba(255,170,0,0.12)',    color:'#B37700', border:'rgba(255,170,0,0.25)', label:'Previsto',  pulse:false},
+    Atrasado:  {bg:'rgba(255,59,48,0.12)',    color:'#D32920', border:'rgba(255,59,48,0.25)', label:'Atrasado',  pulse:true},
+    Cancelado: {bg:'rgba(142,142,147,0.12)', color:'#8E8E93', border:'rgba(142,142,147,0.2)', label:'Cancelado', pulse:false},
   }
   const c = cfg[status] || cfg.pendente
   return (
@@ -119,32 +119,32 @@ export default function Lancamentos() {
       <div style={{ background:'#FFFFFF', padding:'12px 16px 14px', flexShrink:0 }}>
         {/* Navegação de mês */}
         <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14 }}>
-          <button onClick={()=>setDate(d=>subMonths(d,1))} style={{ width:32,height:32,background:'rgba(244,239,232,0.1)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
+          <button onClick={()=>setDate(d=>subMonths(d,1))} style={{ width:32,height:32,background:'rgba(0,0,0,0.04)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
             <ChevronLeft size={18} color={CREAM}/>
           </button>
-          <span style={{ fontWeight:700,fontSize:15,color:CREAM,textTransform:'capitalize' }}>{format(date,'MMMM yyyy',{locale:ptBR})}</span>
-          <button onClick={()=>setDate(d=>addMonths(d,1))} style={{ width:32,height:32,background:'rgba(244,239,232,0.1)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
+          <span style={{ fontWeight:700,fontSize:15,color:'#fff',textTransform:'capitalize' }}>{format(date,'MMMM yyyy',{locale:ptBR})}</span>
+          <button onClick={()=>setDate(d=>addMonths(d,1))} style={{ width:32,height:32,background:'rgba(0,0,0,0.04)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
             <ChevronRight size={18} color={CREAM}/>
           </button>
         </div>
 
         {/* Cards resumo */}
         <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12 }}>
-          <div style={{ background:'rgba(80,130,90,0.2)',borderRadius:20,padding:'12px 14px',border:'0.5px solid rgba(80,130,90,0.25)' }}>
-            <p style={{ fontSize:11,color:'rgba(164,201,180,0.8)',marginBottom:2 }}>Total Receitas ({format(date,'MMM/yy')})</p>
-            <p style={{ fontSize:17,fontWeight:700,color:'#A4C9B4',fontVariantNumeric:'tabular-nums' as const }}>{formatCurrency(totalR)}</p>
-            {aConfirmar>0&&<p style={{ fontSize:10,color:'rgba(164,201,180,0.6)',marginTop:2 }}>A confirmar: {formatCurrency(aConfirmar)}</p>}
+          <div style={{ background:'rgba(34,199,89,0.08)',borderRadius:20,padding:'12px 14px',border:'1px solid rgba(34,199,89,0.2)' }}>
+            <p style={{ fontSize:11,color:'#1B8A3A',marginBottom:2,fontWeight:600 }}>Total Receitas ({format(date,'MMM/yy')})</p>
+            <p style={{ fontSize:17,fontWeight:700,color:'#34C759',fontVariantNumeric:'tabular-nums' as const }}>{formatCurrency(totalR)}</p>
+            {aConfirmar>0&&<p style={{ fontSize:10,color:'#48484A',marginTop:2 }}>A confirmar: {formatCurrency(aConfirmar)}</p>}
           </div>
-          <div style={{ background:'rgba(196,98,45,0.2)',borderRadius:20,padding:'12px 14px',border:'0.5px solid rgba(196,98,45,0.25)' }}>
-            <p style={{ fontSize:11,color:'rgba(244,200,170,0.8)',marginBottom:2 }}>Total Despesas ({format(date,'MMM/yy')})</p>
-            <p style={{ fontSize:17,fontWeight:700,color:'#F4C8AA',fontVariantNumeric:'tabular-nums' as const }}>{formatCurrency(totalD)}</p>
-            {aPagar>0&&<p style={{ fontSize:10,color:'rgba(244,200,170,0.6)',marginTop:2 }}>A pagar: {formatCurrency(aPagar)}</p>}
+          <div style={{ background:'rgba(255,59,48,0.06)',borderRadius:20,padding:'12px 14px',border:'1px solid rgba(255,59,48,0.15)' }}>
+            <p style={{ fontSize:11,color:'#C4622D',marginBottom:2,fontWeight:600 }}>Total Despesas ({format(date,'MMM/yy')})</p>
+            <p style={{ fontSize:17,fontWeight:700,color:'#FF3B30',fontVariantNumeric:'tabular-nums' as const }}>{formatCurrency(totalD)}</p>
+            {aPagar>0&&<p style={{ fontSize:10,color:'#48484A',marginTop:2 }}>A pagar: {formatCurrency(aPagar)}</p>}
           </div>
         </div>
 
         {/* Filtros */}
         <div style={{ display:'flex',gap:8,alignItems:'center' }}>
-          <button onClick={()=>setShowF(!showF)} style={{ display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:20,background:showF||fH.length||fT.length?TERRA:'rgba(244,239,232,0.12)',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:showF||fH.length||fT.length?CREAM:'rgba(244,239,232,0.7)' }}>
+          <button onClick={()=>setShowF(!showF)} style={{ display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:20,background:showF||fH.length||fT.length?TERRA:'rgba(0,0,0,0.04)',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:showF||fH.length||fT.length?'#fff':TEXT }}>
             <SlidersHorizontal size={13}/> Filtros{(fH.length+fT.length)>0?` (${fH.length+fT.length})`:''}
           </button>
           {(fH.length||fT.length)?<button onClick={()=>{setFH([]);setFT([])}} style={{ fontSize:11,color:TERRA,background:'none',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:3 }}><X size={11}/>Limpar</button>:null}
@@ -152,18 +152,18 @@ export default function Lancamentos() {
         {showF&&(
           <div style={{ marginTop:10,display:'flex',flexDirection:'column',gap:10 }}>
             <div>
-              <p style={{ fontSize:10,fontWeight:600,color:'rgba(244,239,232,0.5)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:6 }}>Pessoa</p>
+              <p style={{ fontSize:10,fontWeight:600,color:'#8E8E93',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:6 }}>Pessoa</p>
               <div style={{ display:'flex',gap:6 }}>
                 {['Lucas','Nicoly','Prata'].map(h=>(
-                  <button key={h} onClick={()=>tog(fH,setFH,h)} style={{ padding:'5px 13px',borderRadius:20,fontSize:12,fontWeight:600,cursor:'pointer',background:fH.includes(h)?TERRA:'rgba(244,239,232,0.1)',color:fH.includes(h)?CREAM:'rgba(244,239,232,0.6)',border:'none' }}>{h}</button>
+                  <button key={h} onClick={()=>tog(fH,setFH,h)} style={{ padding:'5px 13px',borderRadius:20,fontSize:12,fontWeight:600,cursor:'pointer',background:fH.includes(h)?TERRA:'rgba(0,0,0,0.04)',color:fH.includes(h)?CREAM:'#48484A',border:'none' }}>{h}</button>
                 ))}
               </div>
             </div>
             <div>
-              <p style={{ fontSize:10,fontWeight:600,color:'rgba(244,239,232,0.5)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:6 }}>Tipo</p>
+              <p style={{ fontSize:10,fontWeight:600,color:'#8E8E93',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:6 }}>Tipo</p>
               <div style={{ display:'flex',gap:6 }}>
                 {['Receita','Despesa'].map(t=>(
-                  <button key={t} onClick={()=>tog(fT,setFT,t)} style={{ padding:'5px 13px',borderRadius:20,fontSize:12,fontWeight:600,cursor:'pointer',background:fT.includes(t)?TERRA:'rgba(244,239,232,0.1)',color:fT.includes(t)?CREAM:'rgba(244,239,232,0.6)',border:'none' }}>{t}</button>
+                  <button key={t} onClick={()=>tog(fT,setFT,t)} style={{ padding:'5px 13px',borderRadius:20,fontSize:12,fontWeight:600,cursor:'pointer',background:fT.includes(t)?TERRA:'rgba(0,0,0,0.04)',color:fT.includes(t)?CREAM:'#48484A',border:'none' }}>{t}</button>
                 ))}
               </div>
             </div>
@@ -181,7 +181,7 @@ export default function Lancamentos() {
           <div style={{ textAlign:'center',padding:'48px 16px' }}>
             <p style={{ fontSize:24,marginBottom:12 }}>📭</p>
             <p style={{ fontSize:14,color:TEXTMU,marginBottom:16 }}>Nenhum lançamento</p>
-            <Link href="/lancamentos/novo" style={{ padding:'10px 20px',background:TERRA,color:CREAM,borderRadius:24,fontSize:13,fontWeight:700 }}>Adicionar</Link>
+            <Link href="/lancamentos/novo" style={{ padding:'10px 20px',background:TERRA,color:'#fff',borderRadius:24,fontSize:13,fontWeight:700 }}>Adicionar</Link>
           </div>
         ):(
           <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
@@ -237,7 +237,7 @@ export default function Lancamentos() {
             </div>
             <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
               {sel.transaction_type!=='receita'&&sel.status!=='Pago'&&(
-                <button onClick={()=>openPay(sel!)} style={{ width:'100%',height:50,background:TERRA,color:CREAM,fontWeight:700,fontSize:15,borderRadius:24,border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(196,98,45,0.3)' }}>✓ Marcar como pago</button>
+                <button onClick={()=>openPay(sel!)} style={{ width:'100%',height:50,background:TERRA,color:'#fff',fontWeight:700,fontSize:15,borderRadius:24,border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(196,98,45,0.3)' }}>✓ Marcar como pago</button>
               )}
               <Link href={`/lancamentos/editar/${sel.id}`} onClick={()=>setSel(null)}
                 style={{ width:'100%',height:46,background:'rgba(0,0,0,0.03)',color:TEXT,fontWeight:600,fontSize:14,borderRadius:24,display:'flex',alignItems:'center',justifyContent:'center' }}>
