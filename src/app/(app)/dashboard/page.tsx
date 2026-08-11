@@ -1,4 +1,5 @@
 'use client'
+import { generateRecurrents } from '@/lib/utils/recurrents'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
@@ -56,6 +57,20 @@ export default function Dashboard() {
     limitsData?.forEach((r:any)=>{lm[r.category]=r.limit_amount})
     setCatLimits(lm)
     setLoad(false)
+    // Gerar recorrentes do mês se necessário (background, não bloqueia)
+    if (format(curMonth,'yyyy-MM')===format(new Date(),'yyyy-MM')) {
+      generateRecurrents(curMonth).then(r => {
+        if (r.generated > 0) {
+          toast.success(`${r.generated} conta${r.generated>1?'s':''} recorrente${r.generated>1?'s':''} gerada${r.generated>1?'s':''}`)
+          // Recarregar dados
+          s.from('transactions').select('*')
+            .gte('purchase_date',format(startOfMonth(curMonth),'yyyy-MM-dd'))
+            .lte('purchase_date',format(endOfMonth(curMonth),'yyyy-MM-dd'))
+            .order('purchase_date',{ascending:false})
+            .then(({data:fresh})=>setTxs(fresh||[]))
+        }
+      })
+    }
   }
 
   function prevMonth(){setCurMonth(m=>new Date(m.getFullYear(),m.getMonth()-1,1))}

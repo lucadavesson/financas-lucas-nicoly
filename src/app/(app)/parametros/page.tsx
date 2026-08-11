@@ -414,13 +414,30 @@ export default function Parametros() {
             <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>Remove dados salvos no navegador (não apaga seus lançamentos)</p>
           </div>
         </button>
-        <div style={{...sCard,padding:'16px 18px',display:'flex',alignItems:'center',gap:12}}>
+        <button onClick={async()=>{
+          const s=createClient();const {data:{user}}=await s.auth.getUser();if(!user)return
+          const {data}=await s.from('transactions').select('*').eq('owner_id',user.id).order('purchase_date',{ascending:false})
+          if(!data||data.length===0){toast.error('Nenhum lançamento encontrado');return}
+          const headers=['Data','Descrição','Categoria','Subcategoria','Valor','Parcela','Status','Método','Cartão','Titular','Tipo','Observações']
+          const rows=data.map((t:any)=>[
+            t.purchase_date,t.description,t.category,t.subcategory||'',
+            (t.installment_value||t.amount)?.toString().replace('.',','),
+            t.installment_total?`${t.installment_num||''}/${t.installment_total}`:'',
+            t.status,t.payment_method||'',t.card_name||'',t.holder,t.transaction_type,t.notes||''
+          ])
+          const csv='\uFEFF'+[headers,...rows].map(r=>r.map((c:string)=>`"${(c||'').replace(/"/g,'""')}"`).join(';')).join('\n')
+          const blob=new Blob([csv],{type:'text/csv;charset=utf-8'})
+          const url=URL.createObjectURL(blob)
+          const a=document.createElement('a');a.href=url;a.download=`financas-ln-${new Date().toISOString().slice(0,10)}.csv`;a.click()
+          URL.revokeObjectURL(url)
+          toast.success(`Exportado! ${data.length} lançamentos`)
+        }} style={{...sCard,padding:'16px 18px',display:'flex',alignItems:'center',gap:12,border:'none',cursor:'pointer',width:'100%',textAlign:'left'}}>
           <Download size={20} color={ACCENT}/>
           <div>
-            <p style={{fontSize:14,fontWeight:600,color:TEXT,margin:0}}>Exportar dados</p>
-            <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>Em breve — exportar lançamentos para CSV ou Google Sheets</p>
+            <p style={{fontSize:14,fontWeight:600,color:TEXT,margin:0}}>Exportar dados (CSV)</p>
+            <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>Baixar todos os lançamentos em formato CSV (Excel)</p>
           </div>
-        </div>
+        </button>
         <div style={{...sCard,padding:'16px 18px'}}>
           <p style={{fontSize:11,fontWeight:600,color:TEXTMU,textTransform:'uppercase',letterSpacing:'0.05em',margin:'0 0 8px'}}>Versão</p>
           <p style={{fontSize:14,color:TEXT,margin:0}}>Finanças L&N v1.0</p>

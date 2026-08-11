@@ -11,7 +11,7 @@ const TEXT   = '#1C1C1E'
 const TEXTLT = '#48484A'
 const TEXTMU = '#8E8E93'
 const TERRA  = '#C4622D'
-const CREAM  = '#FFFFFF'
+
 
 const ICONS_MAP:Record<string,string>={diamond:'💍',plane:'✈️',home:'🏠',shield:'🛡️',star:'⭐',target:'🎯',car:'🚗',ring:'💍',piggy:'🐷',book:'📚'}
 const GOAL_COLORS=['#1D9E75','#7F77DD','#378ADD','#C8963C','#E24B4A','#C4622D','#0F6E56','#9B59B6']
@@ -51,7 +51,7 @@ export default function Metas() {
   }
 
   const inp = {width:'100%',height:46,background:'rgba(0,0,0,0.03)',border:'0.5px solid rgba(0,0,0,0.08)',borderRadius:22,padding:'0 16px',fontSize:14,color:TEXT,outline:'none',boxSizing:'border-box' as const}
-  const seg = (on:boolean,col?:string)=>({flex:1,height:38,borderRadius:19,border:'none',background:on?(col||TERRA):'rgba(0,0,0,0.03)',color:on?CREAM:TEXTLT,fontSize:13,fontWeight:on?700:400 as any,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'})
+  const seg = (on:boolean,col?:string)=>({flex:1,height:38,borderRadius:19,border:'none',background:on?(col||TERRA):'rgba(0,0,0,0.03)',color:on?'#fff':TEXTLT,fontSize:13,fontWeight:on?700:400 as any,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'})
 
   return (
     <div style={{background:BG,minHeight:'100%',padding:'14px 14px 160px'}}>
@@ -64,7 +64,7 @@ export default function Metas() {
         </div>
         <button onClick={()=>{setForm({name:'',holder:'Casal',target_amount:'',current_amount:'0',monthly_target:'',deadline:'',icon:'target',color:'#1D9E75'});setEditId(null);setShow(true)}}
           style={{width:40,height:40,background:TERRA,borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',border:'none',cursor:'pointer',boxShadow:'0 4px 14px rgba(196,98,45,0.4)'}}>
-          <Plus size={20} color={CREAM}/>
+          <Plus size={20} color={'#fff'}/>
         </button>
       </div>
 
@@ -77,7 +77,7 @@ export default function Metas() {
           <p style={{fontSize:40,margin:'0 0 12px'}}>🎯</p>
           <p style={{fontSize:15,fontWeight:600,color:TEXTLT,margin:'0 0 6px'}}>Nenhuma meta ainda</p>
           <p style={{fontSize:12,color:TEXTMU,margin:'0 0 20px'}}>Crie sua primeira meta financeira</p>
-          <button onClick={()=>setShow(true)} style={{background:TERRA,color:CREAM,border:'none',borderRadius:24,padding:'12px 28px',fontSize:14,fontWeight:700,cursor:'pointer'}}>
+          <button onClick={()=>setShow(true)} style={{background:TERRA,color:'#fff',border:'none',borderRadius:24,padding:'12px 28px',fontSize:14,fontWeight:700,cursor:'pointer'}}>
             Criar primeira meta
           </button>
         </div>
@@ -179,7 +179,7 @@ export default function Metas() {
                     </button>
                   )}
                   <button type="submit" disabled={saving}
-                    style={{flex:1,height:50,background:TERRA,color:CREAM,borderRadius:24,border:'none',fontSize:15,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,boxShadow:'0 4px 16px rgba(196,98,45,0.35)'}}>
+                    style={{flex:1,height:50,background:TERRA,color:'#fff',borderRadius:24,border:'none',fontSize:15,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,boxShadow:'0 4px 16px rgba(196,98,45,0.35)'}}>
                     {saving?<><Loader2 size={18} style={{animation:'spin 0.8s linear infinite'}}/>Salvando...</>:editId?'Salvar':'Criar meta'}
                   </button>
                 </div>

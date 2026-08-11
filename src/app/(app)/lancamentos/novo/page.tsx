@@ -473,7 +473,7 @@ export default function NovoLancamento() {
               <label style={{...S.lbl,marginBottom:0}}>Pagou entrada?</label>
               <button type="button" onClick={()=>setHasEntry(!hasEntry)} style={{
                 width:42,height:24,borderRadius:12,
-                background:hasEntry?'#2C1810':'#D4C4B0',
+                background:hasEntry?'#C4622D':'rgba(0,0,0,0.15)',
                 position:'relative',border:'none',cursor:'pointer',transition:'background 0.2s'
               }}>
                 <div style={{position:'absolute',top:3,width:18,height:18,background:'#fff',borderRadius:'50%',boxShadow:'0 1px 3px rgba(0,0,0,.2)',transition:'transform 0.2s',transform:hasEntry?'translateX(21px)':'translateX(3px)'}}/>
@@ -610,7 +610,7 @@ export default function NovoLancamento() {
                     onClick={()=>{setRecItem(i);if(!desc)setDesc(i)}}
                     style={{
                       padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:500,cursor:'pointer',
-                      border:`0.5px solid ${recItem===i?'#2C1810':'#D4C4B0'}`,
+                      border:`0.5px solid ${recItem===i?'#C4622D':'rgba(0,0,0,0.15)'}`,
                       background:recItem===i?'#C4622D':'rgba(255,255,255,0.07)',
                       color:recItem===i?'#F4EFE8':'#C8B89A'
                     }}>
@@ -663,7 +663,7 @@ export default function NovoLancamento() {
               <label style={{...S.lbl,marginBottom:0}}>Esta receita se repete?</label>
               <button type="button" onClick={()=>setRecIsRec(!recIsRec)} style={{
                 width:42,height:24,borderRadius:12,
-                background:recIsRec?'#2C1810':'#D4C4B0',
+                background:recIsRec?'#C4622D':'rgba(0,0,0,0.15)',
                 position:'relative',border:'none',cursor:'pointer',transition:'background 0.2s'
               }}>
                 <div style={{position:'absolute',top:3,width:18,height:18,background:'#fff',borderRadius:'50%',boxShadow:'0 1px 3px rgba(0,0,0,.2)',transition:'transform 0.2s',transform:recIsRec?'translateX(21px)':'translateX(3px)'}}/>

@@ -116,11 +116,11 @@ function LoginContent() {
 
   const S = {
     wrap: { width:'100%', maxWidth:380, display:'flex', flexDirection:'column' as const, alignItems:'center' as const },
-    logo: { width:72, height:72, background:'linear-gradient(135deg,#8B6914,#C4622D)', borderRadius:22, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px', fontSize:32 },
-    card: { background:'#FAF7F4', borderRadius:24, padding:'24px 20px', width:'100%' },
-    lbl:  { display:'block', fontSize:11, fontWeight:600 as const, color:'#8B6914', textTransform:'uppercase' as const, letterSpacing:'0.05em', marginBottom:6 },
-    inp:  { width:'100%', height:44, background:'#fff', border:'0.5px solid #D4C4B0', borderRadius:12, padding:'0 14px', fontSize:15, outline:'none', boxSizing:'border-box' as const },
-    btn:  { width:'100%', height:50, background:'#2C1810', color:'#FAF7F4', borderRadius:14, border:'none', fontSize:15, fontWeight:600 as const, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 },
+    logo: { width:72, height:72, background:'linear-gradient(135deg,#C4622D,#C4622D)', borderRadius:22, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px', fontSize:32 },
+    card: { background:'#FFFFFF', borderRadius:24, padding:'24px 20px', width:'100%' },
+    lbl:  { display:'block', fontSize:11, fontWeight:600 as const, color:'#C4622D', textTransform:'uppercase' as const, letterSpacing:'0.05em', marginBottom:6 },
+    inp:  { width:'100%', height:44, background:'#fff', border:'0.5px solid rgba(0,0,0,0.12)', borderRadius:12, padding:'0 14px', fontSize:15, outline:'none', boxSizing:'border-box' as const },
+    btn:  { width:'100%', height:50, background:'#C4622D', color:'#FFFFFF', borderRadius:14, border:'none', fontSize:15, fontWeight:600 as const, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 },
     foot: { color:'rgba(250,247,244,0.2)', fontSize:11, textAlign:'center' as const, marginTop:20 },
   }
 
@@ -128,7 +128,7 @@ function LoginContent() {
     <div style={S.wrap}>
       <div style={{ textAlign:'center', marginBottom:36 }}>
         <div style={S.logo}>💰</div>
-        <h1 style={{ fontSize:26, fontWeight:700, color:'#FAF7F4', margin:0 }}>Finanças L&N</h1>
+        <h1 style={{ fontSize:26, fontWeight:700, color:'#FFFFFF', margin:0 }}>Finanças L&N</h1>
         <p style={{ fontSize:13, color:'rgba(250,247,244,0.4)', marginTop:4 }}>Lucas & Nicoly</p>
       </div>
       <div style={S.card}>
@@ -149,28 +149,28 @@ function LoginContent() {
     <div style={S.wrap}>
       {isLocked && (
         <div style={{ background:'rgba(196,98,45,0.2)', borderRadius:12, padding:'10px 16px', marginBottom:20, textAlign:'center' }}>
-          <p style={{ fontSize:13, color:'#FAF7F4', margin:0 }}>🔒 Sessão bloqueada — confirme sua identidade</p>
+          <p style={{ fontSize:13, color:'#FFFFFF', margin:0 }}>🔒 Sessão bloqueada — confirme sua identidade</p>
         </div>
       )}
       <div style={{ textAlign:'center', marginBottom:28 }}>
         <div style={{ ...S.logo, width:60, height:60, borderRadius:18, fontSize:26 }}>💰</div>
         <p style={{ fontSize:13, color:'rgba(250,247,244,0.5)', marginBottom:3 }}>Olá,</p>
-        <h2 style={{ fontSize:22, fontWeight:700, color:'#FAF7F4', margin:0 }}>{userName} 👋</h2>
+        <h2 style={{ fontSize:22, fontWeight:700, color:'#FFFFFF', margin:0 }}>{userName} 👋</h2>
         <button onClick={()=>{setStep('email');setPassword('')}}
-          style={{ fontSize:11, color:'#8B6914', background:'none', border:'none', cursor:'pointer', marginTop:4 }}>
+          style={{ fontSize:11, color:'#C4622D', background:'none', border:'none', cursor:'pointer', marginTop:4 }}>
           ✏️ Trocar conta
         </button>
       </div>
       <div style={S.card}>
         {faceAvailable && (<>
           <button type="button" onClick={handleFaceId} disabled={faceLoading}
-            style={{ width:'100%', height:54, background:'#1C1C1E', color:'#FAF7F4', borderRadius:16, border:'none', fontSize:15, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, marginBottom:16 }}>
+            style={{ width:'100%', height:54, background:'#1C1C1E', color:'#FFFFFF', borderRadius:16, border:'none', fontSize:15, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, marginBottom:16 }}>
             {faceLoading ? <><Loader2 size={20} style={{animation:'spin 0.8s linear infinite'}}/> Verificando...</> : <><span style={{fontSize:20}}>🔒</span> Entrar com Face ID</>}
           </button>
           <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
-            <div style={{ flex:1, height:'0.5px', background:'#D4C4B0' }}/>
+            <div style={{ flex:1, height:'0.5px', background:'rgba(0,0,0,0.12)' }}/>
             <span style={{ fontSize:11, color:'#C4A882' }}>ou use sua senha</span>
-            <div style={{ flex:1, height:'0.5px', background:'#D4C4B0' }}/>
+            <div style={{ flex:1, height:'0.5px', background:'rgba(0,0,0,0.12)' }}/>
           </div>
         </>)}
         <form onSubmit={handlePasswordLogin} style={{ display:'flex', flexDirection:'column', gap:14 }}>
@@ -183,7 +183,7 @@ function LoginContent() {
                 style={{ ...S.inp, padding:'0 44px 0 14px' }}/>
               <button type="button" onClick={()=>setShowPw(!showPw)}
                 style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer' }}>
-                {showPw ? <EyeOff size={17} color="#8B6914"/> : <Eye size={17} color="#8B6914"/>}
+                {showPw ? <EyeOff size={17} color="#C4622D"/> : <Eye size={17} color="#C4622D"/>}
               </button>
             </div>
           </div>
@@ -201,7 +201,7 @@ export default function LoginPage() {
   return (
     <Suspense fallback={
       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%' }}>
-        <Loader2 size={24} color="#8B6914" style={{animation:'spin 0.8s linear infinite'}}/>
+        <Loader2 size={24} color="#C4622D" style={{animation:'spin 0.8s linear infinite'}}/>
       </div>
     }>
       <LoginContent />
