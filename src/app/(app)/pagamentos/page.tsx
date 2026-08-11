@@ -163,7 +163,7 @@ export default function Pagamentos() {
     t.payment_method !== 'cartao_credito' && 
     t.transaction_type !== 'parcelada'
   )
-  const avulsasPendentes = txAvulsas.filter(t => t.status !== 'Pago' && t.status !== 'cancelado')
+  const avulsasPendentes = txAvulsas.filter(t => t.status !== 'Pago' && t.status !== 'Cancelado')
   const avulsasPagas     = txAvulsas.filter(t => t.status === 'Pago')
 
   // 3. Faturas por cartão

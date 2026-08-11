@@ -10,15 +10,24 @@ export async function generateRecurrents(targetMonth: Date) {
   const monthEnd = format(endOfMonth(targetMonth), 'yyyy-MM-dd')
   const monthKey = format(targetMonth, 'yyyy-MM')
 
-  // 1. Buscar todas as transações recorrentes (templates)
-  const { data: templates } = await s.from('transactions').select('*')
+  // 1. Buscar todas as transações recorrentes
+  const { data: allRecurring } = await s.from('transactions').select('*')
     .eq('is_recurring', true)
     .eq('owner_id', user.id)
+    .order('purchase_date', { ascending: false })
 
-  if (!templates || templates.length === 0) return { generated: 0 }
+  if (!allRecurring || allRecurring.length === 0) return { generated: 0 }
 
-  // 2. Buscar transações já existentes no mês alvo
-  const { data: existing } = await s.from('transactions').select('id,description,holder,is_recurring')
+  // 2. Deduplica: pega o template mais recente de cada description+holder
+  const templateMap = new Map<string, any>()
+  for (const t of allRecurring) {
+    const key = `${t.description}|${t.holder}`
+    if (!templateMap.has(key)) templateMap.set(key, t)
+  }
+  const templates = Array.from(templateMap.values())
+
+  // 3. Buscar transações já existentes no mês alvo
+  const { data: existing } = await s.from('transactions').select('id,description,holder')
     .gte('purchase_date', monthStart)
     .lte('purchase_date', monthEnd)
     .eq('owner_id', user.id)
@@ -27,7 +36,7 @@ export async function generateRecurrents(targetMonth: Date) {
     (existing || []).map(t => `${t.description}|${t.holder}`)
   )
 
-  // 3. Para cada template, se não existe no mês alvo, criar
+  // 4. Para cada template único, se não existe no mês alvo, criar
   let generated = 0
   for (const tpl of templates) {
     const key = `${tpl.description}|${tpl.holder}`
@@ -42,15 +51,14 @@ export async function generateRecurrents(targetMonth: Date) {
       owner_id: user.id,
       owner_name: tpl.owner_name,
       holder: tpl.holder,
-      type: tpl.type,
+      type: tpl.type || 'Despesa',
       transaction_type: tpl.transaction_type,
-      nature: tpl.nature || 'Variável',
       description: tpl.description,
       amount: tpl.expected_amount || tpl.amount,
       category: tpl.category,
       subcategory: tpl.subcategory || null,
       purchase_date: purchaseDate,
-      payment_method: tpl.payment_method,
+      payment_method: tpl.payment_method || null,
       card_name: tpl.card_name || null,
       status: tpl.transaction_type === 'receita' ? 'Previsto' : 'Pendente',
       is_recurring: true,

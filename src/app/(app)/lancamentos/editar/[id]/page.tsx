@@ -53,7 +53,7 @@ export default function EditarLancamento(){
       purchase_date:form.purchase_date,
       payment_method:form.payment_method||null,
       card_name:form.card_name||null,
-      status:form.status,
+      status:form.payment_method==='cartao_credito'?'Pendente':form.status,
       notes:form.notes||null,
       paid_amount:form.paid_amount?parseFloat(form.paid_amount):null,
       paid_date:form.paid_date||null,

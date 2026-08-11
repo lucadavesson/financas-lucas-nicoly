@@ -17,13 +17,13 @@ const TERRA='#C4622D'; const TERRABG='rgba(196,98,45,0.06)'; const BLUE='#007AFF
 
 function BadgeInline({status}: {status:string}) {
   const cfg: Record<string,{bg:string;color:string;label:string;pulse:boolean}> = {
-    pago:     {bg:'rgba(52,199,89,0.1)',  color:'#30A14E', label:'Pago',     pulse:false},
-    pendente: {bg:'rgba(255,149,0,0.1)',  color:'#CC7700', label:'Pendente', pulse:true},
-    previsto: {bg:'rgba(0,122,255,0.08)', color:'#007AFF', label:'Previsto', pulse:false},
-    atrasado: {bg:'rgba(255,59,48,0.08)', color:'#FF3B30', label:'Atrasado', pulse:true},
-    cancelado:{bg:'rgba(0,0,0,0.04)',     color:'#8E8E93', label:'Cancelado',pulse:false},
+    Pago:     {bg:'rgba(52,199,89,0.1)',  color:'#30A14E', label:'Pago',     pulse:false},
+    Pendente: {bg:'rgba(255,149,0,0.1)',  color:'#CC7700', label:'Pendente', pulse:true},
+    Previsto: {bg:'rgba(0,122,255,0.08)', color:'#007AFF', label:'Previsto', pulse:false},
+    Atrasado: {bg:'rgba(255,59,48,0.08)', color:'#FF3B30', label:'Atrasado', pulse:true},
+    Cancelado:{bg:'rgba(0,0,0,0.04)',     color:'#8E8E93', label:'Cancelado',pulse:false},
   }
-  const c = cfg[status] || cfg.pendente
+  const c = cfg[status] || cfg.Pendente
   return (
     <span style={{display:'inline-flex',alignItems:'center',gap:4,background:c.bg,color:c.color,fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:20,flexShrink:0}}>
       <span style={{width:5,height:5,borderRadius:'50%',background:c.color,animation:c.pulse?'pulse 1.5s ease-in-out infinite':'none'}}/>
@@ -107,7 +107,7 @@ export default function Dashboard() {
   const totalPrevisto=receitas.filter(t=>t.status==='Previsto').reduce((s,t)=>s+t.amount,0)
   const totalGastou=despesas.reduce((s,t)=>s+(t.installment_value||t.amount),0)
   const totalPago=despesas.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.installment_value||t.amount),0)
-  const totalPendente=despesas.filter(t=>t.status!=='Pago'&&t.status!=='cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)
+  const totalPendente=despesas.filter(t=>t.status!=='Pago'&&t.status!=='Cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)
   const saldo=totalEntrou-totalPago
   const pctPago=totalGastou>0?Math.min(100,(totalPago/totalGastou)*100):0
   const diasRest=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate()-new Date().getDate()
@@ -115,7 +115,7 @@ export default function Dashboard() {
 
   const hoje=new Date()
   const isCartao=(t:Tx)=>t.payment_method==='cartao_credito'||t.transaction_type==='parcelada'
-  const proximos=despesas.filter(t=>t.status!=='Pago'&&t.status!=='cancelado'&&!isCartao(t)).sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date)).slice(0,5)
+  const proximos=despesas.filter(t=>t.status!=='Pago'&&t.status!=='Cancelado'&&!isCartao(t)).sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date)).slice(0,5)
   const atrasados=despesas.filter(t=>t.status==='Atrasado'||(t.status==='Pendente'&&!isCartao(t)&&new Date(t.purchase_date+'T12:00:00')<hoje))
 
   const catMap:Record<string,number>={}
