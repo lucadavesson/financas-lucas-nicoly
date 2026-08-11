@@ -209,23 +209,30 @@ export default function EditarLancamento(){
           </div>
         )}
 
-        {/* Status */}
-        <div>
-          <label style={lbl}>Status</label>
-          <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
-            {['Previsto','Pendente','Pago','Atrasado','Cancelado'].map(s=>{
-              const colors:Record<string,string>={Pago:GREEN,Pendente:TERRA,Previsto:'#B37700',Atrasado:'#FF3B30',Cancelado:TEXTMU}
-              const on=form.status===s
-              return(
-                <button key={s} type="button" onClick={()=>sf('status',s)}
-                  style={{height:36,padding:'0 14px',borderRadius:10,border:on?`1px solid ${colors[s]}40`:'1px solid transparent',cursor:'pointer',fontSize:12,fontWeight:on?600:400,
-                    background:on?`${colors[s]}18`:'rgba(0,0,0,0.03)',color:on?colors[s]:TEXTMU}}>
-                  {s}
-                </button>
-              )
-            })}
+        {/* Status — só mostra se NÃO for crédito (crédito vai pra fatura automaticamente) */}
+        {!isCredito&&(
+          <div>
+            <label style={lbl}>Status</label>
+            <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+              {['Previsto','Pendente','Pago','Atrasado','Cancelado'].map(s=>{
+                const colors:Record<string,string>={Pago:GREEN,Pendente:TERRA,Previsto:'#B37700',Atrasado:'#FF3B30',Cancelado:TEXTMU}
+                const on=form.status===s
+                return(
+                  <button key={s} type="button" onClick={()=>sf('status',s)}
+                    style={{height:36,padding:'0 14px',borderRadius:10,border:on?`1px solid ${colors[s]}40`:'1px solid transparent',cursor:'pointer',fontSize:12,fontWeight:on?600:400,
+                      background:on?`${colors[s]}18`:'rgba(0,0,0,0.03)',color:on?colors[s]:TEXTMU}}>
+                    {s}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
+        )}
+        {isCredito&&(
+          <div style={{background:'rgba(196,98,45,0.06)',borderRadius:12,padding:'10px 14px',border:'1px solid rgba(196,98,45,0.12)'}}>
+            <p style={{fontSize:12,color:TERRA,margin:0,fontWeight:600}}>💳 Compra no crédito — entra na fatura automaticamente</p>
+          </div>
+        )}
 
         {/* Pagamento confirmação */}
         {form.status==='Pago'&&(

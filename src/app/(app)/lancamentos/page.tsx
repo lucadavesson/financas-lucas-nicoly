@@ -8,7 +8,7 @@ import { ChevronLeft, ChevronRight, SlidersHorizontal, X } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
-type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;status:string;purchase_date:string;transaction_type:string }
+type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;payment_method?:string;card_name?:string }
 
 const BADGE: Record<string,string> = { pago:'badge-pago',pendente:'badge-pendente',previsto:'badge-previsto',atrasado:'badge-atrasado',cancelado:'badge-previsto' }
 const BADGE_LABEL: Record<string,string> = { Pago:'Pago',Pendente:'Pendente',Previsto:'Previsto',Atrasado:'Atrasado',Cancelado:'Cancelado' }
@@ -65,8 +65,14 @@ export default function Lancamentos() {
       .order('purchase_date',{ascending:false})
     // Exclui parcelas (ficam em Pagamentos/Cartões)
     const filtered = (data||[]).filter(t => {
+      // Verifica todos os campos de parcela
       const parcelas = t.installment_total || t.total_installments || 0
-      return parcelas <= 1 && t.transaction_type !== 'parcelada'
+      if (parcelas > 1) return false
+      if (t.transaction_type === 'parcelada') return false
+      // Verifica descrição com padrão "(X/Y)" onde Y > 1
+      const match = t.description?.match(/\((\d+)\/(\d+)\)/)
+      if (match && parseInt(match[2]) > 1) return false
+      return true
     })
     setTxs(filtered); setLoad(false)
   }
