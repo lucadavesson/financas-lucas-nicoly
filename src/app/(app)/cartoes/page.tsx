@@ -34,7 +34,7 @@ function getBankKey(bank:string){
 }
 
 interface Card { id:string;name:string;bank:string;holder:string;card_type?:string;credit_limit:number;closing_day:number;due_day:number;alert_pct?:number;color:string;is_active:boolean }
-interface Tx { id:string;description:string;amount:number;installment_value?:number;status:string;purchase_date:string;category:string;holder:string;card_name?:string;payment_method?:string;transaction_type:string }
+interface Tx { id:string;description:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;category:string;holder:string;card_name?:string;payment_method?:string;transaction_type:string }
 
 export default function Cartoes() {
   const [cards,setCards]=useState<Card[]>([])
@@ -71,7 +71,12 @@ export default function Cartoes() {
 
   function txsDoCartao(card:Card):Tx[]{
     const nome=`${card.name} — ${card.holder}`
-    return txs.filter(t=>(t.payment_method==='cartao_credito'||t.transaction_type==='parcelada')&&(t.card_name===nome||t.card_name===card.name))
+    const nomeLower=card.name.toLowerCase()
+    return txs.filter(t=>{
+      if(t.payment_method!=='cartao_credito'&&t.transaction_type!=='parcelada')return false
+      const cn=(t.card_name||'').toLowerCase()
+      return cn===nome.toLowerCase()||cn===nomeLower||cn.includes(nomeLower)||t.card_name===nome||t.card_name===card.name
+    })
   }
 
   function moveCard(id:string,dir:-1|1){
@@ -266,11 +271,21 @@ export default function Cartoes() {
                             </div>
                             <div style={{flex:1,minWidth:0}}>
                               <p style={{fontSize:13,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.description}</p>
-                              <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>{tx.category} · {format(parseISO(tx.purchase_date),'dd/MM')}</p>
+                              <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
+                                {tx.category} · {format(parseISO(tx.purchase_date),'dd/MM')}
+                                {(tx.installment_num||tx.installment_number)&&(tx.installment_total||tx.total_installments)?` · ${tx.installment_num||tx.installment_number}/${tx.installment_total||tx.total_installments}`:''}
+                              </p>
                             </div>
-                            <p style={{fontSize:13,fontWeight:700,color:TEXTLT,fontVariantNumeric:'tabular-nums',margin:0,flexShrink:0}}>
-                              {formatCurrency(tx.installment_value||tx.amount)}
-                            </p>
+                            <div style={{textAlign:'right',flexShrink:0}}>
+                              <p style={{fontSize:13,fontWeight:700,color:TEXTLT,fontVariantNumeric:'tabular-nums',margin:0}}>
+                                {formatCurrency(tx.installment_value||tx.amount)}
+                              </p>
+                              <span style={{fontSize:9,fontWeight:600,padding:'1px 6px',borderRadius:4,
+                                background:tx.status==='Pago'?'rgba(34,199,89,0.12)':'rgba(196,98,45,0.12)',
+                                color:tx.status==='Pago'?'#1B8A3A':'#C4622D'}}>
+                                {tx.status==='Pago'?'✓ Pago':'Pendente'}
+                              </span>
+                            </div>
                           </div>
                         ))}
                         <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0',borderTop:'0.5px solid rgba(0,0,0,0.08)',marginTop:4}}>
