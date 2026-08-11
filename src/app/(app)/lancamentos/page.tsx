@@ -129,14 +129,17 @@ export default function Lancamentos() {
       {/* Header */}
       <div style={{ background:'#FFFFFF', padding:'12px 16px 14px', flexShrink:0 }}>
         {/* Navegação de mês */}
-        <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14 }}>
+        <div style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginBottom:14 }}>
           <button onClick={()=>setDate(d=>subMonths(d,1))} style={{ width:32,height:32,background:'rgba(0,0,0,0.04)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
-            <ChevronLeft size={18} color={CREAM}/>
+            <ChevronLeft size={18} color={TEXTLT}/>
           </button>
-          <span style={{ fontWeight:700,fontSize:15,color:'#fff',textTransform:'capitalize' }}>{format(date,'MMMM yyyy',{locale:ptBR})}</span>
+          <span style={{ fontWeight:700,fontSize:16,color:TEXT,textTransform:'capitalize',minWidth:130,textAlign:'center' }}>{format(date,'MMMM yyyy',{locale:ptBR})}</span>
           <button onClick={()=>setDate(d=>addMonths(d,1))} style={{ width:32,height:32,background:'rgba(0,0,0,0.04)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
-            <ChevronRight size={18} color={CREAM}/>
+            <ChevronRight size={18} color={TEXTLT}/>
           </button>
+          {format(date,'yyyy-MM')!==format(new Date(),'yyyy-MM')&&(
+            <button onClick={()=>setDate(new Date())} style={{fontSize:10,color:TERRA,background:'rgba(196,98,45,0.08)',border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer',fontWeight:600}}>Hoje</button>
+          )}
         </div>
 
         {/* Cards resumo */}

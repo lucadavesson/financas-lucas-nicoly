@@ -61,7 +61,7 @@ export default function TopBar() {
         </div>
         <div>
           <p style={{ fontSize:10, color:'#8E8E93', textTransform:'uppercase', letterSpacing:'0.06em', lineHeight:1, marginBottom:2 }}>Lucas & Nicoly</p>
-          <p style={{ fontSize:14, fontWeight:700, color:'#1C1C1E', lineHeight:1, textTransform:'capitalize' }}>{mes}</p>
+          <p style={{ fontSize:14, fontWeight:700, color:'#1C1C1E', lineHeight:1 }}>Finanças L&N</p>
         </div>
       </div>
 
