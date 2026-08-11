@@ -34,15 +34,28 @@ function BadgeInline({status}: {status:string}) {
 export default function Dashboard() {
   const [txs,setTxs]=useState<Tx[]>([]); const [loading,setLoad]=useState(true); const [hide,setHide]=useState(false)
   const [curMonth, setCurMonth] = useState(new Date())
+  const [settings,setSettings]=useState<any>(null)
+  const [catLimits,setCatLimits]=useState<Record<string,number>>({})
   useEffect(()=>{load()}, [curMonth])
 
   async function load() {
     setLoad(true)
-    const {data}=await createClient().from('transactions').select('*')
-      .gte('purchase_date',format(startOfMonth(curMonth),'yyyy-MM-dd'))
-      .lte('purchase_date',format(endOfMonth(curMonth),'yyyy-MM-dd'))
-      .order('purchase_date',{ascending:false})
-    setTxs(data||[]); setLoad(false)
+    const s=createClient()
+    const {data:{user}}=await s.auth.getUser()
+    const [{data},{data:settingsData},{data:limitsData}]=await Promise.all([
+      s.from('transactions').select('*')
+        .gte('purchase_date',format(startOfMonth(curMonth),'yyyy-MM-dd'))
+        .lte('purchase_date',format(endOfMonth(curMonth),'yyyy-MM-dd'))
+        .order('purchase_date',{ascending:false}),
+      s.from('app_settings').select('*').eq('owner_id',user?.id||'').maybeSingle(),
+      s.from('category_limits').select('*').eq('owner_id',user?.id||''),
+    ])
+    setTxs(data||[])
+    setSettings(settingsData)
+    const lm:Record<string,number>={}
+    limitsData?.forEach((r:any)=>{lm[r.category]=r.limit_amount})
+    setCatLimits(lm)
+    setLoad(false)
   }
 
   function prevMonth(){setCurMonth(m=>new Date(m.getFullYear(),m.getMonth()-1,1))}
@@ -93,6 +106,12 @@ export default function Dashboard() {
   const catMap:Record<string,number>={}
   despesas.forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+(t.installment_value||t.amount)})
   const topCats=Object.entries(catMap).sort(([,a],[,b])=>b-a).slice(0,4)
+
+  // Alertas de limite por categoria
+  const catAlertas=Object.entries(catLimits).filter(([cat,lim])=>{
+    const gasto=catMap[cat]||0
+    return lim>0 && gasto>=lim*0.8 // alerta a partir de 80%
+  }).map(([cat,lim])=>({cat,lim,gasto:catMap[cat]||0,pct:Math.round(((catMap[cat]||0)/lim)*100)}))
 
   const card=(extra?:any)=>({background:'#fff',borderRadius:16,padding:'16px 18px',boxShadow:'0 1px 3px rgba(0,0,0,0.06)',marginBottom:12,...extra})
 
@@ -218,6 +237,33 @@ export default function Dashboard() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Alertas de limite */}
+      {catAlertas.length>0&&(
+        <div style={{...card({marginBottom:12})}}>
+          <p style={{fontSize:14,fontWeight:700,color:'#FF3B30',margin:'0 0 12px'}}>⚠️ Alertas de limite</p>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {catAlertas.map(a=>(
+              <div key={a.cat}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <span style={{fontSize:16}}>{CAT_ICONS[a.cat]||'📦'}</span>
+                    <span style={{fontSize:13,fontWeight:600,color:TEXT}}>{a.cat}</span>
+                  </div>
+                  <span style={{fontSize:12,fontWeight:700,color:a.pct>=100?'#FF3B30':'#CC7700'}}>{a.pct}%</span>
+                </div>
+                <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:TEXTMU,marginBottom:4}}>
+                  <span>{v(a.gasto)} de {v(a.lim)}</span>
+                  <span style={{color:a.pct>=100?'#FF3B30':'#CC7700'}}>{a.pct>=100?'Estourou!':'Atenção'}</span>
+                </div>
+                <div style={{height:4,background:'rgba(0,0,0,0.04)',borderRadius:99,overflow:'hidden'}}>
+                  <div style={{height:'100%',borderRadius:99,width:`${Math.min(a.pct,100)}%`,background:a.pct>=100?'#FF3B30':'#FF9500',transition:'width 0.5s'}}/>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
