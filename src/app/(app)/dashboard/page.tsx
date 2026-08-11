@@ -108,9 +108,10 @@ export default function Dashboard() {
   const totalGastou=despesas.reduce((s,t)=>s+(t.installment_value||t.amount),0)
   const totalPago=despesas.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.installment_value||t.amount),0)
   const totalPendente=despesas.filter(t=>t.status!=='Pago'&&t.status!=='Cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)
+  const salarioEsperado=(settings?.salary_lucas||0)+(settings?.salary_nicoly||0)
   const saldo=totalEntrou-totalPago
   const pctPago=totalGastou>0?Math.min(100,(totalPago/totalGastou)*100):0
-  const diasRest=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate()-new Date().getDate()
+  const diasRest=new Date(curMonth.getFullYear(),curMonth.getMonth()+1,0).getDate()-new Date().getDate()
   const gastoDia=diasRest>0?Math.max(0,saldo/diasRest):0
 
   const hoje=new Date()
@@ -166,6 +167,7 @@ export default function Dashboard() {
             <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:6}}><ArrowUpRight size={13} color={GREEN}/><span style={{fontSize:11,color:GREEN,fontWeight:600}}>Entrou</span></div>
             <p style={{fontSize:18,fontWeight:700,color:'#1C1C1E',margin:'0 0 2px',fontVariantNumeric:'tabular-nums'}}>{v(totalEntrou)}</p>
             {totalPrevisto>0&&<p style={{fontSize:11,color:TEXTMU,margin:0}}>+ {v(totalPrevisto)} previsto</p>}
+            {salarioEsperado>0&&totalEntrou===0&&totalPrevisto===0&&<p style={{fontSize:11,color:TEXTMU,margin:0}}>Salário esperado: {v(salarioEsperado)}</p>}
           </div>
           <div style={{background:REDBG,borderRadius:12,padding:'12px'}}>
             <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:6}}><ArrowDownRight size={13} color={RED}/><span style={{fontSize:11,color:RED,fontWeight:600}}>Gastou</span></div>

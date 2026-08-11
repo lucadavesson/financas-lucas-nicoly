@@ -87,7 +87,20 @@ function LoginContent() {
     e.preventDefault()
     setLoading(true)
     const { data, error } = await createClient().auth.signInWithPassword({ email: savedEmail, password })
-    if (error) { toast.error('Senha incorreta'); setLoading(false); return }
+    if (error) {
+      // Se não encontrou o usuário, tentar criar conta
+      if (error.message?.includes('Invalid login') || error.message?.includes('invalid')) {
+        const confirm = window.confirm('Conta não encontrada. Deseja criar uma conta com esse email?')
+        if (confirm) {
+          const { data: signUpData, error: signUpError } = await createClient().auth.signUp({ email: savedEmail, password })
+          if (signUpError) { toast.error(`Erro ao criar conta: ${signUpError.message}`); setLoading(false); return }
+          if (signUpData?.user?.identities?.length === 0) { toast.error('Esse email já está cadastrado. Verifique a senha.'); setLoading(false); return }
+          toast.success('Conta criada! Verifique seu email para confirmar.'); setLoading(false); return
+        }
+        setLoading(false); return
+      }
+      toast.error('Senha incorreta'); setLoading(false); return
+    }
     const uid = data.user?.id || ''
     setUserId(uid)
     localStorage.setItem('ln_user_id', uid)

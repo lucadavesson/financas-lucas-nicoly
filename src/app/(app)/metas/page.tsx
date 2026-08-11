@@ -41,7 +41,8 @@ export default function Metas() {
     const s=createClient()
     const {data:{user}}=await s.auth.getUser()
     if(!user){return}
-    const payload={name:form.name,holder:form.holder,target_amount:t,current_amount:parseFloat(form.current_amount||'0'),monthly_target:form.monthly_target?parseFloat(form.monthly_target):null,deadline:form.deadline?form.deadline+'-01':null,icon:form.icon,color:form.color,status:'ativa'}
+    const ownerN=form.holder==='Casal'?'Lucas':form.holder==='Prata'?'Lucas':form.holder
+    const payload={name:form.name,holder:form.holder,owner_name:ownerN,target_amount:t,current_amount:parseFloat(form.current_amount||'0'),monthly_target:form.monthly_target?parseFloat(form.monthly_target):null,deadline:form.deadline?form.deadline+'-01':null,icon:form.icon,color:form.color,status:'ativa'}
     const {error}=editId?await s.from('goals').update(payload).eq('id',editId):await s.from('goals').insert({...payload,owner_id:user.id})
     if(error){toast.error(`Erro: ${error.message}`);setSaving(false);return}
     toast.success(editId?'Atualizada!':'Meta criada!')
