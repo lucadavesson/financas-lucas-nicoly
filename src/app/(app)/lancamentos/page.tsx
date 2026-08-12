@@ -51,6 +51,7 @@ export default function Lancamentos() {
   const [load,setLoad] = useState(true)
   const [date,setDate] = useState(new Date())
   const [showF,setShowF]=useState(false)
+  const [search,setSearch]=useState('')
   const [sel,setSel]   = useState<Tx|null>(null)
   const [fH,setFH]     = useState<string[]>([])
   const [fT,setFT]     = useState<string[]>([])
@@ -112,6 +113,7 @@ export default function Lancamentos() {
     let t=txs
     if(fH.length) t=t.filter(x=>fH.includes(x.holder))
     if(fT.length) t=t.filter(x=>fT.includes(x.transaction_type==='receita'?'Receita':'Despesa'))
+    if(search.trim()) t=t.filter(x=>x.description.toLowerCase().includes(search.toLowerCase())||x.category.toLowerCase().includes(search.toLowerCase()))
     return t
   },[txs,fH,fT])
 
@@ -158,9 +160,15 @@ export default function Lancamentos() {
           </div>
         </div>
 
-        {/* Filtros */}
-        <div style={{ display:'flex',gap:8,alignItems:'center' }}>
-          <button onClick={()=>setShowF(!showF)} style={{ display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:20,background:showF||fH.length||fT.length?TERRA:'rgba(0,0,0,0.04)',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:showF||fH.length||fT.length?'#fff':TEXT }}>
+        {/* Busca + Filtros */}
+        <div style={{ display:'flex',gap:8,alignItems:'center',marginBottom:8 }}>
+          <div style={{flex:1,position:'relative'}}>
+            <input type="text" value={search} onChange={e=>setSearch(e.target.value)}
+              placeholder="Buscar lançamento..."
+              style={{width:'100%',height:36,background:'rgba(0,0,0,0.03)',border:'1px solid rgba(0,0,0,0.06)',borderRadius:12,padding:'0 14px 0 32px',fontSize:13,color:TEXT,outline:'none',boxSizing:'border-box'}}/>
+            <span style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',fontSize:14}}>🔍</span>
+          </div>
+          <button onClick={()=>setShowF(!showF)} style={{ display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:20,background:showF||fH.length||fT.length?TERRA:'rgba(0,0,0,0.04)',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:showF||fH.length||fT.length?'#fff':TEXT,flexShrink:0 }}>
             <SlidersHorizontal size={13}/> Filtros{(fH.length+fT.length)>0?` (${fH.length+fT.length})`:''}
           </button>
           {(fH.length||fT.length)?<button onClick={()=>{setFH([]);setFT([])}} style={{ fontSize:11,color:TERRA,background:'none',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:3 }}><X size={11}/>Limpar</button>:null}

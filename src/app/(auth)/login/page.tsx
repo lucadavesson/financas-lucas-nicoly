@@ -7,6 +7,7 @@ import { Loader2, Eye, EyeOff } from 'lucide-react'
 
 const KNOWN_USERS: Record<string, string> = {
   'lucasdavesson@gmail.com': 'Lucas Davisson',
+  'nicoly': 'Nicoly',
 }
 
 function hasFaceIdStored(uid: string): boolean {
@@ -129,7 +130,7 @@ function LoginContent() {
 
   const S = {
     wrap: { width:'100%', maxWidth:380, display:'flex', flexDirection:'column' as const, alignItems:'center' as const },
-    logo: { width:72, height:72, background:'linear-gradient(135deg,#C4622D,#C4622D)', borderRadius:22, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px', fontSize:32 },
+    logo: { width:72, height:72, background:'linear-gradient(135deg,#C4622D,#8B3A14)', borderRadius:22, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' },
     card: { background:'#FFFFFF', borderRadius:24, padding:'24px 20px', width:'100%' },
     lbl:  { display:'block', fontSize:11, fontWeight:600 as const, color:'#C4622D', textTransform:'uppercase' as const, letterSpacing:'0.05em', marginBottom:6 },
     inp:  { width:'100%', height:44, background:'#fff', border:'0.5px solid rgba(0,0,0,0.12)', borderRadius:12, padding:'0 14px', fontSize:15, outline:'none', boxSizing:'border-box' as const },
@@ -140,7 +141,7 @@ function LoginContent() {
   if (step === 'email') return (
     <div style={S.wrap}>
       <div style={{ textAlign:'center', marginBottom:36 }}>
-        <div style={S.logo}>💰</div>
+        <div style={S.logo}><span style={{color:'#fff',fontSize:22,fontWeight:800,letterSpacing:'-0.5px'}}>L&N</span></div>
         <h1 style={{ fontSize:26, fontWeight:700, color:'#FFFFFF', margin:0 }}>Finanças L&N</h1>
         <p style={{ fontSize:13, color:'rgba(250,247,244,0.4)', marginTop:4 }}>Lucas & Nicoly</p>
       </div>
@@ -166,7 +167,7 @@ function LoginContent() {
         </div>
       )}
       <div style={{ textAlign:'center', marginBottom:28 }}>
-        <div style={{ ...S.logo, width:60, height:60, borderRadius:18, fontSize:26 }}>💰</div>
+        <div style={{ ...S.logo, width:60, height:60, borderRadius:18 }}><span style={{color:'#fff',fontSize:18,fontWeight:800,letterSpacing:'-0.5px'}}>L&N</span></div>
         <p style={{ fontSize:13, color:'rgba(250,247,244,0.5)', marginBottom:3 }}>Olá,</p>
         <h2 style={{ fontSize:22, fontWeight:700, color:'#FFFFFF', margin:0 }}>{userName} 👋</h2>
         <button onClick={()=>{setStep('email');setPassword('')}}

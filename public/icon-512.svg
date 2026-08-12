@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C4622D"/>
+      <stop offset="100%" stop-color="#8B3A14"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="110" fill="url(#bg)"/>
+  <text x="256" y="200" text-anchor="middle" font-family="system-ui,-apple-system,SF Pro Display,sans-serif" font-size="128" font-weight="800" fill="white" letter-spacing="-2">L&amp;N</text>
+  <text x="256" y="330" text-anchor="middle" font-family="system-ui,-apple-system,SF Pro Display,sans-serif" font-size="52" font-weight="600" fill="rgba(255,255,255,0.7)" letter-spacing="1">FINANÇAS</text>
+</svg>
