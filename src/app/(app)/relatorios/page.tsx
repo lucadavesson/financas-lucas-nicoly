@@ -55,8 +55,8 @@ export default function Relatorios() {
   }
 
   const mes=getMes()
-  const receitas=mes.filter(t=>t.transaction_type==='receita')
-  const despesasTodas=mes.filter(t=>t.transaction_type!=='receita')
+  const receitas=mes.filter(t=>t.transaction_type==='receita'||t.type==='Receita')
+  const despesasTodas=mes.filter(t=>t.transaction_type!=='receita'&&t.type!=='Receita')
   const totalR=receitas.reduce((s:number,t:any)=>s+t.amount,0)
   const totalD=despesasTodas.reduce((s:number,t:any)=>s+(t.installment_value||t.amount),0)
   const saldo=totalR-totalD
@@ -90,8 +90,8 @@ export default function Relatorios() {
   const mesesComp=Array.from({length:compN},(_,i)=>subMonths(date,compN-1-i))
   const comp=mesesComp.map(m=>({
     label:format(m,"MMM 'yy",{locale:ptBR}),
-    r:getMes(m).filter((t:any)=>t.transaction_type==='receita').reduce((s:number,t:any)=>s+t.amount,0),
-    d:getMes(m).filter((t:any)=>t.transaction_type!=='receita').reduce((s:number,t:any)=>s+(t.installment_value||t.amount),0),
+    r:getMes(m).filter((t:any)=>t.transaction_type==='receita'||t.type==='Receita').reduce((s:number,t:any)=>s+t.amount,0),
+    d:getMes(m).filter((t:any)=>t.transaction_type!=='receita'&&t.type!=='Receita').reduce((s:number,t:any)=>s+(t.installment_value||t.amount),0),
     atual:format(m,'yyyy-MM')===format(date,'yyyy-MM'),
   }))
   const maxComp=Math.max(...comp.flatMap(c=>[c.r,c.d]),1)

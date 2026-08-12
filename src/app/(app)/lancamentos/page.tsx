@@ -8,7 +8,7 @@ import { ChevronLeft, ChevronRight, SlidersHorizontal, X } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
-type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;payment_method?:string;card_name?:string }
+type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;type?:string;payment_method?:string;card_name?:string }
 
 const BADGE: Record<string,string> = { pago:'badge-pago',pendente:'badge-pendente',previsto:'badge-previsto',atrasado:'badge-atrasado',cancelado:'badge-previsto' }
 const BADGE_LABEL: Record<string,string> = { Pago:'Pago',Pendente:'Pendente',Previsto:'Previsto',Atrasado:'Atrasado',Cancelado:'Cancelado' }
@@ -112,7 +112,7 @@ export default function Lancamentos() {
   const filtered=useMemo(()=>{
     let t=txs
     if(fH.length) t=t.filter(x=>fH.includes(x.holder))
-    if(fT.length) t=t.filter(x=>fT.includes(x.transaction_type==='receita'?'Receita':'Despesa'))
+    if(fT.length) t=t.filter(x=>fT.includes(x.transaction_type==='receita'||x.type==='Receita'?'Receita':'Despesa'))
     if(search.trim()) t=t.filter(x=>x.description.toLowerCase().includes(search.toLowerCase())||x.category.toLowerCase().includes(search.toLowerCase()))
     return t
   },[txs,fH,fT])
@@ -216,7 +216,7 @@ export default function Lancamentos() {
                   {list.map((tx,i)=>(
                     <button key={tx.id} onClick={()=>setSel(tx)}
                       style={{ width:'100%',display:'flex',alignItems:'center',gap:12,padding:'14px 16px',borderTop:i>0?`0.5px solid rgba(0,0,0,0.03)`:undefined,background:'none',border:'none',cursor:'pointer',textAlign:'left' }}>
-                      <div style={{ width:38,height:38,borderRadius:12,background:tx.transaction_type==='receita'?GREENBG:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,flexShrink:0 }}>
+                      <div style={{ width:38,height:38,borderRadius:12,background:tx.transaction_type==='receita'||tx.type==='Receita'?GREENBG:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,flexShrink:0 }}>
                         {CAT_ICONS[tx.category]||'📦'}
                       </div>
                       <div style={{ flex:1,minWidth:0 }}>
@@ -226,8 +226,8 @@ export default function Lancamentos() {
                         {tx.status==='Pendente'&&<p style={{ fontSize:10,color:TERRA,marginTop:1 }}>Pendente - {tx.installment_value?`Parcela`:''}{tx.installment_total?` (${tx.installment_total}x)`:''}</p>}
                       </div>
                       <div style={{ textAlign:'right',flexShrink:0 }}>
-                        <p style={{ fontSize:14,fontWeight:700,color:tx.transaction_type==='receita'?GREEN:TERRA,fontVariantNumeric:'tabular-nums' as const }}>
-                          {tx.transaction_type==='receita'?'+':'-'}{formatCurrency(tx.installment_value||tx.amount)}
+                        <p style={{ fontSize:14,fontWeight:700,color:tx.transaction_type==='receita'||tx.type==='Receita'?GREEN:TERRA,fontVariantNumeric:'tabular-nums' as const }}>
+                          {tx.transaction_type==='receita'||tx.type==='Receita'?'+':'-'}{formatCurrency(tx.installment_value||tx.amount)}
                         </p>
                         <BadgeInline status={tx.status}/>
                       </div>

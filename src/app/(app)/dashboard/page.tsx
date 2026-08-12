@@ -9,7 +9,7 @@ import { ChevronRight, ArrowUpRight, ArrowDownRight, Wallet, TrendingUp } from '
 import Link from 'next/link'
 import { toast } from 'sonner'
 
-type Tx = { id:string;holder:string;description:string;category:string;amount:number;status:string;purchase_date:string;transaction_type:string;installment_value?:number;payment_method?:string;card_name?:string }
+type Tx = { id:string;holder:string;description:string;category:string;amount:number;status:string;purchase_date:string;transaction_type:string;type?:string;installment_value?:number;payment_method?:string;card_name?:string }
 
 const BG='#F5F5F7'; const TEXT='#1C1C1E'; const TEXTLT='#48484A'; const TEXTMU='#8E8E93'
 const GREEN='#34C759'; const GREENBG='rgba(52,199,89,0.08)'; const RED='#FF3B30'; const REDBG='rgba(255,59,48,0.06)'
@@ -37,22 +37,25 @@ export default function Dashboard() {
   const [curMonth, setCurMonth] = useState(new Date())
   const [settings,setSettings]=useState<any>(null)
   const [catLimits,setCatLimits]=useState<Record<string,number>>({})
+  const [goals,setGoals]=useState<any[]>([])
   useEffect(()=>{load()}, [curMonth])
 
   async function load() {
     setLoad(true)
     const s=createClient()
     const {data:{user}}=await s.auth.getUser()
-    const [{data},{data:settingsData},{data:limitsData}]=await Promise.all([
+    const [{data},{data:settingsData},{data:limitsData},{data:goalsData}]=await Promise.all([
       s.from('transactions').select('*')
         .gte('purchase_date',format(startOfMonth(curMonth),'yyyy-MM-dd'))
         .lte('purchase_date',format(endOfMonth(curMonth),'yyyy-MM-dd'))
         .order('purchase_date',{ascending:false}),
       s.from('app_settings').select('*').eq('owner_id',user?.id||'').maybeSingle(),
       s.from('category_limits').select('*').eq('owner_id',user?.id||''),
+      s.from('goals').select('*').eq('status','ativa').order('name'),
     ])
     setTxs(data||[])
     setSettings(settingsData)
+    setGoals(goalsData||[])
     const lm:Record<string,number>={}
     limitsData?.forEach((r:any)=>{lm[r.category]=r.limit_amount})
     setCatLimits(lm)
@@ -101,8 +104,9 @@ export default function Dashboard() {
   }
 
   const v=(n:number)=>hide?'•••':formatCurrency(n)
-  const despesas=txs.filter(t=>t.transaction_type!=='receita')
-  const receitas=txs.filter(t=>t.transaction_type==='receita')
+  const isReceita=(t:Tx)=>t.transaction_type==='receita'||t.type==='Receita'
+  const despesas=txs.filter(t=>!isReceita(t))
+  const receitas=txs.filter(t=>isReceita(t))
   const totalEntrou=receitas.filter(t=>t.status==='Pago').reduce((s,t)=>s+t.amount,0)
   const totalPrevisto=receitas.filter(t=>t.status==='Previsto').reduce((s,t)=>s+t.amount,0)
   const totalGastou=despesas.reduce((s,t)=>s+(t.installment_value||t.amount),0)
@@ -197,8 +201,8 @@ export default function Dashboard() {
       {/* Por pessoa */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
         {['Lucas','Nicoly'].map(p=>{
-          const r=txs.filter(t=>t.holder===p&&t.transaction_type==='receita').reduce((s,t)=>s+t.amount,0)
-          const d=txs.filter(t=>t.holder===p&&t.transaction_type!=='receita').reduce((s,t)=>s+(t.installment_value||t.amount),0)
+          const r=txs.filter(t=>t.holder===p&&isReceita(t)).reduce((s,t)=>s+t.amount,0)
+          const d=txs.filter(t=>t.holder===p&&!isReceita(t)).reduce((s,t)=>s+(t.installment_value||t.amount),0)
           return(
             <div key={p} style={{...card({marginBottom:0})}}>
               <div style={{width:28,height:28,borderRadius:'50%',background:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:TERRA,marginBottom:8}}>{p[0]}</div>
@@ -280,6 +284,39 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Metas ativas */}
+      {goals.length>0&&(
+        <div style={{...card({marginBottom:12})}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+            <p style={{fontSize:14,fontWeight:700,color:TEXT,margin:0}}>🎯 Metas</p>
+            <Link href="/metas" style={{fontSize:11,color:TERRA,fontWeight:600,textDecoration:'none'}}>Ver todas →</Link>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {goals.slice(0,3).map((g:any)=>{
+              const pct=g.target_amount>0?Math.min(100,g.current_amount/g.target_amount*100):0
+              return (
+                <div key={g.id} style={{display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{fontSize:18}}>{g.icon==='diamond'?'💍':g.icon==='plane'?'✈️':g.icon==='home'?'🏠':g.icon==='car'?'🚗':g.icon==='ring'?'💍':'🎯'}</span>
+                  <div style={{flex:1}}>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                      <span style={{fontSize:12,fontWeight:600,color:TEXT}}>{g.name}</span>
+                      <span style={{fontSize:11,fontWeight:700,color:g.color||TERRA}}>{pct.toFixed(0)}%</span>
+                    </div>
+                    <div style={{height:4,background:'rgba(0,0,0,0.04)',borderRadius:99,overflow:'hidden'}}>
+                      <div style={{height:'100%',borderRadius:99,width:`${pct}%`,background:g.color||TERRA,transition:'width 0.5s'}}/>
+                    </div>
+                    <div style={{display:'flex',justifyContent:'space-between',marginTop:2}}>
+                      <span style={{fontSize:10,color:TEXTMU}}>{v(g.current_amount)}</span>
+                      <span style={{fontSize:10,color:TEXTMU}}>{v(g.target_amount)}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
