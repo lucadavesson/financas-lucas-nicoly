@@ -197,15 +197,19 @@ export default function Lancamentos() {
 
       {/* Lista */}
       <div style={{ flex:1,overflowY:'auto',overscrollBehavior:'none',padding:'12px 14px 160px' }}>
+        {/* Contagem de resultados */}
+        {!load&&(search||fH.length||fT.length)&&filtered.length>0&&(
+          <p style={{fontSize:11,color:TEXTMU,margin:'0 0 10px',paddingLeft:4}}>{filtered.length} lançamento{filtered.length!==1?'s':''} encontrado{filtered.length!==1?'s':''}</p>
+        )}
         {load?(
           <div style={{ display:'flex',justifyContent:'center',padding:40 }}>
             <div style={{ width:22,height:22,border:`2px solid ${TERRA}`,borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.8s linear infinite' }}/>
           </div>
         ):grouped.length===0?(
           <div style={{ textAlign:'center',padding:'48px 16px' }}>
-            <p style={{ fontSize:24,marginBottom:12 }}>📭</p>
-            <p style={{ fontSize:14,color:TEXTMU,marginBottom:16 }}>Nenhum lançamento</p>
-            <Link href="/lancamentos/novo" style={{ padding:'10px 20px',background:TERRA,color:'#fff',borderRadius:24,fontSize:13,fontWeight:700 }}>Adicionar</Link>
+            <p style={{ fontSize:24,marginBottom:12 }}>{search?'🔍':'📭'}</p>
+            <p style={{ fontSize:14,color:TEXTMU,marginBottom:16 }}>{search?`Nenhum resultado para "${search}"`:'Nenhum lançamento neste mês'}</p>
+            {!search&&<Link href="/lancamentos/novo" style={{ padding:'10px 20px',background:TERRA,color:'#fff',borderRadius:24,fontSize:13,fontWeight:700,textDecoration:'none' }}>Adicionar</Link>}
           </div>
         ):(
           <div style={{ display:'flex',flexDirection:'column',gap:16 }}>

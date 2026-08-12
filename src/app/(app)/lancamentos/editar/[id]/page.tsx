@@ -1,4 +1,5 @@
 'use client'
+import { format } from 'date-fns'
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -98,6 +99,16 @@ export default function EditarLancamento(){
           <ChevronLeft size={22} color={TEXTMU}/>
         </button>
         <h1 style={{fontSize:16,fontWeight:700,color:TEXT,flex:1,margin:0}}>Editar lançamento</h1>
+        <button onClick={async()=>{
+          const s=createClient();const {data:{user}}=await s.auth.getUser();if(!user)return
+          const {id:_,...copy}=tx;delete (copy as any).created_at;delete (copy as any).updated_at
+          const {error}=await s.from('transactions').insert({...copy,description:`${copy.description} (cópia)`,purchase_date:format(new Date(),'yyyy-MM-dd')})
+          if(error){toast.error(`Erro: ${error.message}`);return}
+          toast.success('Lançamento duplicado!')
+          router.push('/lancamentos')
+        }} style={{width:36,height:36,background:'rgba(0,122,255,0.08)',borderRadius:12,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}} title="Duplicar">
+          📋
+        </button>
         <button onClick={del} style={{width:36,height:36,background:'rgba(255,59,48,0.08)',borderRadius:12,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
           <Trash2 size={17} color="#FF3B30"/>
         </button>

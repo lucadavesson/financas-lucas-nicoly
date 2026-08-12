@@ -377,6 +377,32 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Últimas transações */}
+      {txs.length>0&&(
+        <div style={{...card({marginBottom:12})}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+            <p style={{fontSize:14,fontWeight:700,color:TEXT,margin:0}}>Últimas transações</p>
+            <Link href="/lancamentos" style={{fontSize:11,color:TERRA,fontWeight:600,textDecoration:'none'}}>Ver todas →</Link>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:0}}>
+            {txs.slice(0,6).map((tx,i)=>(
+              <div key={tx.id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderTop:i>0?'0.5px solid rgba(0,0,0,0.04)':undefined}}>
+                <div style={{width:34,height:34,borderRadius:11,background:isReceita(tx)?'rgba(52,199,89,0.08)':'rgba(255,59,48,0.05)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0}}>
+                  {CAT_ICONS[tx.category]||'📦'}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontSize:13,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.description}</p>
+                  <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{tx.holder} · {tx.category} · {format(parseISO(tx.purchase_date),'dd/MM')}</p>
+                </div>
+                <p style={{fontSize:13,fontWeight:700,color:isReceita(tx)?GREEN:RED,margin:0,fontVariantNumeric:'tabular-nums',flexShrink:0}}>
+                  {isReceita(tx)?'+':'-'}{v(tx.installment_value||tx.amount)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {txs.length===0&&(
         <div style={{...card(),textAlign:'center',padding:'40px 20px'}}>
           <p style={{fontSize:36,margin:'0 0 10px'}}>📊</p>
