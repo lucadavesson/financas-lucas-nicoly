@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
-import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns'
+import { format, startOfMonth, endOfMonth, parseISO, addDays, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Check, ChevronDown, ChevronUp, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
@@ -73,17 +73,17 @@ export default function Pagamentos() {
   const [loading,  setLoad]    = useState(true)
   const [paying,   setPaying]  = useState<string|null>(null)
   const [openGrp,  setOpenGrp] = useState<Record<string,boolean>>({})
-  const now = new Date()
+  const [curMonth, setCurMonth] = useState(new Date())
 
-  useEffect(()=>{ load() },[])
+  useEffect(()=>{ load() },[curMonth])
 
   async function load() {
     setLoad(true)
     const s = createClient()
     const [{ data: txData }, { data: cardData }] = await Promise.all([
       s.from('transactions').select('*')
-        .gte('purchase_date', format(startOfMonth(now),'yyyy-MM-dd'))
-        .lte('purchase_date', format(endOfMonth(now),'yyyy-MM-dd'))
+        .gte('purchase_date', format(startOfMonth(curMonth),'yyyy-MM-dd'))
+        .lte('purchase_date', format(endOfMonth(curMonth),'yyyy-MM-dd'))
         .neq('transaction_type','receita')
         .order('purchase_date', { ascending: true }),
       s.from('cards').select('*').eq('is_active', true),
@@ -204,12 +204,15 @@ export default function Pagamentos() {
         @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.5)}}
       `}</style>
 
-      {/* Header */}
-      <div style={{marginBottom:16}}>
-        <h1 style={{fontSize:22,fontWeight:800,color:TEXT,margin:'0 0 2px'}}>Pagamentos</h1>
-        <p style={{fontSize:12,color:TEXTMU,margin:0,textTransform:'capitalize'}}>
-          {format(now,"MMMM 'de' yyyy",{locale:ptBR})}
-        </p>
+      {/* Header com navegação de meses */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+        <h1 style={{fontSize:20,fontWeight:800,color:TEXT,margin:0}}>Pagamentos</h1>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <button onClick={()=>setCurMonth(m=>subMonths(m,1))} style={{width:30,height:30,background:'rgba(0,0,0,0.04)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:TEXTLT}}>‹</button>
+          <span style={{fontSize:13,fontWeight:700,color:TEXT,minWidth:70,textAlign:'center',textTransform:'capitalize'}}>{format(curMonth,'MMM/yy',{locale:ptBR})}</span>
+          <button onClick={()=>setCurMonth(m=>addMonths(m,1))} style={{width:30,height:30,background:'rgba(0,0,0,0.04)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:TEXTLT}}>›</button>
+          {format(curMonth,'yyyy-MM')!==format(new Date(),'yyyy-MM')&&<button onClick={()=>setCurMonth(new Date())} style={{fontSize:10,color:TERRA,background:'rgba(196,98,45,0.08)',border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer',fontWeight:600}}>Hoje</button>}
+        </div>
       </div>
 
       {/* Resumo consolidado */}
