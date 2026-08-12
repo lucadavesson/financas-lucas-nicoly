@@ -113,7 +113,7 @@ export default function Dashboard() {
   const totalPago=despesas.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.installment_value||t.amount),0)
   const totalPendente=despesas.filter(t=>t.status!=='Pago'&&t.status!=='Cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)
   const salarioEsperado=(settings?.salary_lucas||0)+(settings?.salary_nicoly||0)
-  const saldo=totalEntrou-totalPago
+  const saldo=totalEntrou-totalGastou
   const pctPago=totalGastou>0?Math.min(100,(totalPago/totalGastou)*100):0
   const diasRest=new Date(curMonth.getFullYear(),curMonth.getMonth()+1,0).getDate()-new Date().getDate()
   const gastoDia=diasRest>0?Math.max(0,saldo/diasRest):0
