@@ -157,7 +157,7 @@ export default function Dashboard() {
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
           <div>
             <p style={{fontSize:12,color:TEXTMU,margin:'0 0 4px'}}>Saldo disponível</p>
-            <p style={{fontSize:34,fontWeight:800,color:saldo>=0?GREEN:RED,margin:0,lineHeight:1,fontVariantNumeric:'tabular-nums'}}>{v(saldo)}</p>
+            <p style={{fontSize:24,fontWeight:800,color:saldo>=0?GREEN:RED,margin:0,lineHeight:1,fontVariantNumeric:'tabular-nums'}}>{v(saldo)}</p>
           </div>
           <div style={{textAlign:'right'}}>
             <p style={{fontSize:11,color:TEXTMU,margin:'0 0 2px'}}>Pode gastar</p>
