@@ -116,10 +116,39 @@ export default function Metas() {
                 </div>
 
                 {proj&&(
-                  <div style={{background:`${g.color}18`,borderRadius:14,padding:'7px 12px',border:`0.5px solid ${g.color}30`}}>
+                  <div style={{background:`${g.color}18`,borderRadius:14,padding:'7px 12px',border:`0.5px solid ${g.color}30`,marginBottom:8}}>
                     <p style={{fontSize:11,fontWeight:600,color:g.color,margin:0}}>{proj}</p>
                   </div>
                 )}
+
+                {/* Ações rápidas */}
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={async()=>{
+                    const val=prompt('Quanto depositar? (R$)')
+                    if(!val)return
+                    const n=parseFloat(val.replace(',','.'))
+                    if(isNaN(n)||n<=0){toast.error('Valor inválido');return}
+                    await createClient().from('goals').update({current_amount:g.current_amount+n}).eq('id',g.id)
+                    toast.success(`+${formatCurrency(n)} depositado!`)
+                    load()
+                  }} style={{flex:1,height:34,background:`${g.color}15`,color:g.color,border:'none',borderRadius:10,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                    + Depositar
+                  </button>
+                  {g.current_amount>0&&(
+                    <button onClick={async()=>{
+                      const val=prompt('Quanto retirar? (R$)')
+                      if(!val)return
+                      const n=parseFloat(val.replace(',','.'))
+                      if(isNaN(n)||n<=0){toast.error('Valor inválido');return}
+                      const novo=Math.max(0,g.current_amount-n)
+                      await createClient().from('goals').update({current_amount:novo}).eq('id',g.id)
+                      toast.success(`-${formatCurrency(n)} retirado`)
+                      load()
+                    }} style={{flex:1,height:34,background:'rgba(255,59,48,0.06)',color:'#FF3B30',border:'none',borderRadius:10,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                      − Retirar
+                    </button>
+                  )}
+                </div>
               </div>
             )
           })}
