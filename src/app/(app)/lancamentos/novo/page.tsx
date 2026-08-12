@@ -248,7 +248,7 @@ export default function NovoLancamento() {
       setDesc(''); setAmountRaw(''); setCat(''); setSubcat(''); setNotes('')
       setDate(format(new Date(),'yyyy-MM-dd'))
       setMethod('cartao_credito'); setDebitCard('')
-      setInst(''); setInstRaw(''); setHasEntry(false); setEntryAmt(0)
+      setInst(''); setInstRaw(''); setHasEntry(false); setEntryRaw('')
       // Scroll pro topo
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err: any) {
