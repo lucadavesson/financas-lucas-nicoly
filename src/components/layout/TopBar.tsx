@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter, usePathname } from 'next/navigation'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Settings, LogOut, ChevronDown, Target } from 'lucide-react'
+import { Settings, LogOut, ChevronDown, Target, Layers } from 'lucide-react'
 import Link from 'next/link'
 
 export default function TopBar() {
@@ -66,6 +66,7 @@ export default function TopBar() {
       </div>
 
       <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+        {iconBtn('/parcelamentos', Layers)}
         {iconBtn('/metas', Target)}
         {iconBtn('/parametros', Settings)}
         <div ref={menuRef} style={{ position:'relative' }}>

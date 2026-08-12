@@ -63,15 +63,17 @@ export default function Lancamentos() {
       .gte('purchase_date',format(startOfMonth(date),'yyyy-MM-dd'))
       .lte('purchase_date',format(endOfMonth(date),'yyyy-MM-dd'))
       .order('purchase_date',{ascending:false})
-    // Exclui parcelas (ficam em Pagamentos/Cartões)
+    // Exclui parcelas e compras de crédito (ficam em Cartões/Parcelamentos)
     const filtered = (data||[]).filter(t => {
-      // Verifica todos os campos de parcela
+      // Parcelas por campo
       const parcelas = t.installment_total || t.total_installments || 0
       if (parcelas > 1) return false
       if (t.transaction_type === 'parcelada') return false
-      // Verifica descrição com padrão "(X/Y)" onde Y > 1
+      // Parcelas por descrição (X/Y)
       const match = t.description?.match(/\((\d+)\/(\d+)\)/)
       if (match && parseInt(match[2]) > 1) return false
+      // Compras no crédito ficam nos Cartões
+      if (t.payment_method === 'cartao_credito') return false
       return true
     })
     setTxs(filtered); setLoad(false)

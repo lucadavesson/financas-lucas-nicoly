@@ -201,13 +201,13 @@ export default function Parametros() {
       {showC&&(
         <div style={{position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end'}} onClick={()=>setShowC(false)}>
           <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.5)',backdropFilter:'blur(6px)'}}/>
-          <div style={{position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:CARD,borderRadius:'28px 28px 0 0',maxHeight:'92vh',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
+          <div style={{position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:CARD,borderRadius:'28px 28px 0 0',maxHeight:'90vh',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
             <div style={{padding:'18px 20px 12px',borderBottom:'0.5px solid rgba(0,0,0,0.06)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <h3 style={{fontSize:16,fontWeight:700,color:TEXT,margin:0}}>{editC?'Editar cartão':'Novo cartão'}</h3>
               <button onClick={()=>setShowC(false)} style={{background:'none',border:'none',cursor:'pointer'}}><X size={20} color={TEXTMU}/></button>
             </div>
-            <div style={{overflowY:'auto',overscrollBehavior:'none',flex:1}}>
-              <form onSubmit={saveCard} style={{padding:'16px 20px 40px',display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'none',flex:1,paddingBottom:'env(safe-area-inset-bottom, 20px)'}}>
+              <form onSubmit={saveCard} style={{padding:'16px 20px 100px',display:'flex',flexDirection:'column',gap:14}}>
                 <div style={{borderRadius:20,padding:16,background:prevColor,position:'relative',overflow:'hidden'}}>
                   <div style={{position:'absolute',right:-10,top:-10,width:70,height:70,borderRadius:'50%',background:'rgba(255,255,255,0.1)'}}/>
                   <p style={{fontSize:11,color:'rgba(255,255,255,0.7)',margin:'0 0 3px'}}>{form.bank||'Banco'}</p>

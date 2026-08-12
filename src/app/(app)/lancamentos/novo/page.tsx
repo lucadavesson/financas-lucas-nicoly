@@ -93,7 +93,7 @@ export default function NovoLancamento() {
   const [entryCard, setEntryCard]     = useState('')
 
   // À vista
-  const [method, setMethod]       = useState('pix')
+  const [method, setMethod]       = useState('cartao_credito')
   const [debitCard, setDebitCard] = useState('')
 
   // Recorrente
@@ -243,12 +243,17 @@ export default function NovoLancamento() {
         if (error) throw error
       }
 
-      toast.success('Salvo com sucesso!')
-      router.push('/lancamentos')
-      router.refresh()
+      toast.success('✓ Lançamento salvo!', { position: 'top-center' })
+      // Limpar form para novo lançamento
+      setDesc(''); setAmountRaw(''); setCat(''); setSubcat(''); setNotes('')
+      setDate(format(new Date(),'yyyy-MM-dd'))
+      setMethod('cartao_credito'); setDebitCard('')
+      setNParcelas(2); setInstRaw(''); setHasEntry(false); setEntryAmt(0)
+      // Scroll pro topo
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err: any) {
       console.error(err)
-      toast.error(`Erro: ${err.message}`)
+      toast.error(`Erro: ${err.message}`, { position: 'top-center' })
     } finally {
       setLoading(false)
     }
