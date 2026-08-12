@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, subMonths, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, X, TrendingDown, TrendingUp } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X, TrendingDown, TrendingUp } from 'lucide-react'
 
 // ── Paleta ────────────────────────────────────────────
 const BG     = '#F5F5F7'
@@ -31,6 +31,7 @@ export default function Relatorios() {
   const [selSub,   setSelSub]   = useState<string|null>(null)
   const [compN,    setCompN]    = useState(4)
   const [modal,    setModal]    = useState<{title:string;txs:any[]}|null>(null)
+  const [openCats, setOpenCats] = useState<Set<string>>(new Set())
 
   useEffect(() => { load() }, [date])
 
@@ -248,30 +249,51 @@ export default function Relatorios() {
           {drill==='cat' && <p style={{ fontSize:11, color:TEXTMU, margin:0 }}>toque para detalhar</p>}
         </div>
 
-        {/* Lista de categorias */}
+        {/* Lista de categorias - colapsável */}
         {drill==='cat' && (
-          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
             {cats.length===0 ? (
               <p style={{ fontSize:13, color:TEXTMU, textAlign:'center', padding:'16px 0', margin:0 }}>Sem despesas neste mês</p>
             ) : cats.map(([cat,val],i) => {
               const pct = despesas>0 ? (val/despesas*100) : 0
+              const isOpen = openCats.has(cat)
+              const catTxs = mes.filter((t:any)=>t.transaction_type!=='receita'&&t.category===cat)
               return (
-                <button key={cat} onClick={()=>{setSelCat(cat);setDrill('sub')}}
-                  style={{ background:'none', border:'none', cursor:'pointer', textAlign:'left', padding:0 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                    <span style={{ fontSize:13, color:TEXT, fontWeight:500, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                      {CAT_ICONS[cat]||'📦'} {cat}
-                    </span>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0, marginLeft:8 }}>
-                      <span style={{ fontSize:12, color:TEXTLT, fontVariantNumeric:'tabular-nums' }}>{formatCurrency(val)}</span>
-                      <span style={{ fontSize:11, color:TEXTMU, width:30, textAlign:'right' }}>{pct.toFixed(0)}%</span>
-                      <ChevronRight size={12} color={TEXTMU}/>
+                <div key={cat} style={{background:'rgba(0,0,0,0.02)',borderRadius:14,overflow:'hidden'}}>
+                  <button onClick={()=>{const s=new Set(openCats);s.has(cat)?s.delete(cat):s.add(cat);setOpenCats(s)}}
+                    style={{ width:'100%',background:'none', border:'none', cursor:'pointer', textAlign:'left', padding:'10px 14px' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
+                      <span style={{ fontSize:13, color:TEXT, fontWeight:600, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {CAT_ICONS[cat]||'📦'} {cat}
+                      </span>
+                      <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0, marginLeft:8 }}>
+                        <span style={{ fontSize:13, color:TEXT, fontWeight:700, fontVariantNumeric:'tabular-nums' }}>{formatCurrency(val)}</span>
+                        <span style={{ fontSize:11, color:TEXTMU, width:30, textAlign:'right' }}>{pct.toFixed(0)}%</span>
+                        {isOpen?<ChevronUp size={12} color={TEXTMU}/>:<ChevronDown size={12} color={TEXTMU}/>}
+                      </div>
                     </div>
-                  </div>
-                  <div style={{ height:6, background:'rgba(0,0,0,0.04)', borderRadius:99, overflow:'hidden' }}>
-                    <div style={{ height:'100%', borderRadius:99, width:`${pct}%`, background:CHART_COLORS[i%CHART_COLORS.length], transition:'width 0.4s' }}/>
-                  </div>
-                </button>
+                    <div style={{ height:4, background:'rgba(0,0,0,0.04)', borderRadius:99, overflow:'hidden' }}>
+                      <div style={{ height:'100%', borderRadius:99, width:`${pct}%`, background:CHART_COLORS[i%CHART_COLORS.length], transition:'width 0.4s' }}/>
+                    </div>
+                  </button>
+                  {isOpen&&(
+                    <div style={{padding:'0 14px 10px'}}>
+                      {catTxs.sort((a:any,b:any)=>(b.installment_value||b.amount)-(a.installment_value||a.amount)).map((t:any,ti:number)=>(
+                        <div key={t.id} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderTop:ti>0?'0.5px solid rgba(0,0,0,0.04)':undefined}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <p style={{fontSize:12,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.description}</p>
+                            <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{t.holder} · {format(parseISO(t.purchase_date),'dd/MM')}{t.subcategory?` · ${t.subcategory}`:''}</p>
+                          </div>
+                          <p style={{fontSize:12,fontWeight:600,color:'#FF3B30',margin:0,fontVariantNumeric:'tabular-nums',flexShrink:0}}>{formatCurrency(t.installment_value||t.amount)}</p>
+                        </div>
+                      ))}
+                      <button onClick={()=>{setSelCat(cat);setDrill('sub')}}
+                        style={{width:'100%',marginTop:8,padding:'6px',background:'rgba(196,98,45,0.06)',border:'none',borderRadius:8,cursor:'pointer',fontSize:11,fontWeight:600,color:TERRA}}>
+                        Ver subcategorias →
+                      </button>
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>
@@ -343,6 +365,47 @@ export default function Relatorios() {
           </div>
         )}
       </div>
+
+      {/* Parcelamentos do mês */}
+      {(()=>{
+        const parcMes = mes.filter((t:any) => {
+          const m = t.description?.match(/\((\d+)\/(\d+)\)/)
+          return (m && parseInt(m[2]) > 1) || (t.installment_total||t.total_installments||0) > 1 || t.transaction_type==='parcelada'
+        })
+        if (parcMes.length === 0) return null
+        const totalParc = parcMes.reduce((s:number, t:any) => s + (t.installment_value || t.amount), 0)
+        return (
+          <div style={{ ...pebble() }}>
+            <p style={{ fontSize:13, fontWeight:700, color:TEXT, margin:'0 0 12px' }}>📋 Parcelamentos do mês</p>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {parcMes.sort((a:any,b:any)=>(b.installment_value||b.amount)-(a.installment_value||a.amount)).map((t:any) => {
+                const m = t.description?.match(/^(.+?)\s*\((\d+)\/(\d+)\)$/)
+                const base = m ? m[1] : t.description
+                const num = m ? m[2] : (t.installment_num || t.installment_number || '?')
+                const total = m ? m[3] : (t.installment_total || t.total_installments || '?')
+                const isPago = t.status === 'Pago'
+                return (
+                  <div key={t.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:'rgba(0,0,0,0.02)', borderRadius:12 }}>
+                    <span style={{ fontSize:16 }}>{CAT_ICONS[t.category]||'📦'}</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <p style={{ fontSize:12, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{base}</p>
+                      <p style={{ fontSize:10, color:TEXTMU, margin:'1px 0 0' }}>{t.holder} · {t.card_name || t.payment_method}</p>
+                    </div>
+                    <div style={{ textAlign:'right', flexShrink:0 }}>
+                      <p style={{ fontSize:12, fontWeight:700, color:isPago?GREEN:'#FF3B30', margin:0, fontVariantNumeric:'tabular-nums' }}>{formatCurrency(t.installment_value||t.amount)}</p>
+                      <span style={{ fontSize:10, fontWeight:600, color:isPago?GREEN:TERRA }}>{num}/{total} {isPago?'✓':'⏳'}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', marginTop:10, paddingTop:8, borderTop:'1px solid rgba(0,0,0,0.04)' }}>
+              <p style={{ fontSize:12, fontWeight:600, color:TEXTMU, margin:0 }}>{parcMes.length} parcela{parcMes.length>1?'s':''}</p>
+              <p style={{ fontSize:13, fontWeight:700, color:'#FF3B30', margin:0 }}>{formatCurrency(totalParc)}</p>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Modal lista de transações */}
       {modal && (
