@@ -194,6 +194,8 @@ export default function Parametros() {
               style={{padding:'4px 10px',background:c.is_active?'rgba(196,98,45,0.1)':'rgba(52,199,89,0.1)',borderRadius:10,border:'none',cursor:'pointer',fontSize:11,fontWeight:600,color:c.is_active?TERRA:GREEN}}>
               {c.is_active?'Arquivar':'Ativar'}
             </button>
+            <button onClick={async()=>{if(!confirm(`Excluir o cartão "${c.name}"? Essa ação não pode ser desfeita.`))return;await createClient().from('cards').delete().eq('id',c.id);toast.success('Cartão excluído');loadCards()}}
+              style={{padding:'4px 8px',background:'rgba(255,59,48,0.08)',borderRadius:10,border:'none',cursor:'pointer'}}><Trash2 size={13} color="#FF3B30"/></button>
           </div>
         ))}
         {cards.length===0&&<p style={{fontSize:13,color:TEXTMU,textAlign:'center',padding:20}}>Nenhum cartão cadastrado</p>}
