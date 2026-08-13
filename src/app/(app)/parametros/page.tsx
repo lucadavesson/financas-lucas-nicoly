@@ -468,7 +468,7 @@ export default function Parametros() {
 
   return (
     <div style={{background:BG,minHeight:'100%',padding:'14px 14px 160px'}}>
-      <h1 style={{fontSize:24,fontWeight:700,color:TEXT,marginBottom:2}}>Configurações</h1>
+      <h1 style={{fontSize:20,fontWeight:800,color:TEXT,marginBottom:2}}>Configurações</h1>
       <p style={{fontSize:13,color:TEXTMU,marginBottom:20}}>Personalize o app do seu jeito</p>
 
       {/* Financeiro */}

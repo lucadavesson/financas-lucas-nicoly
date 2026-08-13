@@ -264,19 +264,19 @@ export default function NovoLancamento() {
   // ── ESTILOS base ────────────────────────────────────
   const S = {
     page:  { minHeight:'100%', background:'#F5F5F7' },
-    hdr:   { position:'sticky' as const, top:0, background:'#F5F5F7', borderBottom:'0.5px solid rgba(255,255,255,0.08)', padding:'12px 16px', display:'flex', alignItems:'center', gap:10, zIndex:10 },
+    hdr:   { position:'sticky' as const, top:0, background:'#F5F5F7', borderBottom:'1px solid rgba(0,0,0,0.06)', padding:'12px 16px', display:'flex', alignItems:'center', gap:10, zIndex:10 },
     form:  { padding:'16px', display:'flex', flexDirection:'column' as const, gap:16, paddingBottom:160 },
     lbl:   { fontSize:11, fontWeight:600 as const, color:'#8E8E93', textTransform:'uppercase' as const, letterSpacing:'0.05em', display:'block', marginBottom:6 },
     inp:   { width:'100%', height:44, background:'#FFFFFF', border:'1px solid rgba(0,0,0,0.08)', borderRadius:12, padding:'0 14px', fontSize:15, color:'#1C1C1E', outline:'none' },
     inpMoney: { width:'100%', height:52, background:'#FFFFFF', border:'1px solid rgba(0,0,0,0.08)', borderRadius:12, padding:'0 14px', fontSize:20, fontWeight:700 as const, color:'#1C1C1E', outline:'none', fontVariantNumeric:'tabular-nums' as const },
     seg:   (on:boolean, accent='#C4622D') => ({
-      flex:1, height:40, borderRadius:10, border: on?`1px solid ${accent}`:'0.5px solid rgba(255,255,255,0.12)',
-      background: on?accent:'rgba(255,255,255,0.07)', color: on?'#F4EFE8':'#C8B89A',
+      flex:1, height:40, borderRadius:10, border: on?`1px solid ${accent}`:'0.5px solid rgba(0,0,0,0.08)',
+      background: on?accent:'rgba(0,0,0,0.03)', color: on?'#fff':'#8E8E93',
       fontSize:13, fontWeight: on?600:400 as any, cursor:'pointer',
       display:'flex', alignItems:'center', justifyContent:'center', gap:5,
     }),
-    card:  { background:'#FFFFFF', borderRadius:16, border:'0.5px solid rgba(255,255,255,0.1)', padding:'14px' },
-    btn:   { width:'100%', height:52, background:'#C4622D', color:'#1C1C1E', borderRadius:16, border:'none', fontSize:15, fontWeight:600 as const, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:8 },
+    card:  { background:'#FFFFFF', borderRadius:16, border:'1px solid rgba(0,0,0,0.06)', padding:'14px' },
+    btn:   { width:'100%', height:52, background:'#C4622D', color:'#fff', borderRadius:16, border:'none', fontSize:15, fontWeight:600 as const, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:8 },
     sel:   { width:'100%', height:44, background:'#FFFFFF', border:'1px solid rgba(0,0,0,0.08)', borderRadius:12, padding:'0 14px', fontSize:14, color:'#1C1C1E', outline:'none', appearance:'none' as const },
   }
 
@@ -293,14 +293,14 @@ export default function NovoLancamento() {
         </button>
       </div>
       <div style={{padding:'20px 16px'}}>
-        <p style={{fontSize:12,fontWeight:600,color:'#C8963C',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:16}}>
+        <p style={{fontSize:12,fontWeight:600,color:'#C4622D',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:16}}>
           O que você quer registrar?
         </p>
         {[
-          { t:'receita' as TipoLanc,    emoji:'↑', label:'Receita',           desc:'Salário, renda extra, investimento recebido',    bg:'rgba(74,140,92,0.2)', border:'rgba(74,140,92,0.4)', ec:'#F4EFE8' },
-          { t:'parcelada' as TipoLanc,  emoji:'💳', label:'Compra parcelada',  desc:'Pagamento em várias vezes no cartão de crédito', bg:'rgba(196,98,45,0.2)', border:'rgba(196,98,45,0.4)', ec:'#F4EFE8' },
-          { t:'avista' as TipoLanc,     emoji:'💵', label:'Compra à vista',    desc:'Crédito, débito, PIX, dinheiro ou boleto',       bg:'rgba(196,98,45,0.15)', border:'rgba(196,98,45,0.35)', ec:'#F4EFE8' },
-          { t:'recorrente' as TipoLanc, emoji:'🔄', label:'Conta recorrente',  desc:'Energia, assinatura, financiamento...',           bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.12)', ec:'#F4EFE8' },
+          { t:'receita' as TipoLanc,    emoji:'↑', label:'Receita',           desc:'Salário, renda extra, investimento recebido',    bg:'rgba(34,199,89,0.1)', border:'rgba(34,199,89,0.25)', ec:'#fff' },
+          { t:'parcelada' as TipoLanc,  emoji:'💳', label:'Compra parcelada',  desc:'Pagamento em várias vezes no cartão de crédito', bg:'rgba(196,98,45,0.2)', border:'rgba(196,98,45,0.4)', ec:'#fff' },
+          { t:'avista' as TipoLanc,     emoji:'💵', label:'Compra à vista',    desc:'Crédito, débito, PIX, dinheiro ou boleto',       bg:'rgba(196,98,45,0.15)', border:'rgba(196,98,45,0.35)', ec:'#fff' },
+          { t:'recorrente' as TipoLanc, emoji:'🔄', label:'Conta recorrente',  desc:'Energia, assinatura, financiamento...',           bg:'rgba(0,0,0,0.03)', border:'rgba(0,0,0,0.08)', ec:'#fff' },
         ].map(item => (
           <button key={item.t} onClick={()=>changeTipo(item.t)} style={{
             width:'100%', background:'#FFFFFF', borderRadius:18,
@@ -382,7 +382,7 @@ export default function NovoLancamento() {
             <option value="">Selecione...</option>
             {allCats.map(c=><option key={c} value={c}>{c}</option>)}
           </select>
-          <ChevronDown size={14} color="#C8963C" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
+          <ChevronDown size={14} color="#C4622D" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
         </div>
       </div>
       {cat && (
@@ -397,7 +397,7 @@ export default function NovoLancamento() {
               {allSubs.map(s=><option key={s} value={s}>{s}</option>)}
               <option value="__nova__">+ Criar nova subcategoria...</option>
             </select>
-            <ChevronDown size={14} color="#C8963C" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
+            <ChevronDown size={14} color="#C4622D" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
           </div>
           {showAddSub && (
             <div style={{display:'flex',gap:8,marginTop:8}}>
@@ -409,7 +409,7 @@ export default function NovoLancamento() {
               </button>
               <button type="button" onClick={()=>setShowAddSub(false)}
                 style={{height:40,padding:'0 10px',background:'#FFFFFF',borderRadius:10,border:'none',cursor:'pointer'}}>
-                <X size={14} color="#C8963C"/>
+                <X size={14} color="#C4622D"/>
               </button>
             </div>
           )}
@@ -443,10 +443,10 @@ export default function NovoLancamento() {
               <select value={card} onChange={e=>setCard(e.target.value)} style={S.sel}>
                 {CARDS_CREDITO.map(c=><option key={c} value={c}>{c}</option>)}
               </select>
-              <ChevronDown size={14} color="#C8963C" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
+              <ChevronDown size={14} color="#C4622D" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
             </div>
             {billingMonth && (
-              <p style={{fontSize:11,color:'#C8963C',fontWeight:500,marginTop:5}}>
+              <p style={{fontSize:11,color:'#C4622D',fontWeight:500,marginTop:5}}>
                 📅 Entra na fatura de {format(billingMonth,'MMMM/yyyy',{locale:ptBR})}
               </p>
             )}
@@ -500,7 +500,7 @@ export default function NovoLancamento() {
                     onChange={e=>setEntryRaw(formatMoneyInput(e.target.value))}
                     placeholder="R$ 0,00" style={S.inp}/>
                   {entryAmt > 0 && amount > 0 && (
-                    <p style={{fontSize:11,color:'#C8963C',marginTop:4,fontWeight:500}}>
+                    <p style={{fontSize:11,color:'#C4622D',marginTop:4,fontWeight:500}}>
                       Valor a parcelar: {(amount-entryAmt).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
                     </p>
                   )}
@@ -510,7 +510,7 @@ export default function NovoLancamento() {
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
                     {[{v:'pix',l:'PIX'},{v:'debito',l:'Débito'},{v:'dinheiro',l:'Dinheiro'},{v:'boleto',l:'Boleto'},{v:'cartao_credito',l:'Crédito'}].map(m=>(
                       <button key={m.v} type="button" onClick={()=>setEntryMethod(m.v)}
-                        style={S.seg(entryMethod===m.v,'#C8963C')}>
+                        style={S.seg(entryMethod===m.v,'#C4622D')}>
                         {m.l}
                       </button>
                     ))}
@@ -550,7 +550,7 @@ export default function NovoLancamento() {
               ))}
             </div>
             {method==='cartao_credito' && billingMonth && (
-              <p style={{fontSize:11,color:'#C8963C',fontWeight:500,marginTop:6}}>
+              <p style={{fontSize:11,color:'#C4622D',fontWeight:500,marginTop:6}}>
                 📅 Entra na fatura de {format(billingMonth,'MMMM/yyyy',{locale:ptBR})}
               </p>
             )}
@@ -558,7 +558,7 @@ export default function NovoLancamento() {
               <p style={{fontSize:11,color:'#2C6E49',fontWeight:500,marginTop:6}}>✓ Será registrado como pago</p>
             )}
             {['boleto'].includes(method) && (
-              <p style={{fontSize:11,color:'#C8963C',fontWeight:500,marginTop:6}}>⏳ Ficará pendente até confirmar</p>
+              <p style={{fontSize:11,color:'#C4622D',fontWeight:500,marginTop:6}}>⏳ Ficará pendente até confirmar</p>
             )}
           </div>
           {contaTipo !== 'nenhum' && (
@@ -568,7 +568,7 @@ export default function NovoLancamento() {
                 <select value={debitCard} onChange={e=>setDebitCard(e.target.value)} style={S.sel}>
                   {(contaTipo==='cartao_credito'?CARDS_CREDITO:CONTAS_DEBITO).map(c=><option key={c} value={c}>{c}</option>)}
                 </select>
-                <ChevronDown size={14} color="#C8963C" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
+                <ChevronDown size={14} color="#C4622D" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
               </div>
             </div>
           )}
@@ -606,7 +606,7 @@ export default function NovoLancamento() {
                 {CONTAS_CASA_ITEMS.map(i=>(
                   <button key={i} type="button"
                     onClick={()=>{setRecItem(i);if(!desc)setDesc(i)}}
-                    style={S.seg(recItem===i,'#C8963C')}>
+                    style={S.seg(recItem===i,'#C4622D')}>
                     {i}
                   </button>
                 ))}
@@ -624,8 +624,8 @@ export default function NovoLancamento() {
                     style={{
                       padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:500,cursor:'pointer',
                       border:`0.5px solid ${recItem===i?'#C4622D':'rgba(0,0,0,0.15)'}`,
-                      background:recItem===i?'#C4622D':'rgba(255,255,255,0.07)',
-                      color:recItem===i?'#F4EFE8':'#C8B89A'
+                      background:recItem===i?'#C4622D':'rgba(0,0,0,0.03)',
+                      color:recItem===i?'#fff':'#8E8E93'
                     }}>
                     {i}
                   </button>
@@ -662,7 +662,7 @@ export default function NovoLancamento() {
                   <select value={recCard} onChange={e=>setRecCard(e.target.value)} style={S.sel}>
                     {(recContaTipo==='cartao_credito'?CARDS_CREDITO:CONTAS_DEBITO).map(c=><option key={c} value={c}>{c}</option>)}
                   </select>
-                  <ChevronDown size={14} color="#C8963C" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
+                  <ChevronDown size={14} color="#C4622D" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
                 </div>
               </div>
             )}
@@ -683,7 +683,7 @@ export default function NovoLancamento() {
               </button>
             </div>
             {recIsRec && (
-              <div style={{background:'#FFFFFF',borderRadius:12,padding:'10px 12px',fontSize:12,color:'#C8B89A'}}>
+              <div style={{background:'#FFFFFF',borderRadius:12,padding:'10px 12px',fontSize:12,color:'#8E8E93'}}>
                 Ficará como <strong>previsto</strong> até você confirmar o valor real recebido.
               </div>
             )}
@@ -694,7 +694,7 @@ export default function NovoLancamento() {
               <select value={recAccount} onChange={e=>setRecAccount(e.target.value)} style={S.sel}>
                 {CONTAS_DEBITO.map(c=><option key={c} value={c}>{c}</option>)}
               </select>
-              <ChevronDown size={14} color="#C8963C" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
+              <ChevronDown size={14} color="#C4622D" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
             </div>
           </div>
         </>)}

@@ -81,7 +81,7 @@ export default function Parcelamentos() {
   return (
     <div style={{background:BG,minHeight:'100%',padding:'14px 14px 160px'}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      <h2 style={{fontSize:20,fontWeight:700,color:TEXT,margin:'0 0 4px'}}>Parcelamentos</h2>
+      <h2 style={{fontSize:20,fontWeight:800,color:TEXT,margin:'0 0 4px'}}>Parcelamentos</h2>
       <p style={{fontSize:12,color:TEXTMU,margin:'0 0 16px'}}>Todas as compras parceladas em um só lugar</p>
 
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>

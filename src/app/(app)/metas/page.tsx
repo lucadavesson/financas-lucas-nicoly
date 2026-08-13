@@ -60,7 +60,7 @@ export default function Metas() {
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
         <div>
-          <h1 style={{fontSize:22,fontWeight:800,color:TEXT,margin:'0 0 2px'}}>Metas</h1>
+          <h1 style={{fontSize:20,fontWeight:800,color:TEXT,margin:'0 0 2px'}}>Metas</h1>
           <p style={{fontSize:12,color:TEXTMU,margin:0}}>{goals.length} ativa{goals.length!==1?'s':''}</p>
         </div>
         <button onClick={()=>{setForm({name:'',holder:'Casal',target_amount:'',current_amount:'0',monthly_target:'',deadline:'',icon:'target',color:'#1D9E75'});setEditId(null);setShow(true)}}
