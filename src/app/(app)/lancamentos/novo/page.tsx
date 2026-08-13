@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { ChevronLeft, Loader2, Plus, X, ChevronDown } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import Simulador from './simulador'
 
 type TipoLanc = 'escolha' | 'parcelada' | 'avista' | 'recorrente' | 'receita'
 
@@ -48,6 +49,7 @@ export default function NovoLancamento() {
   const router = useRouter()
   const [tipo, setTipo]     = useState<TipoLanc>('escolha')
   const [loading, setLoading] = useState(false)
+  const [showSim, setShowSim] = useState(false)
 
   // Campos comuns — resetam ao trocar tipo
   const [holder, setHolder] = useState('Lucas')
@@ -283,9 +285,12 @@ export default function NovoLancamento() {
     <div style={S.page}>
       <div style={S.hdr}>
         <button onClick={()=>router.back()} style={{background:'none',border:'none',cursor:'pointer',padding:4}}>
-          <ChevronLeft size={22} color="#C8B89A"/>
+          <ChevronLeft size={22} color="#8E8E93"/>
         </button>
         <span style={{fontSize:16,fontWeight:600,color:'#1C1C1E'}}>Novo lançamento</span>
+        <button onClick={()=>setShowSim(true)} style={{background:'rgba(196,98,45,0.08)',border:'none',borderRadius:10,padding:'6px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,color:'#C4622D'}}>
+          🧮 Simular
+        </button>
       </div>
       <div style={{padding:'20px 16px'}}>
         <p style={{fontSize:12,fontWeight:600,color:'#C8963C',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:16}}>
@@ -418,9 +423,12 @@ export default function NovoLancamento() {
     <div style={S.page}>
       <div style={S.hdr}>
         <button onClick={()=>changeTipo('escolha')} style={{background:'none',border:'none',cursor:'pointer',padding:4}}>
-          <ChevronLeft size={22} color="#C8B89A"/>
+          <ChevronLeft size={22} color="#8E8E93"/>
         </button>
-        <span style={{fontSize:16,fontWeight:600,color:'#1C1C1E'}}>{tipoLabel[tipo]}</span>
+        <span style={{fontSize:16,fontWeight:600,color:'#1C1C1E',flex:1}}>{tipoLabel[tipo]}</span>
+        <button onClick={()=>setShowSim(true)} style={{background:'rgba(196,98,45,0.08)',border:'none',borderRadius:10,padding:'6px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,color:'#C4622D'}}>
+          🧮 Simular
+        </button>
       </div>
 
       <form onSubmit={handleSave} style={S.form}>
@@ -706,6 +714,7 @@ export default function NovoLancamento() {
           }
         </button>
       </form>
+      {showSim&&<Simulador onClose={()=>setShowSim(false)}/>}
     </div>
   )
 }

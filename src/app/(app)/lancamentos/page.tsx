@@ -7,7 +7,7 @@ import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, SlidersHorizontal, X } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import Simulador from './simulador'
+
 
 type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;type?:string;payment_method?:string;card_name?:string;is_recurring?:boolean }
 
@@ -53,7 +53,6 @@ export default function Lancamentos() {
   const [date,setDate] = useState(new Date())
   const [showF,setShowF]=useState(false)
   const [search,setSearch]=useState('')
-  const [showSim,setShowSim]=useState(false)
   const [openSecs,setOpenSecs]=useState<Record<string,boolean>>({'dia':true,'credito':true,'parcela':true,'recorrente':true})
   const [sel,setSel]   = useState<Tx|null>(null)
   const [fH,setFH]     = useState<string[]>([])
@@ -168,7 +167,6 @@ export default function Lancamentos() {
           </div>
         </div>
 
-        {/* Busca + Simulador + Filtros */}
         <div style={{ display:'flex',gap:8,alignItems:'center',marginBottom:8 }}>
           <div style={{flex:1,position:'relative'}}>
             <input type="text" value={search} onChange={e=>setSearch(e.target.value)}
@@ -176,7 +174,6 @@ export default function Lancamentos() {
               style={{width:'100%',height:36,background:'rgba(0,0,0,0.03)',border:'1px solid rgba(0,0,0,0.06)',borderRadius:12,padding:'0 14px 0 32px',fontSize:13,color:TEXT,outline:'none',boxSizing:'border-box'}}/>
             <span style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',fontSize:14}}>🔍</span>
           </div>
-          <button onClick={()=>setShowSim(true)} style={{width:36,height:36,background:'rgba(196,98,45,0.08)',borderRadius:12,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}} title="Simulador">🧮</button>
           <button onClick={()=>setShowF(!showF)} style={{ display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:20,background:showF||fH.length||fT.length?TERRA:'rgba(0,0,0,0.04)',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:showF||fH.length||fT.length?'#fff':TEXT,flexShrink:0 }}>
             <SlidersHorizontal size={13}/> Filtros{(fH.length+fT.length)>0?` (${fH.length+fT.length})`:''}
           </button>
@@ -337,8 +334,6 @@ export default function Lancamentos() {
         </div>
       )}
 
-      {/* Simulador Financeiro */}
-      {showSim&&<Simulador onClose={()=>setShowSim(false)}/>}
     </div>
   )
 }
