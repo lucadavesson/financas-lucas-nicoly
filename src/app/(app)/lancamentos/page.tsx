@@ -45,7 +45,7 @@ function BadgeInline({status}: {status:string}) {
 
 const BG='#F5F5F7'; const SEBBLE='#FFFFFF'; const SEBBLE_DK='#FFFFFF'
 const TEXT='#1C1C1E'; const TEXTMU='#8E8E93'; const TEXTLT='#48484A'
-const GREEN='#34C759'; const GREENBG='rgba(52,199,89,0.08)'; const TERRA='#C4622D'; const TERRABG='rgba(255,59,48,0.06)'; const CREAM='#FFFFFF'
+const GREEN='#34C759'; const GREENBG='rgba(52,199,89,0.08)'; const RED='#FF3B30'; const TERRA='#C4622D'; const TERRABG='rgba(255,59,48,0.06)'; const CREAM='#FFFFFF'
 
 export default function Lancamentos() {
   const [txs,setTxs]   = useState<Tx[]>([])
@@ -66,20 +66,8 @@ export default function Lancamentos() {
       .gte('purchase_date',format(startOfMonth(date),'yyyy-MM-dd'))
       .lte('purchase_date',format(endOfMonth(date),'yyyy-MM-dd'))
       .order('purchase_date',{ascending:false})
-    // Exclui parcelas e compras de crédito (ficam em Cartões/Parcelamentos)
-    const filtered = (data||[]).filter(t => {
-      // Parcelas por campo
-      const parcelas = t.installment_total || t.total_installments || 0
-      if (parcelas > 1) return false
-      if (t.transaction_type === 'parcelada') return false
-      // Parcelas por descrição (X/Y)
-      const match = t.description?.match(/\((\d+)\/(\d+)\)/)
-      if (match && parseInt(match[2]) > 1) return false
-      // Compras no crédito ficam nos Cartões
-      if (t.payment_method === 'cartao_credito') return false
-      return true
-    })
-    setTxs(filtered); setLoad(false)
+    // Carrega TUDO do mês - segregação é visual, não por exclusão
+    setTxs(data||[]); setLoad(false)
   }
 
   const [payConfirm, setPayConfirm] = useState<Tx|null>(null)
@@ -111,19 +99,34 @@ export default function Lancamentos() {
 
   function tog(arr:string[],set:(v:string[])=>void,val:string){set(arr.includes(val)?arr.filter(x=>x!==val):[...arr,val])}
 
+  // Helpers de classificação
+  const isParcelada=(t:Tx)=>{
+    const m=t.description?.match(/\((\d+)\/(\d+)\)/)
+    return (m&&parseInt(m[2])>1)||(t.installment_total||t.total_installments||0)>1||t.transaction_type==='parcelada'
+  }
+  const isCredito=(t:Tx)=>t.payment_method==='cartao_credito'&&!isParcelada(t)
+  const isDiaDia=(t:Tx)=>!isParcelada(t)&&!isCredito(t)
+
   const filtered=useMemo(()=>{
     let t=txs
     if(fH.length) t=t.filter(x=>fH.includes(x.holder))
     if(fT.length) t=t.filter(x=>fT.includes(x.transaction_type==='receita'||x.type==='Receita'?'Receita':'Despesa'))
     if(search.trim()) t=t.filter(x=>x.description.toLowerCase().includes(search.toLowerCase())||x.category.toLowerCase().includes(search.toLowerCase()))
     return t
-  },[txs,fH,fT])
+  },[txs,fH,fT,search])
 
-  const grouped=useMemo(()=>{
+  // Segregar em 3 grupos
+  const txDiaDia=filtered.filter(isDiaDia)
+  const txCredito=filtered.filter(isCredito)
+  const txParcelas=filtered.filter(isParcelada)
+
+  const groupByDate=(arr:Tx[])=>{
     const g:Record<string,Tx[]>={}
-    filtered.forEach(t=>{if(!g[t.purchase_date])g[t.purchase_date]=[];g[t.purchase_date].push(t)})
+    arr.forEach(t=>{if(!g[t.purchase_date])g[t.purchase_date]=[];g[t.purchase_date].push(t)})
     return Object.entries(g).sort(([a],[b])=>b.localeCompare(a))
-  },[filtered])
+  }
+
+  // grouped removido - agora usa groupByDate() por seção
 
   const totalR=filtered.filter(t=>t.transaction_type==='receita').reduce((s,t)=>s+t.amount,0)
   const totalD=filtered.filter(t=>t.transaction_type!=='receita').reduce((s,t)=>s+(t.installment_value||t.amount),0)
@@ -208,7 +211,7 @@ export default function Lancamentos() {
           <div style={{ display:'flex',justifyContent:'center',padding:40 }}>
             <div style={{ width:22,height:22,border:`2px solid ${TERRA}`,borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.8s linear infinite' }}/>
           </div>
-        ):grouped.length===0?(
+        ):filtered.length===0?(
           <div style={{ textAlign:'center',padding:'48px 16px' }}>
             <p style={{ fontSize:24,marginBottom:12 }}>{search?'🔍':'📭'}</p>
             <p style={{ fontSize:14,color:TEXTMU,marginBottom:16 }}>{search?`Nenhum resultado para "${search}"`:'Nenhum lançamento neste mês'}</p>
@@ -216,31 +219,48 @@ export default function Lancamentos() {
           </div>
         ):(
           <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
-            {grouped.map(([d,list])=>(
-              <div key={d}>
-                <p style={{ fontSize:13,fontWeight:600,color:TEXTLT,marginBottom:8 }}>{format(parseISO(d),"dd 'de' MMMM",{locale:ptBR})}</p>
-                <div style={{ background:SEBBLE,borderRadius:24,overflow:'hidden',boxShadow:'0 1px 3px rgba(0,0,0,0.06)' }}>
-                  {list.map((tx,i)=>(
-                    <button key={tx.id} onClick={()=>setSel(tx)}
-                      style={{ width:'100%',display:'flex',alignItems:'center',gap:12,padding:'14px 16px',borderTop:i>0?`0.5px solid rgba(0,0,0,0.03)`:undefined,background:'none',border:'none',cursor:'pointer',textAlign:'left' }}>
-                      <div style={{ width:38,height:38,borderRadius:12,background:tx.transaction_type==='receita'||tx.type==='Receita'?GREENBG:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,flexShrink:0 }}>
-                        {CAT_ICONS[tx.category]||'📦'}
-                      </div>
-                      <div style={{ flex:1,minWidth:0 }}>
-                        <p style={{ fontSize:15,fontWeight:500,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{tx.description}</p>
-                        <p style={{ fontSize:11,color:TEXTMU,marginTop:2 }}>{tx.category}{tx.subcategory?` › ${tx.subcategory}`:''} | {tx.holder}</p>
-                        {tx.status==='Pago'&&<p style={{ fontSize:10,color:GREEN,marginTop:1 }}>Pago - Confirmado</p>}
-                        {tx.status==='Pendente'&&<p style={{ fontSize:10,color:TERRA,marginTop:1 }}>Pendente - {tx.installment_value?`Parcela`:''}{tx.installment_total?` (${tx.installment_total}x)`:''}</p>}
-                      </div>
-                      <div style={{ textAlign:'right',flexShrink:0 }}>
-                        <p style={{ fontSize:14,fontWeight:700,color:tx.transaction_type==='receita'||tx.type==='Receita'?GREEN:TERRA,fontVariantNumeric:'tabular-nums' as const }}>
-                          {tx.transaction_type==='receita'||tx.type==='Receita'?'+':'-'}{formatCurrency(tx.installment_value||tx.amount)}
-                        </p>
-                        <BadgeInline status={tx.status}/>
-                      </div>
-                    </button>
-                  ))}
+            {/* Renderiza uma seção */}
+            {([
+              {title:'Compras do dia a dia',items:txDiaDia,icon:'🛒',color:'#378ADD'},
+              {title:'Compras no crédito',items:txCredito,icon:'💳',color:TERRA},
+              {title:'Parcelas do mês',items:txParcelas,icon:'📋',color:'#9B59B6'},
+            ] as const).filter(s=>s.items.length>0).map(section=>(
+              <div key={section.title}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <span style={{fontSize:14}}>{section.icon}</span>
+                    <p style={{ fontSize:13,fontWeight:700,color:TEXT,margin:0 }}>{section.title}</p>
+                    <span style={{fontSize:11,color:TEXTMU,background:'rgba(0,0,0,0.04)',borderRadius:8,padding:'1px 7px',fontWeight:600}}>{section.items.length}</span>
+                  </div>
+                  <p style={{fontSize:12,fontWeight:700,color:section.color,margin:0,fontVariantNumeric:'tabular-nums'}}>
+                    {formatCurrency(section.items.reduce((s,t)=>s+(t.installment_value||t.amount),0))}
+                  </p>
                 </div>
+                {groupByDate(section.items).map(([d,list])=>(
+                  <div key={d} style={{marginBottom:10}}>
+                    <p style={{ fontSize:11,fontWeight:600,color:TEXTMU,marginBottom:6,paddingLeft:4 }}>{format(parseISO(d),"dd 'de' MMMM",{locale:ptBR})}</p>
+                    <div style={{ background:SEBBLE,borderRadius:18,overflow:'hidden',boxShadow:'0 1px 3px rgba(0,0,0,0.04)' }}>
+                      {list.map((tx,i)=>(
+                        <button key={tx.id} onClick={()=>setSel(tx)}
+                          style={{ width:'100%',display:'flex',alignItems:'center',gap:10,padding:'12px 14px',borderTop:i>0?'0.5px solid rgba(0,0,0,0.03)':undefined,background:'none',border:'none',cursor:'pointer',textAlign:'left' }}>
+                          <div style={{ width:34,height:34,borderRadius:11,background:tx.transaction_type==='receita'||tx.type==='Receita'?GREENBG:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0 }}>
+                            {CAT_ICONS[tx.category]||'📦'}
+                          </div>
+                          <div style={{ flex:1,minWidth:0 }}>
+                            <p style={{ fontSize:13,fontWeight:500,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',margin:0 }}>{tx.description}</p>
+                            <p style={{ fontSize:10,color:TEXTMU,margin:'2px 0 0' }}>{tx.category}{tx.subcategory?` › ${tx.subcategory}`:''} · {tx.holder}{tx.card_name?` · ${tx.card_name}`:''}</p>
+                          </div>
+                          <div style={{ textAlign:'right',flexShrink:0 }}>
+                            <p style={{ fontSize:13,fontWeight:700,color:tx.transaction_type==='receita'||tx.type==='Receita'?GREEN:RED,fontVariantNumeric:'tabular-nums',margin:0 }}>
+                              {tx.transaction_type==='receita'||tx.type==='Receita'?'+':'-'}{formatCurrency(tx.installment_value||tx.amount)}
+                            </p>
+                            <BadgeInline status={tx.status}/>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
           </div>

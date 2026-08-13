@@ -204,6 +204,13 @@ function LoginContent() {
           <button type="submit" disabled={loading} style={S.btn}>
             {loading ? <><Loader2 size={18} style={{animation:'spin 0.8s linear infinite'}}/> Entrando...</> : 'Entrar com senha'}
           </button>
+          <button type="button" onClick={async()=>{
+            const {error}=await createClient().auth.resetPasswordForEmail(savedEmail,{redirectTo:`${window.location.origin}/login`})
+            if(error){toast.error(`Erro: ${error.message}`)}
+            else{toast.success('Email de redefinição enviado! Verifique sua caixa de entrada.')}
+          }} style={{background:'none',border:'none',color:'#C4622D',fontSize:13,cursor:'pointer',padding:'8px 0',fontWeight:500}}>
+            Esqueci minha senha
+          </button>
         </form>
       </div>
       <p style={S.foot}>Acesso restrito ao casal</p>
