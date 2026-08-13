@@ -47,6 +47,8 @@ export default function EditarLancamento(){
     const {error}=await createClient().from('transactions').update({
       holder:form.holder,
       owner_name:(form.holder==='Prata'?'Lucas':form.holder)||'Lucas',
+      transaction_type:form.transaction_type,
+      type:form.type||(form.transaction_type==='receita'?'Receita':'Despesa'),
       description:form.description,
       amount,
       category:form.category,
@@ -59,6 +61,8 @@ export default function EditarLancamento(){
       paid_amount:form.paid_amount?parseFloat(form.paid_amount):null,
       paid_date:form.paid_date||null,
       installment_value:form.installment_value?parseFloat(form.installment_value):null,
+      installment_total:form.installment_total?parseInt(form.installment_total):null,
+      is_recurring:form.transaction_type==='recorrente',
     }).eq('id',id)
     if(error){toast.error(`Erro: ${error.message}`);setSaving(false);return}
     toast.success('Salvo!')
@@ -84,7 +88,7 @@ export default function EditarLancamento(){
     </div>
   )
 
-  const isReceita=tx.transaction_type==='receita'
+  const isReceita=form.transaction_type==='receita'||form.type==='Receita'
   const cats=isReceita?CATS_RECEITA:CATS_DESPESA
   const subs=SUBCATS[form.category]||[]
   const isCredito=form.payment_method==='cartao_credito'
@@ -116,13 +120,21 @@ export default function EditarLancamento(){
 
       <div style={{padding:'18px 16px 160px',display:'flex',flexDirection:'column',gap:16}}>
 
-        {/* Info */}
-        <div style={{background:'#fff',borderRadius:16,padding:'14px 16px',border:'1px solid rgba(0,0,0,0.04)'}}>
-          <p style={{fontSize:11,color:TEXTMU,margin:'0 0 4px',letterSpacing:'0.05em',textTransform:'uppercase'}}>
-            {isReceita?'↑ Receita':'↓ Despesa'} · {tx.transaction_type}
-          </p>
-          <p style={{fontSize:18,fontWeight:700,color:TEXT,margin:'0 0 2px'}}>{tx.description}</p>
-          <p style={{fontSize:13,color:TEXTMU,margin:0}}>{tx.category} · {tx.holder}{tx.card_name?` · ${tx.card_name}`:''}</p>
+        {/* Tipo do lançamento - editável */}
+        <div>
+          <label style={lbl}>Tipo do lançamento</label>
+          <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+            {[{v:'avista',l:'À vista',t:'Despesa'},{v:'parcelada',l:'Parcelada',t:'Despesa'},{v:'recorrente',l:'Recorrente',t:'Despesa'},{v:'receita',l:'Receita',t:'Receita'}].map(tp=>{
+              const on=form.transaction_type===tp.v
+              return(
+                <button key={tp.v} type="button" onClick={()=>{sf('transaction_type',tp.v);sf('type',tp.t)}}
+                  style={{height:34,padding:'0 14px',borderRadius:10,border:on?`1px solid ${tp.t==='Receita'?GREEN:TERRA}40`:'1px solid rgba(0,0,0,0.06)',cursor:'pointer',fontSize:12,fontWeight:on?600:400,
+                    background:on?`${tp.t==='Receita'?GREEN:TERRA}15`:'#fff',color:on?(tp.t==='Receita'?GREEN:TERRA):TEXTMU}}>
+                  {tp.l}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {/* Responsável */}
@@ -157,6 +169,20 @@ export default function EditarLancamento(){
           <label style={lbl}>Data da compra</label>
           <input type="date" value={form.purchase_date||''} onChange={e=>sf('purchase_date',e.target.value)} required style={{...inp,WebkitAppearance:'none' as any,maxWidth:'100%'}}/>
         </div>
+
+        {/* Campos de parcelamento (quando tipo=parcelada) */}
+        {form.transaction_type==='parcelada'&&(
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <div>
+              <label style={lbl}>Nº de parcelas</label>
+              <input type="number" value={form.installment_total||form.total_installments||''} onChange={e=>sf('installment_total',parseInt(e.target.value)||null)} style={inp} min="2" max="600"/>
+            </div>
+            <div>
+              <label style={lbl}>Valor da parcela</label>
+              <input type="number" inputMode="decimal" step="0.01" value={form.installment_value||''} onChange={e=>sf('installment_value',parseFloat(e.target.value)||null)} style={inp} placeholder="Calc. automático"/>
+            </div>
+          </div>
+        )}
 
         {/* Categoria */}
         <div>

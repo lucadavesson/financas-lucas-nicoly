@@ -4,12 +4,12 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, parseISO, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, SlidersHorizontal, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, SlidersHorizontal, X } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import Simulador from './simulador'
 
-type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;type?:string;payment_method?:string;card_name?:string }
+type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;type?:string;payment_method?:string;card_name?:string;is_recurring?:boolean }
 
 const BADGE: Record<string,string> = { pago:'badge-pago',pendente:'badge-pendente',previsto:'badge-previsto',atrasado:'badge-atrasado',cancelado:'badge-previsto' }
 const BADGE_LABEL: Record<string,string> = { Pago:'Pago',Pendente:'Pendente',Previsto:'Previsto',Atrasado:'Atrasado',Cancelado:'Cancelado' }
@@ -54,6 +54,7 @@ export default function Lancamentos() {
   const [showF,setShowF]=useState(false)
   const [search,setSearch]=useState('')
   const [showSim,setShowSim]=useState(false)
+  const [openSecs,setOpenSecs]=useState<Record<string,boolean>>({'dia':true,'credito':true,'parcela':true,'recorrente':true})
   const [sel,setSel]   = useState<Tx|null>(null)
   const [fH,setFH]     = useState<string[]>([])
   const [fT,setFT]     = useState<string[]>([])
@@ -105,7 +106,8 @@ export default function Lancamentos() {
     return (m&&parseInt(m[2])>1)||(t.installment_total||t.total_installments||0)>1||t.transaction_type==='parcelada'
   }
   const isCredito=(t:Tx)=>t.payment_method==='cartao_credito'&&!isParcelada(t)
-  const isDiaDia=(t:Tx)=>!isParcelada(t)&&!isCredito(t)
+  const isRecorrente=(t:Tx)=>!!t.is_recurring&&!isParcelada(t)&&!isCredito(t)
+  const isDiaDia=(t:Tx)=>!isParcelada(t)&&!isCredito(t)&&!isRecorrente(t)
 
   const filtered=useMemo(()=>{
     let t=txs
@@ -119,6 +121,7 @@ export default function Lancamentos() {
   const txDiaDia=filtered.filter(isDiaDia)
   const txCredito=filtered.filter(isCredito)
   const txParcelas=filtered.filter(isParcelada)
+  const txRecorrentes=filtered.filter(isRecorrente)
 
   const groupByDate=(arr:Tx[])=>{
     const g:Record<string,Tx[]>={}
@@ -218,40 +221,46 @@ export default function Lancamentos() {
             {!search&&<Link href="/lancamentos/novo" style={{ padding:'10px 20px',background:TERRA,color:'#fff',borderRadius:24,fontSize:13,fontWeight:700,textDecoration:'none' }}>Adicionar</Link>}
           </div>
         ):(
-          <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
-            {/* Renderiza uma seção */}
+          <div style={{ display:'flex',flexDirection:'column',gap:10 }}>
             {([
-              {title:'Compras do dia a dia',items:txDiaDia,icon:'🛒',color:'#378ADD'},
-              {title:'Compras no crédito',items:txCredito,icon:'💳',color:TERRA},
-              {title:'Parcelas do mês',items:txParcelas,icon:'📋',color:'#9B59B6'},
-            ] as const).filter(s=>s.items.length>0).map(section=>(
-              <div key={section.title}>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-                  <div style={{display:'flex',alignItems:'center',gap:6}}>
-                    <span style={{fontSize:14}}>{section.icon}</span>
-                    <p style={{ fontSize:13,fontWeight:700,color:TEXT,margin:0 }}>{section.title}</p>
-                    <span style={{fontSize:11,color:TEXTMU,background:'rgba(0,0,0,0.04)',borderRadius:8,padding:'1px 7px',fontWeight:600}}>{section.items.length}</span>
-                  </div>
-                  <p style={{fontSize:12,fontWeight:700,color:section.color,margin:0,fontVariantNumeric:'tabular-nums'}}>
-                    {formatCurrency(section.items.reduce((s,t)=>s+(t.installment_value||t.amount),0))}
-                  </p>
-                </div>
-                {groupByDate(section.items).map(([d,list])=>(
-                  <div key={d} style={{marginBottom:10}}>
-                    <p style={{ fontSize:11,fontWeight:600,color:TEXTMU,marginBottom:6,paddingLeft:4 }}>{format(parseISO(d),"dd 'de' MMMM",{locale:ptBR})}</p>
-                    <div style={{ background:SEBBLE,borderRadius:18,overflow:'hidden',boxShadow:'0 1px 3px rgba(0,0,0,0.04)' }}>
-                      {list.map((tx,i)=>(
+              {key:'dia',title:'Compras à vista',items:txDiaDia,icon:'🛒',color:'#378ADD'},
+              {key:'credito',title:'Compras no crédito',items:txCredito,icon:'💳',color:TERRA},
+              {key:'parcela',title:'Compras parceladas',items:txParcelas,icon:'📋',color:'#9B59B6'},
+              {key:'recorrente',title:'Contas recorrentes',items:txRecorrentes,icon:'🔄',color:'#1D9E75'},
+            ] as const).filter(s=>s.items.length>0).map(section=>{
+              const isOpen=openSecs[section.key]!==false
+              const total=section.items.reduce((s,t)=>s+(t.installment_value||t.amount),0)
+              return (
+                <div key={section.key} style={{background:'#FFFFFF',borderRadius:20,overflow:'hidden',border:'1px solid rgba(0,0,0,0.04)'}}>
+                  {/* Header colapsável */}
+                  <button onClick={()=>setOpenSecs(p=>({...p,[section.key]:!isOpen}))}
+                    style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'14px 16px',textAlign:'left',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{fontSize:16}}>{section.icon}</span>
+                      <span style={{fontSize:14,fontWeight:700,color:TEXT}}>{section.title}</span>
+                      <span style={{fontSize:11,color:TEXTMU,background:'rgba(0,0,0,0.04)',borderRadius:8,padding:'1px 7px',fontWeight:600}}>{section.items.length}</span>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{fontSize:13,fontWeight:700,color:section.color,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(total)}</span>
+                      {isOpen?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}
+                    </div>
+                  </button>
+
+                  {/* Lista expandida */}
+                  {isOpen&&(
+                    <div style={{padding:'0 8px 8px'}}>
+                      {section.items.sort((a,b)=>b.purchase_date.localeCompare(a.purchase_date)).map((tx,i)=>(
                         <button key={tx.id} onClick={()=>setSel(tx)}
-                          style={{ width:'100%',display:'flex',alignItems:'center',gap:10,padding:'12px 14px',borderTop:i>0?'0.5px solid rgba(0,0,0,0.03)':undefined,background:'none',border:'none',cursor:'pointer',textAlign:'left' }}>
-                          <div style={{ width:34,height:34,borderRadius:11,background:tx.transaction_type==='receita'||tx.type==='Receita'?GREENBG:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0 }}>
+                          style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'10px 10px',borderTop:i>0?'0.5px solid rgba(0,0,0,0.04)':undefined,background:'none',border:i===0?'none':undefined,borderTopStyle:i>0?'solid':undefined,borderTopColor:i>0?'rgba(0,0,0,0.04)':undefined,borderTopWidth:i>0?'0.5px':undefined,borderLeft:'none',borderRight:'none',borderBottom:'none',cursor:'pointer',textAlign:'left'}}>
+                          <div style={{width:34,height:34,borderRadius:11,background:tx.transaction_type==='receita'||tx.type==='Receita'?GREENBG:'rgba(0,0,0,0.03)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0}}>
                             {CAT_ICONS[tx.category]||'📦'}
                           </div>
-                          <div style={{ flex:1,minWidth:0 }}>
-                            <p style={{ fontSize:13,fontWeight:500,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',margin:0 }}>{tx.description}</p>
-                            <p style={{ fontSize:10,color:TEXTMU,margin:'2px 0 0' }}>{tx.category}{tx.subcategory?` › ${tx.subcategory}`:''} · {tx.holder}{tx.card_name?` · ${tx.card_name}`:''}</p>
+                          <div style={{flex:1,minWidth:0}}>
+                            <p style={{fontSize:13,fontWeight:500,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',margin:0}}>{tx.description}</p>
+                            <p style={{fontSize:10,color:TEXTMU,margin:'2px 0 0'}}>{tx.category} · {tx.holder} · {format(parseISO(tx.purchase_date),'dd/MM')}{tx.card_name?` · ${tx.card_name}`:''}</p>
                           </div>
-                          <div style={{ textAlign:'right',flexShrink:0 }}>
-                            <p style={{ fontSize:13,fontWeight:700,color:tx.transaction_type==='receita'||tx.type==='Receita'?GREEN:RED,fontVariantNumeric:'tabular-nums',margin:0 }}>
+                          <div style={{textAlign:'right',flexShrink:0}}>
+                            <p style={{fontSize:13,fontWeight:700,color:tx.transaction_type==='receita'||tx.type==='Receita'?GREEN:RED,fontVariantNumeric:'tabular-nums',margin:0}}>
                               {tx.transaction_type==='receita'||tx.type==='Receita'?'+':'-'}{formatCurrency(tx.installment_value||tx.amount)}
                             </p>
                             <BadgeInline status={tx.status}/>
@@ -259,10 +268,10 @@ export default function Lancamentos() {
                         </button>
                       ))}
                     </div>
-                  </div>
-                ))}
-              </div>
-            ))}
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
