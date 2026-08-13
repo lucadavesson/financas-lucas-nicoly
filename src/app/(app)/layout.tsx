@@ -11,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div style={{ height:'100dvh', display:'flex', flexDirection:'column', overflow:'hidden', background:'#F5F5F7' }}>
       <TopBar />
-      <main style={{ flex:1, overflowY:'auto', overflowX:'hidden', overscrollBehavior:'contain', WebkitOverflowScrolling:'touch' as any, position:'relative' }}>
+      <main style={{ flex:1, overflowY:'auto', overflowX:'hidden', overscrollBehavior:'none', WebkitOverflowScrolling:'touch' as any, position:'relative' }}>
         {children}
       </main>
       <BottomNav />

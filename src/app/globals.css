@@ -9,6 +9,7 @@ html, body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   background: #F5F5F7;
 }

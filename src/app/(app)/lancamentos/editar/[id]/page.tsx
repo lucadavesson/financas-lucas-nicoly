@@ -25,7 +25,7 @@ export default function EditarLancamento(){
   const [cards,setCards]=useState<any[]>([])
   const [valRaw,setValRaw]=useState('')
 
-  useEffect(()=>{load()},[id])
+  useEffect(()=>{load();window.scrollTo(0,0)},[id])
 
   async function load(){
     const s=createClient()

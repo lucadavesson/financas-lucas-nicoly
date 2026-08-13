@@ -120,8 +120,21 @@ export default function Dashboard() {
 
   const hoje=new Date()
   const isCartao=(t:Tx)=>t.payment_method==='cartao_credito'||t.transaction_type==='parcelada'
-  const proximos=despesas.filter(t=>t.status!=='Pago'&&t.status!=='Cancelado'&&!isCartao(t)).sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date)).slice(0,5)
-  const atrasados=despesas.filter(t=>t.status==='Atrasado'||(t.status==='Pendente'&&!isCartao(t)&&new Date(t.purchase_date+'T12:00:00')<hoje))
+  // Atrasadas: data JÁ passou E não está pago (inclui cartão de crédito com parcelas atrasadas)
+  const atrasados=despesas.filter(t=>{
+    if(t.status==='Pago'||t.status==='Cancelado')return false
+    if(t.status==='Atrasado')return true
+    const dtCompra=new Date(t.purchase_date+'T12:00:00')
+    return dtCompra<hoje && !isCartao(t)
+  })
+  const totalAtrasado=atrasados.reduce((s,t)=>s+(t.installment_value||t.amount),0)
+  // Próximos: pendentes com data >= hoje (exclui cartão e atrasados)
+  const proximos=despesas.filter(t=>{
+    if(t.status==='Pago'||t.status==='Cancelado')return false
+    if(isCartao(t))return false
+    const dtCompra=new Date(t.purchase_date+'T12:00:00')
+    return dtCompra>=hoje
+  }).sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date)).slice(0,5)
 
   const catMap:Record<string,number>={}
   despesas.forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+(t.installment_value||t.amount)})
@@ -160,8 +173,8 @@ export default function Dashboard() {
             <p style={{fontSize:24,fontWeight:800,color:saldo>=0?GREEN:RED,margin:0,lineHeight:1,fontVariantNumeric:'tabular-nums'}}>{v(saldo)}</p>
           </div>
           <div style={{textAlign:'right'}}>
-            <p style={{fontSize:11,color:TEXTMU,margin:'0 0 2px'}}>Pode gastar</p>
-            <p style={{fontSize:18,fontWeight:700,color:TEXT,margin:'0 0 2px',fontVariantNumeric:'tabular-nums'}}>{v(gastoDia)}<span style={{fontSize:12,fontWeight:400,color:TEXTMU}}>/dia</span></p>
+            <p style={{fontSize:10,color:TEXTMU,margin:'0 0 2px'}}>Pode gastar</p>
+            <p style={{fontSize:14,fontWeight:600,color:TEXTLT,margin:'0 0 2px',fontVariantNumeric:'tabular-nums'}}>{v(Math.max(0,gastoDia))}<span style={{fontSize:10,fontWeight:400,color:TEXTMU}}>/dia</span></p>
             <p style={{fontSize:11,color:TEXTMU,margin:0}}>{diasRest} dias restantes</p>
           </div>
         </div>
@@ -192,8 +205,8 @@ export default function Dashboard() {
           <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:TEXTMU,marginBottom:5}}>
             <span>Contas pagas</span><span style={{fontWeight:600,color:pctPago>=100?GREEN:TEXT}}>{pctPago.toFixed(0)}%</span>
           </div>
-          <div style={{height:6,background:'rgba(0,0,0,0.04)',borderRadius:99,overflow:'hidden'}}>
-            <div style={{height:'100%',borderRadius:99,width:`${pctPago}%`,background:pctPago>=100?GREEN:'#C4622D',transition:'width 0.5s'}}/>
+          <div style={{height:6,background:'#FF3B30',borderRadius:99,overflow:'hidden'}}>
+            <div style={{height:'100%',borderRadius:99,width:`${pctPago}%`,background:GREEN,transition:'width 0.5s'}}/>
           </div>
         </div>
       </div>
@@ -279,7 +292,7 @@ export default function Dashboard() {
                   <span>{v(a.gasto)} de {v(a.lim)}</span>
                   <span style={{color:a.pct>=100?'#FF3B30':'#CC7700'}}>{a.pct>=100?'Estourou!':'Atenção'}</span>
                 </div>
-                <div style={{height:4,background:'rgba(0,0,0,0.04)',borderRadius:99,overflow:'hidden'}}>
+                <div style={{height:4,background:'#FF3B30',borderRadius:99,overflow:'hidden'}}>
                   <div style={{height:'100%',borderRadius:99,width:`${Math.min(a.pct,100)}%`,background:a.pct>=100?'#FF3B30':'#FF9500',transition:'width 0.5s'}}/>
                 </div>
               </div>
@@ -306,7 +319,7 @@ export default function Dashboard() {
                       <span style={{fontSize:12,fontWeight:600,color:TEXT}}>{g.name}</span>
                       <span style={{fontSize:11,fontWeight:700,color:g.color||TERRA}}>{pct.toFixed(0)}%</span>
                     </div>
-                    <div style={{height:4,background:'rgba(0,0,0,0.04)',borderRadius:99,overflow:'hidden'}}>
+                    <div style={{height:4,background:'#FF3B30',borderRadius:99,overflow:'hidden'}}>
                       <div style={{height:'100%',borderRadius:99,width:`${pct}%`,background:g.color||TERRA,transition:'width 0.5s'}}/>
                     </div>
                     <div style={{display:'flex',justifyContent:'space-between',marginTop:2}}>
@@ -340,7 +353,7 @@ export default function Dashboard() {
                     <span style={{fontSize:11,color:TEXTMU,width:28,textAlign:'right'}}>{pct.toFixed(0)}%</span>
                   </div>
                 </div>
-                <div style={{height:5,background:'rgba(0,0,0,0.04)',borderRadius:99,overflow:'hidden'}}>
+                <div style={{height:5,background:'#FF3B30',borderRadius:99,overflow:'hidden'}}>
                   <div style={{height:'100%',borderRadius:99,width:`${pct}%`,background:cores[i]||TERRA}}/>
                 </div>
               </div>

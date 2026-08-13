@@ -125,9 +125,9 @@ export default function Parcelamentos() {
                       </p>
                       <div style={{display:'flex',alignItems:'center',gap:8,marginTop:6}}>
                         <div style={{flex:1,height:4,background:'rgba(0,0,0,0.04)',borderRadius:99,overflow:'hidden'}}>
-                          <div style={{height:'100%',borderRadius:99,width:`${pct}%`,background:finalizada?GREEN:TERRA,transition:'width 0.5s'}}/>
+                          <div style={{height:'100%',borderRadius:99,width:`${pct}%`,background:finalizada?GREEN:RED,transition:'width 0.5s'}}/>
                         </div>
-                        <span style={{fontSize:11,fontWeight:700,color:finalizada?GREEN:TERRA,flexShrink:0}}>{pagas}/{total}</span>
+                        <span style={{fontSize:11,fontWeight:700,color:finalizada?GREEN:RED,flexShrink:0}}>{pagas}/{total}</span>
                       </div>
                     </div>
                   </div>
@@ -145,8 +145,8 @@ export default function Parcelamentos() {
                         const isPago=parcela?.status==='Pago'
                         return (
                           <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:i<total-1?'0.5px solid rgba(0,0,0,0.04)':undefined}}>
-                            <div style={{width:24,height:24,borderRadius:12,background:isPago?'rgba(34,199,89,0.12)':parcela?'rgba(196,98,45,0.12)':'rgba(0,0,0,0.03)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                              <span style={{fontSize:10,fontWeight:700,color:isPago?GREEN:parcela?TERRA:TEXTMU}}>{isPago?'✓':num}</span>
+                            <div style={{width:24,height:24,borderRadius:12,background:isPago?'rgba(34,199,89,0.12)':parcela?'rgba(255,59,48,0.12)':'rgba(0,0,0,0.03)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                              <span style={{fontSize:10,fontWeight:700,color:isPago?GREEN:parcela?RED:TEXTMU}}>{isPago?'✓':num}</span>
                             </div>
                             <div style={{flex:1}}>
                               <p style={{fontSize:12,fontWeight:500,color:parcela?TEXT:TEXTMU,margin:0}}>Parcela {num}/{total}</p>
