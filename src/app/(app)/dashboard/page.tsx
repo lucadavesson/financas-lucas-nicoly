@@ -135,6 +135,7 @@ export default function Dashboard() {
     const dtCompra=new Date(t.purchase_date+'T12:00:00')
     return dtCompra>=hoje
   }).sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date)).slice(0,5)
+  const venceHoje=despesas.filter(t=>t.status!=="Pago"&&t.status!=="Cancelado"&&t.purchase_date===format(hoje,"yyyy-MM-dd")&&!isCartao(t))
 
   const catMap:Record<string,number>={}
   despesas.forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+(t.installment_value||t.amount)})
@@ -230,6 +231,25 @@ export default function Dashboard() {
       </div>
 
       {/* Atrasados */}
+      {/* Vence hoje */}
+      {venceHoje.length>0&&(
+        <div style={{...card(),background:'rgba(255,170,0,0.06)',border:'1px solid rgba(255,170,0,0.15)',marginBottom:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
+            <span style={{fontSize:14}}>🔔</span>
+            <p style={{fontSize:13,fontWeight:700,color:'#CC7700',margin:0}}>Vence hoje — {venceHoje.length} conta{venceHoje.length>1?'s':''}</p>
+          </div>
+          {venceHoje.map((tx,i)=>(
+            <div key={tx.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderTop:i>0?'0.5px solid rgba(0,0,0,0.04)':undefined}}>
+              <span style={{fontSize:13,color:TEXT}}>{tx.description}</span>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:13,fontWeight:700,color:'#CC7700'}}>{v(tx.installment_value||tx.amount)}</span>
+                <button onClick={()=>openPayModal(tx.id,tx.description,tx.installment_value||tx.amount)} style={{padding:'3px 10px',background:'#FF9500',color:'#fff',borderRadius:8,border:'none',fontSize:11,fontWeight:700,cursor:'pointer'}}>Pagar</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {atrasados.length>0&&(
         <div style={{...card(),background:'rgba(255,59,48,0.03)',border:'1px solid rgba(255,59,48,0.1)'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
@@ -363,17 +383,23 @@ export default function Dashboard() {
       )}
 
       {/* Modal confirmar pagamento */}
-      {payModal&&(
+      {payModal&&(()=>{
+        const valorOriginal=payModal.amount
+        const valorPago=unmaskCurrency(payValue)||0
+        const desconto=valorOriginal-valorPago
+        const temDesconto=valorPago>0&&desconto>0&&desconto<valorOriginal
+        return (
         <div style={{position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setPayModal(null)}>
           <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.3)',backdropFilter:'blur(4px)'}}/>
           <div style={{position:'relative',width:'88%',maxWidth:340,background:'#fff',borderRadius:20,padding:'24px 16px',boxShadow:'0 8px 40px rgba(0,0,0,0.15)'}} onClick={e=>e.stopPropagation()}>
             <h3 style={{fontSize:16,fontWeight:700,color:'#1C1C1E',margin:'0 0 4px'}}>Confirmar pagamento</h3>
-            <p style={{fontSize:13,color:'#8E8E93',margin:'0 0 18px'}}>{payModal.desc}</p>
+            <p style={{fontSize:13,color:'#8E8E93',margin:'0 0 4px'}}>{payModal.desc}</p>
+            <p style={{fontSize:12,color:'#48484A',margin:'0 0 16px'}}>Valor original: <strong>{v(valorOriginal)}</strong></p>
             <div style={{marginBottom:14}}>
               <label style={{fontSize:11,fontWeight:600,color:'#8E8E93',display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.05em'}}>Data do pagamento</label>
-              <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} style={{width:'100%',height:44,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:10,padding:'0 12px',fontSize:14,color:'#1C1C1E',outline:'none',boxSizing:'border-box',WebkitAppearance:'none',maxWidth:'100%'}}/>
+              <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} style={{width:'100%',height:44,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:10,padding:'0 12px',fontSize:14,color:'#1C1C1E',outline:'none',boxSizing:'border-box',WebkitAppearance:'none' as any,maxWidth:'100%'}}/>
             </div>
-            <div style={{marginBottom:20}}>
+            <div style={{marginBottom:temDesconto?10:20}}>
               <label style={{fontSize:11,fontWeight:600,color:'#8E8E93',display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.05em'}}>Valor pago</label>
               <div style={{position:'relative'}}>
                 <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:14,color:'#8E8E93',fontWeight:600}}>R$</span>
@@ -382,13 +408,20 @@ export default function Dashboard() {
                   style={{width:'100%',height:44,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:10,padding:'0 14px 0 40px',fontSize:16,fontWeight:700,color:'#1C1C1E',outline:'none',boxSizing:'border-box'}}/>
               </div>
             </div>
+            {temDesconto&&(
+              <div style={{background:'rgba(34,199,89,0.06)',borderRadius:10,padding:'8px 12px',marginBottom:16,border:'1px solid rgba(34,199,89,0.12)'}}>
+                <p style={{fontSize:12,color:'#34C759',fontWeight:600,margin:0}}>
+                  💰 Desconto: {v(desconto)} ({(desconto/valorOriginal*100).toFixed(1)}%)
+                </p>
+              </div>
+            )}
             <div style={{display:'flex',gap:8}}>
               <button onClick={()=>setPayModal(null)} style={{flex:1,height:46,background:'#F5F5F7',color:'#48484A',borderRadius:12,border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancelar</button>
               <button onClick={confirmPay} style={{flex:1,height:46,background:'#34C759',color:'#fff',borderRadius:12,border:'none',fontSize:14,fontWeight:700,cursor:'pointer'}}>✓ Confirmar</button>
             </div>
           </div>
         </div>
-      )}
+        )})()}
 
       {/* Últimas transações */}
       {txs.length>0&&(

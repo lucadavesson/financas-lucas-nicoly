@@ -38,6 +38,7 @@ export default function Relatorios() {
   const [date,setDate]=useState(new Date())
   const [holder,setHolder]=useState('Todos')
   const [compN,setCompN]=useState(4)
+  const [openCat,setOpenCat]=useState<string|null>(null)
 
   useEffect(()=>{load()},[date])
 
@@ -208,18 +209,44 @@ export default function Relatorios() {
         <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:10}}>
           {cats.map(([cat,{total,txs:catTxs}],i)=>{
             const pct=totalD>0?(total/totalD*100):0
+            const isOpen=openCat===cat
+            // Subcategorias
+            const subMap:Record<string,{total:number;count:number}>={}
+            catTxs.forEach((t:any)=>{
+              const sub=t.subcategory||'Sem subcategoria'
+              if(!subMap[sub])subMap[sub]={total:0,count:0}
+              subMap[sub].total+=(t.installment_value||t.amount)
+              subMap[sub].count++
+            })
+            const subs=Object.entries(subMap).sort(([,a],[,b])=>b.total-a.total)
             return (
               <div key={cat} style={{padding:'8px 0',borderBottom:i<cats.length-1?'0.5px solid rgba(0,0,0,0.04)':undefined}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
-                  <span style={{fontSize:13,color:TEXT,fontWeight:600}}>{CAT_ICONS[cat]||'📦'} {cat}</span>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontSize:13,fontWeight:700,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{v(total)}</span>
-                    <span style={{fontSize:10,color:TEXTMU}}>{pct.toFixed(0)}%</span>
+                <button onClick={()=>setOpenCat(isOpen?null:cat)} style={{width:'100%',background:'none',border:'none',cursor:'pointer',textAlign:'left',padding:0}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                    <div style={{display:'flex',alignItems:'center',gap:4}}>
+                      <span style={{fontSize:13,color:TEXT,fontWeight:600}}>{CAT_ICONS[cat]||'📦'} {cat}</span>
+                      <span style={{fontSize:10,color:TEXTMU}}>({catTxs.length})</span>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{fontSize:13,fontWeight:700,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{v(total)}</span>
+                      <span style={{fontSize:10,color:TEXTMU}}>{pct.toFixed(0)}%</span>
+                      {isOpen?<ChevronUp size={12} color={TEXTMU}/>:<ChevronDown size={12} color={TEXTMU}/>}
+                    </div>
                   </div>
-                </div>
-                <div style={{height:4,background:'rgba(0,0,0,0.04)',borderRadius:99,overflow:'hidden'}}>
-                  <div style={{height:'100%',borderRadius:99,width:`${pct}%`,background:COLORS[i%COLORS.length],transition:'width 0.4s'}}/>
-                </div>
+                  <div style={{height:4,background:'rgba(0,0,0,0.04)',borderRadius:99,overflow:'hidden'}}>
+                    <div style={{height:'100%',borderRadius:99,width:`${pct}%`,background:COLORS[i%COLORS.length],transition:'width 0.4s'}}/>
+                  </div>
+                </button>
+                {isOpen&&(
+                  <div style={{marginTop:8,paddingLeft:4}}>
+                    {subs.map(([sub,{total:st,count}])=>(
+                      <div key={sub} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 0',fontSize:12}}>
+                        <span style={{color:TEXTLT}}>↳ {sub} <span style={{color:TEXTMU}}>({count})</span></span>
+                        <span style={{fontWeight:600,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{v(st)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}
