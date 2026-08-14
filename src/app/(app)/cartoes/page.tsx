@@ -332,7 +332,10 @@ export default function Cartoes() {
                               {(()=>{
                                 const m=tx.description?.match(/^(.+?)\s*\((\d+)\/(\d+)\)$/)
                                 const nome=m?m[1]:tx.description
-                                const parcInfo=m?`${m[2]}/${m[3]}`:(tx.installment_num||tx.installment_number)&&(tx.installment_total||tx.total_installments)?`${tx.installment_num||tx.installment_number}/${tx.installment_total||tx.total_installments}`:null
+                                const totalParc=tx.installment_total||tx.total_installments||0
+                                const numParc=m?parseInt(m[2]):(tx.installment_num||tx.installment_number||(totalParc>1?1:0))
+                                const totalP=m?parseInt(m[3]):totalParc
+                                const parcInfo=totalP>1?`${numParc}/${totalP}`:null
                                 return (<>
                                   <p style={{fontSize:13,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nome}</p>
                                   <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
