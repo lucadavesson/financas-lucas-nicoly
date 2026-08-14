@@ -71,43 +71,52 @@ export default function Cartoes() {
     const txsDoMes=[...(txDataMes||[])]
 
     // Para cada parcela, projetar em meses futuros
+    const jaAdicionado=new Set(txsDoMes.map((t:any)=>t.id))
     ;(txDataParc||[]).forEach((t:any)=>{
-      // Detectar parcela por descrição (X/Y) ou por campos installment
+      // Detectar parcela: pela descrição (X/Y) OU por campos installment
       const match=t.description?.match(/\((\d+)\/(\d+)\)/)
-      const numAtual=match?parseInt(match[1]):(t.installment_num||t.installment_number||0)
-      const total=match?parseInt(match[2]):(t.installment_total||t.total_installments||0)
-      if(!numAtual||!total||total<=1)return
+      let numAtual=0, total=0
       
-      // Só projetar se é compra de cartão de crédito
+      if(match){
+        numAtual=parseInt(match[1]); total=parseInt(match[2])
+      } else {
+        numAtual=t.installment_num||t.installment_number||1
+        total=t.installment_total||t.total_installments||0
+      }
+      
+      if(total<=1)return
       if(t.payment_method!=='cartao_credito')return
       
       const dataParcela=new Date(t.purchase_date+'T12:00:00')
+      const nomeBase=t.description.replace(/\s*\(\d+\/\d+\)$/,'').trim()
 
-      // Calcular em qual mês cada parcela futura cairia
+      // Projetar parcelas futuras
       for(let i=1;i<=total-numAtual;i++){
         const mesFuturo=format(addMonths(dataParcela,i),'yyyy-MM')
-        if(mesFuturo===mesKey){
-          const numFuturo=numAtual+i
-          const descBase=match?t.description.replace(`(${match[1]}/${match[2]})`,`(${numFuturo}/${total})`):t.description+` (${numFuturo}/${total})`
-          // Não duplicar se já existe
-          const jaExiste=txsDoMes.some((x:any)=>{
-            const m2=x.description?.match(/\((\d+)\/(\d+)\)/)
-            if(!m2)return false
-            const base1=t.description.replace(/\s*\(\d+\/\d+\)$/,'')
-            const base2=x.description.replace(/\s*\(\d+\/\d+\)$/,'')
-            return base1===base2 && parseInt(m2[1])===numFuturo
-          })
-          if(!jaExiste){
-            txsDoMes.push({
-              ...t,
-              id:t.id+'_proj_'+i,
-              description:descBase,
-              purchase_date:format(addMonths(dataParcela,i),'yyyy-MM-dd'),
-              status:'Pendente',
-              _projected:true,
-            })
-          }
-        }
+        if(mesFuturo!==mesKey)continue
+        
+        const numFuturo=numAtual+i
+        const novaDesc=`${nomeBase} (${numFuturo}/${total})`
+        const projId=t.id+'_proj_'+numFuturo
+        
+        // Verificar se já existe (por id ou nome similar)
+        if(jaAdicionado.has(projId))continue
+        const jaExisteNome=txsDoMes.some((x:any)=>{
+          const xBase=x.description.replace(/\s*\(\d+\/\d+\)$/,'').trim()
+          const xMatch=x.description.match(/\((\d+)\/(\d+)\)/)
+          return xBase===nomeBase && xMatch && parseInt(xMatch[1])===numFuturo
+        })
+        if(jaExisteNome)continue
+        
+        txsDoMes.push({
+          ...t,
+          id:projId,
+          description:novaDesc,
+          purchase_date:format(addMonths(dataParcela,i),'yyyy-MM-dd'),
+          status:'Pendente',
+          _projected:true,
+        })
+        jaAdicionado.add(projId)
       }
     })
 
