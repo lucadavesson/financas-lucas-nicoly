@@ -69,5 +69,48 @@ export async function generateRecurrents(targetMonth: Date) {
     if (!error) generated++
   }
 
+  // Gerar receita de salário se configurado
+  const { data: settings } = await s.from('app_settings').select('*').eq('owner_id', user.id).maybeSingle()
+  if (settings) {
+    const salaryDay = settings.salary_day || 1
+    const lastDay = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate()
+    const actualDay = Math.min(salaryDay, lastDay)
+    const salaryDate = `${monthKey}-${String(actualDay).padStart(2, '0')}`
+
+    // Lucas
+    if (settings.salary_lucas && settings.salary_lucas > 0) {
+      const existsL = (existing || []).some(t => t.description === 'Salário Lucas' && t.holder === 'Lucas')
+      if (!existsL) {
+        const { error } = await s.from('transactions').insert({
+          owner_id: user.id, owner_name: 'Lucas', holder: 'Lucas',
+          type: 'Receita', transaction_type: 'receita',
+          description: 'Salário Lucas', amount: settings.salary_lucas,
+          category: 'Salário', purchase_date: salaryDate,
+          status: salaryDate <= format(new Date(), 'yyyy-MM-dd') ? 'Pago' : 'Previsto',
+          is_recurring: true, recurring_day: salaryDay,
+          expected_amount: settings.salary_lucas,
+        })
+        if (!error) generated++
+      }
+    }
+
+    // Nicoly
+    if (settings.salary_nicoly && settings.salary_nicoly > 0) {
+      const existsN = (existing || []).some(t => t.description === 'Salário Nicoly' && t.holder === 'Nicoly')
+      if (!existsN) {
+        const { error } = await s.from('transactions').insert({
+          owner_id: user.id, owner_name: 'Nicoly', holder: 'Nicoly',
+          type: 'Receita', transaction_type: 'receita',
+          description: 'Salário Nicoly', amount: settings.salary_nicoly,
+          category: 'Salário', purchase_date: salaryDate,
+          status: salaryDate <= format(new Date(), 'yyyy-MM-dd') ? 'Pago' : 'Previsto',
+          is_recurring: true, recurring_day: salaryDay,
+          expected_amount: settings.salary_nicoly,
+        })
+        if (!error) generated++
+      }
+    }
+  }
+
   return { generated }
 }

@@ -137,23 +137,34 @@ export default function Parcelamentos() {
                     <div style={{borderTop:'1px solid rgba(0,0,0,0.04)',paddingTop:12}}>
                       {Array.from({length:total},(_,i)=>{
                         const num=i+1
-                        const parcela=g.parcelas.find(p=>{
+                        // Matching por número na descrição (X/Y), por campo, OU por posição cronológica
+                        let parcela=g.parcelas.find(p=>{
                           const m=p.description?.match(/\((\d+)\/(\d+)\)/)
                           if(m)return parseInt(m[1])===num
-                          return(p.installment_num||p.installment_number)===num
+                          if((p.installment_num||p.installment_number)===num)return true
+                          return false
                         })
+                        // Fallback: usar posição cronológica (parcela 1 = mais antiga)
+                        if(!parcela && g.parcelas[i]){
+                          parcela=g.parcelas[i]
+                        }
                         const isPago=parcela?.status==='Pago'
+                        // Parcelas com data FUTURA (> hoje) não podem estar pagas
+                        const hoje=new Date().toISOString().slice(0,10)
+                        const isFutura=parcela?.purchase_date?parcela.purchase_date>hoje:num>g.parcelas.length
+                        const statusFinal=isFutura?false:isPago
                         return (
                           <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:i<total-1?'0.5px solid rgba(0,0,0,0.04)':undefined}}>
-                            <div style={{width:24,height:24,borderRadius:12,background:isPago?'rgba(34,199,89,0.12)':parcela?'rgba(255,59,48,0.12)':'rgba(0,0,0,0.03)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                              <span style={{fontSize:10,fontWeight:700,color:isPago?GREEN:parcela?RED:TEXTMU}}>{isPago?'✓':num}</span>
+                            <div style={{width:24,height:24,borderRadius:12,background:statusFinal?'rgba(34,199,89,0.12)':isFutura?'rgba(0,0,0,0.03)':'rgba(255,59,48,0.12)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                              <span style={{fontSize:10,fontWeight:700,color:statusFinal?GREEN:isFutura?TEXTMU:RED}}>{statusFinal?'✓':num}</span>
                             </div>
                             <div style={{flex:1}}>
                               <p style={{fontSize:12,fontWeight:500,color:parcela?TEXT:TEXTMU,margin:0}}>Parcela {num}/{total}</p>
-                              {parcela&&<p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{format(parseISO(parcela.purchase_date),'dd/MM/yyyy')}{isPago&&parcela.paid_date?` · Pago ${format(parseISO(parcela.paid_date),'dd/MM')}`:''}</p>}
+                              {parcela&&!isFutura&&<p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{format(parseISO(parcela.purchase_date),'dd/MM/yyyy')}{statusFinal&&parcela.paid_date?` · Pago ${format(parseISO(parcela.paid_date),'dd/MM')}`:''}</p>}
+                              {isFutura&&<p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>Futuro</p>}
                             </div>
                             <div style={{textAlign:'right'}}>
-                              <p style={{fontSize:12,fontWeight:600,color:isPago?GREEN:parcela?RED:TEXTMU,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(g.valorParcela)}</p>
+                              <p style={{fontSize:12,fontWeight:600,color:statusFinal?GREEN:isFutura?TEXTMU:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(g.valorParcela)}</p>
                               {!parcela&&<p style={{fontSize:9,color:TEXTMU,margin:0}}>Futuro</p>}
                             </div>
                           </div>
