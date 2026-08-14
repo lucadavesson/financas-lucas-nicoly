@@ -52,6 +52,7 @@ export async function generateRecurrents(targetMonth: Date) {
       owner_name: tpl.owner_name,
       holder: tpl.holder,
       type: tpl.type || 'Despesa',
+      nature: tpl.nature || 'Variável',
       transaction_type: tpl.transaction_type,
       description: tpl.description,
       amount: tpl.expected_amount || tpl.amount,
@@ -83,7 +84,7 @@ export async function generateRecurrents(targetMonth: Date) {
       if (!existsL) {
         const { error } = await s.from('transactions').insert({
           owner_id: user.id, owner_name: 'Lucas', holder: 'Lucas',
-          type: 'Receita', transaction_type: 'receita',
+          type: 'Receita', transaction_type: 'receita', nature: 'Fixo',
           description: 'Salário Lucas', amount: settings.salary_lucas,
           category: 'Salário', purchase_date: salaryDate,
           status: salaryDate <= format(new Date(), 'yyyy-MM-dd') ? 'Pago' : 'Previsto',
@@ -100,7 +101,7 @@ export async function generateRecurrents(targetMonth: Date) {
       if (!existsN) {
         const { error } = await s.from('transactions').insert({
           owner_id: user.id, owner_name: 'Nicoly', holder: 'Nicoly',
-          type: 'Receita', transaction_type: 'receita',
+          type: 'Receita', transaction_type: 'receita', nature: 'Fixo',
           description: 'Salário Nicoly', amount: settings.salary_nicoly,
           category: 'Salário', purchase_date: salaryDate,
           status: salaryDate <= format(new Date(), 'yyyy-MM-dd') ? 'Pago' : 'Previsto',

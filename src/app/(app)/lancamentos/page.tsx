@@ -108,7 +108,7 @@ export default function Lancamentos() {
     return (m&&parseInt(m[2])>1)||(t.installment_total||t.total_installments||0)>1||t.transaction_type==='parcelada'
   }
   const isCredito=(t:Tx)=>t.payment_method==='cartao_credito'&&!isParcelada(t)&&!isReceita(t)
-  const isRecorrente=(t:Tx)=>!!t.is_recurring&&!isParcelada(t)&&!isCredito(t)&&!isReceita(t)
+  const isRecorrente=(t:Tx)=>(!!t.is_recurring||t.transaction_type==='recorrente')&&!isParcelada(t)&&!isCredito(t)&&!isReceita(t)
   const isDiaDia=(t:Tx)=>!isParcelada(t)&&!isCredito(t)&&!isRecorrente(t)&&!isReceita(t)
 
   const filtered=useMemo(()=>{

@@ -75,7 +75,7 @@ export default function Dashboard() {
             .order('purchase_date',{ascending:false})
             .then(({data:fresh})=>setTxs(fresh||[]))
         }
-      })
+      }).catch(err => console.error('generateRecurrents error:', err))
     }
   }
 
