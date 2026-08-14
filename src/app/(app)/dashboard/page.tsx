@@ -223,18 +223,12 @@ export default function Dashboard() {
       </div>
 
       {/* Por pessoa */}
-      <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.04)',overflow:'hidden'}}>
-        <button onClick={()=>togSec('pessoas')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-          <span style={{fontSize:14,fontWeight:700,color:TEXT}}>👤 Por pessoa</span>
-          {dashSecs.pessoas?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}
-        </button>
-        {dashSecs.pessoas&&(
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,padding:'0 16px 14px'}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
         {['Lucas','Nicoly'].map(p=>{
           const r=txs.filter(t=>t.holder===p&&isReceita(t)).reduce((s,t)=>s+t.amount,0)
           const d=txs.filter(t=>t.holder===p&&!isReceita(t)).reduce((s,t)=>s+(t.installment_value||t.amount),0)
           return(
-            <div key={p} style={{background:'#F5F5F7',borderRadius:16,padding:'12px 14px'}}>
+            <div key={p} style={{...card({marginBottom:0})}}>
               <div style={{width:28,height:28,borderRadius:'50%',background:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:TERRA,marginBottom:8}}>{p[0]}</div>
               <p style={{fontSize:14,fontWeight:600,color:TEXT,margin:'0 0 4px'}}>{p}</p>
               <p style={{fontSize:18,fontWeight:700,color:r-d>=0?GREEN:RED,fontVariantNumeric:'tabular-nums',margin:'0 0 4px'}}>{v(r-d)}</p>
@@ -244,8 +238,6 @@ export default function Dashboard() {
             </div>
           )
         })}
-        </div>
-        )}
       </div>
 
       {/* Atrasados */}
