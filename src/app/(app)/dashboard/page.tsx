@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ChevronRight, ArrowUpRight, ArrowDownRight, Wallet, TrendingUp } from 'lucide-react'
+import { ChevronRight, ChevronDown, ChevronUp, ArrowUpRight, ArrowDownRight, Wallet, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
@@ -33,7 +33,7 @@ function BadgeInline({status}: {status:string}) {
 }
 
 export default function Dashboard() {
-  const [txs,setTxs]=useState<Tx[]>([]); const [loading,setLoad]=useState(true); const [hide,setHide]=useState(true)
+  const [txs,setTxs]=useState<Tx[]>([]); const [loading,setLoad]=useState(true); const [hide,setHide]=useState(false)
   const [dashSecs,setDashSecs]=useState<Record<string,boolean>>(()=>{try{const s=sessionStorage.getItem('ln_dash_secs');return s?JSON.parse(s):{resumo:false,pessoas:false,alertas:true,metas:false,gastos:false,ultimas:false}}catch{return {}}})
   const [curMonth, setCurMonth] = useState(new Date())
   const [settings,setSettings]=useState<any>(null)
@@ -165,11 +165,11 @@ export default function Dashboard() {
           <button onClick={nextMonth} style={{width:28,height:28,background:'rgba(0,0,0,0.04)',borderRadius:8,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:TEXTLT}}>›</button>
           {!isCurrentMonth&&<button onClick={()=>setCurMonth(new Date())} style={{fontSize:10,color:TERRA,background:'rgba(196,98,45,0.08)',border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer',fontWeight:600}}>Hoje</button>}
         </div>
-        <button onClick={()=>setHide(h=>!h)} style={{fontSize:20,color:TEXTMU,background:'none',border:'none',cursor:'pointer',padding:4}}>{hide?'👁':'👁‍🗨'}</button>
+        <button onClick={()=>setHide(h=>!h)} style={{fontSize:12,color:TEXTMU,background:'none',border:'none',cursor:'pointer'}}>{hide?'👁 Mostrar':'👁 Ocultar'}</button>
       </div>
 
-      {/* Conteúdo — oculta/mostra com o botão olho */}
-      {!hide&&(<>
+      
+      
       {/* Saldo */}
       <div style={{...card()}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
@@ -223,12 +223,18 @@ export default function Dashboard() {
       </div>
 
       {/* Por pessoa */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+      <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.04)',overflow:'hidden'}}>
+        <button onClick={()=>togSec('pessoas')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <span style={{fontSize:14,fontWeight:700,color:TEXT}}>👤 Por pessoa</span>
+          {dashSecs.pessoas?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}
+        </button>
+        {dashSecs.pessoas&&(
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,padding:'0 16px 14px'}}>
         {['Lucas','Nicoly'].map(p=>{
           const r=txs.filter(t=>t.holder===p&&isReceita(t)).reduce((s,t)=>s+t.amount,0)
           const d=txs.filter(t=>t.holder===p&&!isReceita(t)).reduce((s,t)=>s+(t.installment_value||t.amount),0)
           return(
-            <div key={p} style={{...card({marginBottom:0})}}>
+            <div key={p} style={{background:'#F5F5F7',borderRadius:16,padding:'12px 14px'}}>
               <div style={{width:28,height:28,borderRadius:'50%',background:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:TERRA,marginBottom:8}}>{p[0]}</div>
               <p style={{fontSize:14,fontWeight:600,color:TEXT,margin:'0 0 4px'}}>{p}</p>
               <p style={{fontSize:18,fontWeight:700,color:r-d>=0?GREEN:RED,fontVariantNumeric:'tabular-nums',margin:'0 0 4px'}}>{v(r-d)}</p>
@@ -238,6 +244,8 @@ export default function Dashboard() {
             </div>
           )
         })}
+        </div>
+        )}
       </div>
 
       {/* Atrasados */}
@@ -283,11 +291,18 @@ export default function Dashboard() {
 
       {/* Próximos pagamentos */}
       {proximos.length>0&&(
-        <div style={{...card()}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-            <p style={{fontSize:14,fontWeight:700,color:TEXT,margin:0}}>Próximos pagamentos</p>
-            <Link href="/pagamentos" style={{fontSize:12,color:TERRA,fontWeight:600,textDecoration:'none',display:'flex',alignItems:'center',gap:2}}>Ver todos<ChevronRight size={12}/></Link>
-          </div>
+        <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.04)',overflow:'hidden'}}>
+          <button onClick={()=>togSec('proximos')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <span style={{fontSize:14,fontWeight:700,color:TEXT}}>📅 Próximos pagamentos</span>
+              <span style={{fontSize:11,color:TEXTMU,background:'rgba(0,0,0,0.04)',borderRadius:8,padding:'1px 7px',fontWeight:600}}>{proximos.length}</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <Link href="/pagamentos" onClick={e=>e.stopPropagation()} style={{fontSize:11,color:TERRA,fontWeight:600,textDecoration:'none'}}>Ver todos</Link>
+              {dashSecs.proximos?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}
+            </div>
+          </button>
+          {dashSecs.proximos&&(<div style={{padding:'0 16px 12px'}}>
           {proximos.map((tx,i)=>(
             <div key={tx.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderTop:i>0?'1px solid rgba(0,0,0,0.04)':undefined}}>
               <div style={{width:36,height:36,borderRadius:10,background:'rgba(0,0,0,0.03)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>{CAT_ICONS[tx.category]||'📦'}</div>
@@ -301,6 +316,7 @@ export default function Dashboard() {
               </div>
             </div>
           ))}
+          </div>)}
         </div>
       )}
 
@@ -366,11 +382,15 @@ export default function Dashboard() {
 
       {/* Maiores gastos */}
       {topCats.length>0&&(
-        <div style={{...card()}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-            <p style={{fontSize:14,fontWeight:700,color:TEXT,margin:0}}>Maiores gastos</p>
-            <Link href="/relatorios" style={{fontSize:12,color:TERRA,fontWeight:600,textDecoration:'none',display:'flex',alignItems:'center',gap:2}}>Relatório<ChevronRight size={12}/></Link>
-          </div>
+        <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.04)',overflow:'hidden'}}>
+          <button onClick={()=>togSec('gastos')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <span style={{fontSize:14,fontWeight:700,color:TEXT}}>📊 Maiores gastos</span>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <Link href="/relatorios" onClick={e=>e.stopPropagation()} style={{fontSize:11,color:TERRA,fontWeight:600,textDecoration:'none'}}>Relatório</Link>
+              {dashSecs.gastos?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}
+            </div>
+          </button>
+          {dashSecs.gastos&&(<div style={{padding:'0 16px 12px'}}>
           {topCats.map(([cat,val],i)=>{
             const pct=totalGastou>0?(val/totalGastou)*100:0
             const cores=['#C4622D','#007AFF','#34C759','#FF9500']
@@ -389,6 +409,7 @@ export default function Dashboard() {
               </div>
             )
           })}
+          </div>)}
         </div>
       )}
 
@@ -435,11 +456,15 @@ export default function Dashboard() {
 
       {/* Últimas transações */}
       {txs.length>0&&(
-        <div style={{...card({marginBottom:12})}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-            <p style={{fontSize:14,fontWeight:700,color:TEXT,margin:0}}>Últimas transações</p>
-            <Link href="/lancamentos" style={{fontSize:11,color:TERRA,fontWeight:600,textDecoration:'none'}}>Ver todas →</Link>
-          </div>
+        <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.04)',overflow:'hidden'}}>
+          <button onClick={()=>togSec('ultimas')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <span style={{fontSize:14,fontWeight:700,color:TEXT}}>🕐 Últimas transações</span>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <Link href="/lancamentos" onClick={e=>e.stopPropagation()} style={{fontSize:11,color:TERRA,fontWeight:600,textDecoration:'none'}}>Ver todas</Link>
+              {dashSecs.ultimas?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}
+            </div>
+          </button>
+          {dashSecs.ultimas&&(<div style={{padding:'0 16px 12px'}}>
           <div style={{display:'flex',flexDirection:'column',gap:0}}>
             {txs.slice(0,6).map((tx,i)=>(
               <div key={tx.id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderTop:i>0?'0.5px solid rgba(0,0,0,0.04)':undefined}}>
@@ -456,10 +481,11 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+          </div>)}
         </div>
       )}
 
-      </>)}
+
 
       {txs.length===0&&(
         <div style={{...card(),textAlign:'center',padding:'40px 20px'}}>
