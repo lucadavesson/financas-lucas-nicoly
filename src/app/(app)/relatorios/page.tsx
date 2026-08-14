@@ -254,6 +254,29 @@ export default function Relatorios() {
       </Section>
 
       {/* Parcelamentos do mês */}
+      {avista.length>0&&(
+        <Section title="Compras à vista / avulsas" icon="🛒" count={avista.length} total={totalAv}>
+          <div style={{display:'flex',flexDirection:'column',gap:4,marginTop:8}}>
+            {avista.sort((a:any,b:any)=>(b.installment_value||b.amount)-(a.installment_value||a.amount)).map((t:any)=>{
+              const isPago=t.status==='Pago'
+              return (
+                <div key={t.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'0.5px solid rgba(0,0,0,0.04)'}}>
+                  <span style={{fontSize:15}}>{CAT_ICONS[t.category]||'📦'}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <p style={{fontSize:12,fontWeight:600,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.description}</p>
+                    <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{t.holder} · {t.category} · {format(parseISO(t.purchase_date),'dd/MM')}</p>
+                  </div>
+                  <div style={{textAlign:'right',flexShrink:0}}>
+                    <p style={{fontSize:12,fontWeight:700,color:isPago?GREEN:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{v(t.installment_value||t.amount)}</p>
+                    <span style={{fontSize:10,fontWeight:600,color:isPago?GREEN:TERRA}}>{isPago?'✓ Pago':'⏳'}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Section>
+      )}
+
       {parceladas.length>0&&(
         <Section title="Parcelas do mês" icon="💳" count={parceladas.length} total={totalParc}>
           <div style={{display:'flex',flexDirection:'column',gap:4,marginTop:8}}>
@@ -306,28 +329,6 @@ export default function Relatorios() {
       )}
 
       {/* Compras à vista */}
-      {avista.length>0&&(
-        <Section title="Compras à vista / avulsas" icon="🛒" count={avista.length} total={totalAv}>
-          <div style={{display:'flex',flexDirection:'column',gap:4,marginTop:8}}>
-            {avista.sort((a:any,b:any)=>(b.installment_value||b.amount)-(a.installment_value||a.amount)).map((t:any)=>{
-              const isPago=t.status==='Pago'
-              return (
-                <div key={t.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'0.5px solid rgba(0,0,0,0.04)'}}>
-                  <span style={{fontSize:15}}>{CAT_ICONS[t.category]||'📦'}</span>
-                  <div style={{flex:1,minWidth:0}}>
-                    <p style={{fontSize:12,fontWeight:600,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.description}</p>
-                    <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{t.holder} · {t.category} · {format(parseISO(t.purchase_date),'dd/MM')}</p>
-                  </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <p style={{fontSize:12,fontWeight:700,color:isPago?GREEN:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{v(t.installment_value||t.amount)}</p>
-                    <span style={{fontSize:10,fontWeight:600,color:isPago?GREEN:TERRA}}>{isPago?'✓ Pago':'⏳'}</span>
-                  </div>
-                </div>
-              )
-            })}
           </div>
-        </Section>
-      )}
-    </div>
   )
 }

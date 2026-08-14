@@ -50,18 +50,58 @@ export default function Cartoes() {
   async function load(){
     setLoading(true)
     const s=createClient()
-    const [{data:cardsData},{data:txData}]=await Promise.all([
+    const [{data:cardsData},{data:txDataMes},{data:txDataParc}]=await Promise.all([
       s.from('cards').select('*').eq('is_active',true).order('holder').order('name'),
+      // Transações do mês selecionado
       s.from('transactions').select('*')
         .gte('purchase_date',format(startOfMonth(curMonth),'yyyy-MM-dd'))
         .lte('purchase_date',format(endOfMonth(curMonth),'yyyy-MM-dd'))
         .neq('transaction_type','receita')
         .order('purchase_date',{ascending:false}),
+      // Parcelas de TODOS os meses (para projetar em meses futuros)
+      s.from('transactions').select('*')
+        .eq('payment_method','cartao_credito')
+        .neq('transaction_type','receita')
+        .order('purchase_date',{ascending:false}),
     ])
     const c=cardsData||[]
     setCards(c)
-    setTxs(txData||[])
-    // Restaurar ordem salva ou usar default
+
+    // Construir lista de transações do mês: inclui compras do mês + parcelas projetadas
+    const mesKey=format(curMonth,'yyyy-MM')
+    const txsDoMes=[...(txDataMes||[])]
+
+    // Para cada parcela, verificar se deveria aparecer neste mês
+    ;(txDataParc||[]).forEach((t:any)=>{
+      const match=t.description?.match(/\((\d+)\/(\d+)\)/)
+      if(!match)return
+      const numAtual=parseInt(match[1])
+      const total=parseInt(match[2])
+      const dataParcela=new Date(t.purchase_date+'T12:00:00')
+      const mesParcela=format(dataParcela,'yyyy-MM')
+
+      // Calcular em qual mês cada parcela futura cairia
+      for(let i=1;i<total-numAtual+1;i++){
+        const mesFuturo=format(addMonths(dataParcela,i),'yyyy-MM')
+        if(mesFuturo===mesKey){
+          // Esta parcela cai no mês selecionado
+          const numFuturo=numAtual+i
+          const jaExiste=txsDoMes.some((x:any)=>x.description===t.description.replace(`(${numAtual}/${total})`,`(${numFuturo}/${total})`))
+          if(!jaExiste){
+            txsDoMes.push({
+              ...t,
+              id:t.id+'_proj_'+i,
+              description:t.description.replace(`(${numAtual}/${total})`,`(${numFuturo}/${total})`),
+              purchase_date:format(addMonths(dataParcela,i),'yyyy-MM-dd'),
+              status:'Pendente',
+              _projected:true,
+            })
+          }
+        }
+      }
+    })
+
+    setTxs(txsDoMes)
     const savedOrder=localStorage.getItem('ln_card_order')
     if(savedOrder){
       try{setCardOrder(JSON.parse(savedOrder))}catch{setCardOrder(c.map(x=>x.id))}

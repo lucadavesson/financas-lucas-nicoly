@@ -53,12 +53,13 @@ export default function Lancamentos() {
   const [date,setDate] = useState(new Date())
   const [showF,setShowF]=useState(false)
   const [search,setSearch]=useState('')
-  const [openSecs,setOpenSecs]=useState<Record<string,boolean>>({'dia':true,'credito':true,'parcela':true,'recorrente':true,'receita':true})
+  const [openSecs,setOpenSecs]=useState<Record<string,boolean>>(()=>{try{const s=sessionStorage.getItem('ln_open_secs');return s?JSON.parse(s):{}}catch{return {}}})
   const [sel,setSel]   = useState<Tx|null>(null)
   const [fH,setFH]     = useState<string[]>([])
   const [fT,setFT]     = useState<string[]>([])
 
   useEffect(()=>{loadData()},[date])
+  useEffect(()=>{try{sessionStorage.setItem('ln_open_secs',JSON.stringify(openSecs))}catch{}},[openSecs])
 
   async function loadData() {
     setLoad(true)
@@ -100,11 +101,12 @@ export default function Lancamentos() {
   function tog(arr:string[],set:(v:string[])=>void,val:string){set(arr.includes(val)?arr.filter(x=>x!==val):[...arr,val])}
 
   // Helpers de classificação
+  const isReceita=(t:Tx)=>t.transaction_type==='receita'||t.type==='Receita'
   const isParcelada=(t:Tx)=>{
+    if(isReceita(t))return false // receita NUNCA é parcelada
     const m=t.description?.match(/\((\d+)\/(\d+)\)/)
     return (m&&parseInt(m[2])>1)||(t.installment_total||t.total_installments||0)>1||t.transaction_type==='parcelada'
   }
-  const isReceita=(t:Tx)=>t.transaction_type==='receita'||t.type==='Receita'
   const isCredito=(t:Tx)=>t.payment_method==='cartao_credito'&&!isParcelada(t)&&!isReceita(t)
   const isRecorrente=(t:Tx)=>!!t.is_recurring&&!isParcelada(t)&&!isCredito(t)&&!isReceita(t)
   const isDiaDia=(t:Tx)=>!isParcelada(t)&&!isCredito(t)&&!isRecorrente(t)&&!isReceita(t)
@@ -234,7 +236,7 @@ export default function Lancamentos() {
                 <div key={section.key} style={{background:'#FFFFFF',borderRadius:20,overflow:'hidden',border:'1px solid rgba(0,0,0,0.04)'}}>
                   {/* Header colapsável */}
                   <button onClick={()=>setOpenSecs(p=>({...p,[section.key]:!isOpen}))}
-                    style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'14px 16px',textAlign:'left',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                    style={{width:'100%',background:'#FFFFFF',border:'none',cursor:'pointer',padding:'14px 16px',textAlign:'left',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky' as any,top:0,zIndex:5}}>
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
                       <span style={{fontSize:16}}>{section.icon}</span>
                       <span style={{fontSize:14,fontWeight:700,color:TEXT}}>{section.title}</span>
