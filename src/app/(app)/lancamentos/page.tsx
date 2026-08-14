@@ -53,7 +53,7 @@ export default function Lancamentos() {
   const [date,setDate] = useState(new Date())
   const [showF,setShowF]=useState(false)
   const [search,setSearch]=useState('')
-  const [openSecs,setOpenSecs]=useState<Record<string,boolean>>({'dia':true,'credito':true,'parcela':true,'recorrente':true})
+  const [openSecs,setOpenSecs]=useState<Record<string,boolean>>({'dia':true,'credito':true,'parcela':true,'recorrente':true,'receita':true})
   const [sel,setSel]   = useState<Tx|null>(null)
   const [fH,setFH]     = useState<string[]>([])
   const [fT,setFT]     = useState<string[]>([])
@@ -104,9 +104,10 @@ export default function Lancamentos() {
     const m=t.description?.match(/\((\d+)\/(\d+)\)/)
     return (m&&parseInt(m[2])>1)||(t.installment_total||t.total_installments||0)>1||t.transaction_type==='parcelada'
   }
-  const isCredito=(t:Tx)=>t.payment_method==='cartao_credito'&&!isParcelada(t)
-  const isRecorrente=(t:Tx)=>!!t.is_recurring&&!isParcelada(t)&&!isCredito(t)
-  const isDiaDia=(t:Tx)=>!isParcelada(t)&&!isCredito(t)&&!isRecorrente(t)
+  const isReceita=(t:Tx)=>t.transaction_type==='receita'||t.type==='Receita'
+  const isCredito=(t:Tx)=>t.payment_method==='cartao_credito'&&!isParcelada(t)&&!isReceita(t)
+  const isRecorrente=(t:Tx)=>!!t.is_recurring&&!isParcelada(t)&&!isCredito(t)&&!isReceita(t)
+  const isDiaDia=(t:Tx)=>!isParcelada(t)&&!isCredito(t)&&!isRecorrente(t)&&!isReceita(t)
 
   const filtered=useMemo(()=>{
     let t=txs
@@ -121,6 +122,7 @@ export default function Lancamentos() {
   const txCredito=filtered.filter(isCredito)
   const txParcelas=filtered.filter(isParcelada)
   const txRecorrentes=filtered.filter(isRecorrente)
+  const txReceitas=filtered.filter(isReceita)
 
   const groupByDate=(arr:Tx[])=>{
     const g:Record<string,Tx[]>={}
@@ -224,6 +226,7 @@ export default function Lancamentos() {
               {key:'credito',title:'Compras no crédito',items:txCredito,icon:'💳',color:TERRA},
               {key:'parcela',title:'Compras parceladas',items:txParcelas,icon:'📋',color:'#9B59B6'},
               {key:'recorrente',title:'Contas recorrentes',items:txRecorrentes,icon:'🔄',color:'#1D9E75'},
+              {key:'receita',title:'Receitas',items:txReceitas,icon:'💰',color:GREEN},
             ] as const).filter(s=>s.items.length>0).map(section=>{
               const isOpen=openSecs[section.key]!==false
               const total=section.items.reduce((s,t)=>s+(t.installment_value||t.amount),0)
