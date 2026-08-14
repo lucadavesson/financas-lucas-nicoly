@@ -25,7 +25,15 @@ export default function EditarLancamento(){
   const [cards,setCards]=useState<any[]>([])
   const [valRaw,setValRaw]=useState('')
 
-  useEffect(()=>{load();window.scrollTo(0,0)},[id])
+  useEffect(()=>{
+    load()
+    // Scroll to top - funciona dentro do main com overflow
+    setTimeout(()=>{
+      const main=document.querySelector('main')
+      if(main)main.scrollTop=0
+      window.scrollTo(0,0)
+    },100)
+  },[id])
 
   async function load(){
     const s=createClient()

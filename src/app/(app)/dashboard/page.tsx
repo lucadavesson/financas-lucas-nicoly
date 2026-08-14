@@ -119,23 +119,22 @@ export default function Dashboard() {
   const gastoDia=diasRest>0?Math.max(0,saldo/diasRest):0
 
   const hoje=new Date()
+  const hojeStr=format(hoje,'yyyy-MM-dd')
   const isCartao=(t:Tx)=>t.payment_method==='cartao_credito'||t.transaction_type==='parcelada'
-  // Atrasadas: data JÁ passou E não está pago (inclui cartão de crédito com parcelas atrasadas)
+  // Atrasadas: data ANTES de hoje E não pago
   const atrasados=despesas.filter(t=>{
     if(t.status==='Pago'||t.status==='Cancelado')return false
     if(t.status==='Atrasado')return true
-    const dtCompra=new Date(t.purchase_date+'T12:00:00')
-    return dtCompra<hoje && !isCartao(t)
+    return t.purchase_date<hojeStr && !isCartao(t)
   })
   const totalAtrasado=atrasados.reduce((s,t)=>s+(t.installment_value||t.amount),0)
-  // Próximos: pendentes com data >= hoje (exclui cartão e atrasados)
+  // Próximos: pendentes com data >= hoje (exclui atrasados e cartão)
   const proximos=despesas.filter(t=>{
     if(t.status==='Pago'||t.status==='Cancelado')return false
     if(isCartao(t))return false
-    const dtCompra=new Date(t.purchase_date+'T12:00:00')
-    return dtCompra>=hoje
+    return t.purchase_date>=hojeStr
   }).sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date)).slice(0,5)
-  const venceHoje=despesas.filter(t=>t.status!=="Pago"&&t.status!=="Cancelado"&&t.purchase_date===format(hoje,"yyyy-MM-dd")&&!isCartao(t))
+  const venceHoje=despesas.filter(t=>t.status!=="Pago"&&t.status!=="Cancelado"&&t.purchase_date===hojeStr&&!isCartao(t))
 
   const catMap:Record<string,number>={}
   despesas.forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+(t.installment_value||t.amount)})
