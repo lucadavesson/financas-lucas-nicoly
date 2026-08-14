@@ -60,7 +60,6 @@ export default function Cartoes() {
         .order('purchase_date',{ascending:false}),
       // Parcelas de TODOS os meses (para projetar em meses futuros)
       s.from('transactions').select('*')
-        .eq('payment_method','cartao_credito')
         .neq('transaction_type','receita')
         .order('purchase_date',{ascending:false}),
     ])
@@ -71,27 +70,38 @@ export default function Cartoes() {
     const mesKey=format(curMonth,'yyyy-MM')
     const txsDoMes=[...(txDataMes||[])]
 
-    // Para cada parcela, verificar se deveria aparecer neste mês
+    // Para cada parcela, projetar em meses futuros
     ;(txDataParc||[]).forEach((t:any)=>{
+      // Detectar parcela por descrição (X/Y) ou por campos installment
       const match=t.description?.match(/\((\d+)\/(\d+)\)/)
-      if(!match)return
-      const numAtual=parseInt(match[1])
-      const total=parseInt(match[2])
+      const numAtual=match?parseInt(match[1]):(t.installment_num||t.installment_number||0)
+      const total=match?parseInt(match[2]):(t.installment_total||t.total_installments||0)
+      if(!numAtual||!total||total<=1)return
+      
+      // Só projetar se é compra de cartão de crédito
+      if(t.payment_method!=='cartao_credito')return
+      
       const dataParcela=new Date(t.purchase_date+'T12:00:00')
-      const mesParcela=format(dataParcela,'yyyy-MM')
 
       // Calcular em qual mês cada parcela futura cairia
-      for(let i=1;i<total-numAtual+1;i++){
+      for(let i=1;i<=total-numAtual;i++){
         const mesFuturo=format(addMonths(dataParcela,i),'yyyy-MM')
         if(mesFuturo===mesKey){
-          // Esta parcela cai no mês selecionado
           const numFuturo=numAtual+i
-          const jaExiste=txsDoMes.some((x:any)=>x.description===t.description.replace(`(${numAtual}/${total})`,`(${numFuturo}/${total})`))
+          const descBase=match?t.description.replace(`(${match[1]}/${match[2]})`,`(${numFuturo}/${total})`):t.description+` (${numFuturo}/${total})`
+          // Não duplicar se já existe
+          const jaExiste=txsDoMes.some((x:any)=>{
+            const m2=x.description?.match(/\((\d+)\/(\d+)\)/)
+            if(!m2)return false
+            const base1=t.description.replace(/\s*\(\d+\/\d+\)$/,'')
+            const base2=x.description.replace(/\s*\(\d+\/\d+\)$/,'')
+            return base1===base2 && parseInt(m2[1])===numFuturo
+          })
           if(!jaExiste){
             txsDoMes.push({
               ...t,
               id:t.id+'_proj_'+i,
-              description:t.description.replace(`(${numAtual}/${total})`,`(${numFuturo}/${total})`),
+              description:descBase,
               purchase_date:format(addMonths(dataParcela,i),'yyyy-MM-dd'),
               status:'Pendente',
               _projected:true,
@@ -310,11 +320,18 @@ export default function Cartoes() {
                               {CAT_ICONS[tx.category]||'📦'}
                             </div>
                             <div style={{flex:1,minWidth:0}}>
-                              <p style={{fontSize:13,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.description}</p>
-                              <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
-                                {tx.category} · {format(parseISO(tx.purchase_date),'dd/MM')}
-                                {(tx.installment_num||tx.installment_number)&&(tx.installment_total||tx.total_installments)?` · ${tx.installment_num||tx.installment_number}/${tx.installment_total||tx.total_installments}`:''}
-                              </p>
+                              {(()=>{
+                                const m=tx.description?.match(/^(.+?)\s*\((\d+)\/(\d+)\)$/)
+                                const nome=m?m[1]:tx.description
+                                const parcInfo=m?`${m[2]}/${m[3]}`:(tx.installment_num||tx.installment_number)&&(tx.installment_total||tx.total_installments)?`${tx.installment_num||tx.installment_number}/${tx.installment_total||tx.total_installments}`:null
+                                return (<>
+                                  <p style={{fontSize:13,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nome}</p>
+                                  <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
+                                    {tx.category} · {format(parseISO(tx.purchase_date),'dd/MM')}
+                                    {parcInfo&&<span style={{color:'#C4622D',fontWeight:600}}> · {parcInfo}</span>}
+                                  </p>
+                                </>)
+                              })()}
                             </div>
                             <div style={{textAlign:'right',flexShrink:0}}>
                               <p style={{fontSize:13,fontWeight:700,color:TEXTLT,fontVariantNumeric:'tabular-nums',margin:0}}>
