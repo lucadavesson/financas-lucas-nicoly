@@ -173,9 +173,15 @@ export default function Dashboard() {
             <p style={{fontSize:24,fontWeight:800,color:saldo>=0?GREEN:RED,margin:0,lineHeight:1,fontVariantNumeric:'tabular-nums'}}>{v(saldo)}</p>
           </div>
           <div style={{textAlign:'right'}}>
-            <p style={{fontSize:10,color:TEXTMU,margin:'0 0 2px'}}>Pode gastar</p>
-            <p style={{fontSize:14,fontWeight:600,color:TEXTLT,margin:'0 0 2px',fontVariantNumeric:'tabular-nums'}}>{v(Math.max(0,gastoDia))}<span style={{fontSize:10,fontWeight:400,color:TEXTMU}}>/dia</span></p>
-            <p style={{fontSize:11,color:TEXTMU,margin:0}}>{diasRest} dias restantes</p>
+            {saldo>0?(
+              <>
+                <p style={{fontSize:10,color:TEXTMU,margin:'0 0 2px'}}>Pode gastar</p>
+                <p style={{fontSize:14,fontWeight:600,color:TEXTLT,margin:'0 0 2px',fontVariantNumeric:'tabular-nums'}}>{v(gastoDia)}<span style={{fontSize:10,fontWeight:400,color:TEXTMU}}>/dia</span></p>
+              </>
+            ):(
+              <p style={{fontSize:11,color:RED,fontWeight:600,margin:'0 0 2px'}}>Orçamento estourado</p>
+            )}
+            <p style={{fontSize:10,color:TEXTMU,margin:0}}>{diasRest} dias restantes</p>
           </div>
         </div>
         {/* Grid 2x2 */}
@@ -258,7 +264,7 @@ export default function Dashboard() {
             </div>
             <p style={{fontSize:14,fontWeight:700,color:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{v(atrasados.reduce((s,t)=>s+(t.installment_value||t.amount),0))}</p>
           </div>
-          {atrasados.slice(0,3).map((tx,i)=>(
+          {atrasados.slice(0,5).map((tx,i)=>(
             <div key={tx.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:i>0?'1px solid rgba(255,59,48,0.06)':undefined}}>
               <p style={{fontSize:13,color:TEXT,margin:0,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginRight:12}}>{tx.description}</p>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>

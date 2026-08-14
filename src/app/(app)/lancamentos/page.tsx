@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 
 type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;type?:string;payment_method?:string;card_name?:string;is_recurring?:boolean }
 
-const BADGE: Record<string,string> = { pago:'badge-pago',pendente:'badge-pendente',previsto:'badge-previsto',atrasado:'badge-atrasado',cancelado:'badge-previsto' }
+const BADGE: Record<string,string> = { Pago:'badge-pago',Pendente:'badge-pendente',Previsto:'badge-previsto',Atrasado:'badge-atrasado',Cancelado:'badge-previsto' }
 const BADGE_LABEL: Record<string,string> = { Pago:'Pago',Pendente:'Pendente',Previsto:'Previsto',Atrasado:'Atrasado',Cancelado:'Cancelado' }
 
 function BadgeInline({status}: {status:string}) {
@@ -22,7 +22,7 @@ function BadgeInline({status}: {status:string}) {
     Atrasado:  {bg:'rgba(255,59,48,0.12)',    color:'#D32920', border:'rgba(255,59,48,0.25)', label:'Atrasado',  pulse:true},
     Cancelado: {bg:'rgba(142,142,147,0.12)', color:'#8E8E93', border:'rgba(142,142,147,0.2)', label:'Cancelado', pulse:false},
   }
-  const c = cfg[status] || cfg.pendente
+  const c = cfg[status] || cfg.Pendente
   return (
     <span style={{
       display:'inline-flex', alignItems:'center', gap:5,
@@ -132,10 +132,10 @@ export default function Lancamentos() {
 
   // grouped removido - agora usa groupByDate() por seção
 
-  const totalR=filtered.filter(t=>t.transaction_type==='receita').reduce((s,t)=>s+t.amount,0)
-  const totalD=filtered.filter(t=>t.transaction_type!=='receita').reduce((s,t)=>s+(t.installment_value||t.amount),0)
-  const aConfirmar=filtered.filter(t=>t.transaction_type==='receita'&&t.status==='Previsto').reduce((s,t)=>s+t.amount,0)
-  const aPagar=filtered.filter(t=>t.transaction_type!=='receita'&&['Pendente','Atrasado'].includes(t.status)).reduce((s,t)=>s+(t.installment_value||t.amount),0)
+  const totalR=filtered.filter(t=>isReceita(t)).reduce((s,t)=>s+t.amount,0)
+  const totalD=filtered.filter(t=>!isReceita(t)).reduce((s,t)=>s+(t.installment_value||t.amount),0)
+  const aConfirmar=filtered.filter(t=>isReceita(t)&&t.status==='Previsto').reduce((s,t)=>s+t.amount,0)
+  const aPagar=filtered.filter(t=>!isReceita(t)&&['Pendente','Atrasado'].includes(t.status)).reduce((s,t)=>s+(t.installment_value||t.amount),0)
 
   return (
     <div style={{ display:'flex',flexDirection:'column',height:'100%',background:BG }}>
