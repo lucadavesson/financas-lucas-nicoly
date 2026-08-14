@@ -33,12 +33,15 @@ function BadgeInline({status}: {status:string}) {
 }
 
 export default function Dashboard() {
-  const [txs,setTxs]=useState<Tx[]>([]); const [loading,setLoad]=useState(true); const [hide,setHide]=useState(false)
+  const [txs,setTxs]=useState<Tx[]>([]); const [loading,setLoad]=useState(true); const [hide,setHide]=useState(true)
+  const [dashSecs,setDashSecs]=useState<Record<string,boolean>>(()=>{try{const s=sessionStorage.getItem('ln_dash_secs');return s?JSON.parse(s):{resumo:false,pessoas:false,alertas:true,metas:false,gastos:false,ultimas:false}}catch{return {}}})
   const [curMonth, setCurMonth] = useState(new Date())
   const [settings,setSettings]=useState<any>(null)
   const [catLimits,setCatLimits]=useState<Record<string,number>>({})
   const [goals,setGoals]=useState<any[]>([])
   useEffect(()=>{load()}, [curMonth])
+  useEffect(()=>{try{sessionStorage.setItem('ln_dash_secs',JSON.stringify(dashSecs))}catch{}},[dashSecs])
+  const togSec=(k:string)=>setDashSecs(p=>({...p,[k]:!p[k]}))
 
   async function load() {
     setLoad(true)
@@ -162,9 +165,11 @@ export default function Dashboard() {
           <button onClick={nextMonth} style={{width:28,height:28,background:'rgba(0,0,0,0.04)',borderRadius:8,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:TEXTLT}}>›</button>
           {!isCurrentMonth&&<button onClick={()=>setCurMonth(new Date())} style={{fontSize:10,color:TERRA,background:'rgba(196,98,45,0.08)',border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer',fontWeight:600}}>Hoje</button>}
         </div>
-        <button onClick={()=>setHide(h=>!h)} style={{fontSize:12,color:TEXTMU,background:'none',border:'none',cursor:'pointer'}}>{hide?'Mostrar':'Ocultar'}</button>
+        <button onClick={()=>setHide(h=>!h)} style={{fontSize:20,color:TEXTMU,background:'none',border:'none',cursor:'pointer',padding:4}}>{hide?'👁':'👁‍🗨'}</button>
       </div>
 
+      {/* Conteúdo — oculta/mostra com o botão olho */}
+      {!hide&&(<>
       {/* Saldo */}
       <div style={{...card()}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
@@ -453,6 +458,8 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      </>)}
 
       {txs.length===0&&(
         <div style={{...card(),textAlign:'center',padding:'40px 20px'}}>

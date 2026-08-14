@@ -230,7 +230,7 @@ export default function Lancamentos() {
               {key:'recorrente',title:'Contas recorrentes',items:txRecorrentes,icon:'🔄',color:'#1D9E75'},
               {key:'receita',title:'Receitas',items:txReceitas,icon:'💰',color:GREEN},
             ] as const).filter(s=>s.items.length>0).map(section=>{
-              const isOpen=openSecs[section.key]!==false
+              const isOpen=openSecs[section.key]===true
               const total=section.items.reduce((s,t)=>s+(t.installment_value||t.amount),0)
               return (
                 <div key={section.key} style={{background:'#FFFFFF',borderRadius:20,overflow:'hidden',border:'1px solid rgba(0,0,0,0.04)'}}>
