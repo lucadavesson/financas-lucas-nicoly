@@ -172,22 +172,38 @@ export default function NovoLancamento() {
     try {
       if (tipo === 'parcelada') {
         const iVal = instValue || (amount - entryAmt) / (nParcelas || 1)
-        const bm   = billingMonth ? format(billingMonth,'yyyy-MM-dd') : null
-        const { error } = await supabase.from('transactions').insert({
-          owner_id:user.id, owner_name:ownerName, holder, transaction_type:'parcelada', type:'Despesa',
-          description:desc, amount, category:cat, subcategory:subcat||null,
-          purchase_date:date, notes:notes||null,
-          card_name:card, billing_month:bm, status:'Pendente',
-          payment_method:'cartao_credito',
-          installment_total:nParcelas||1, installment_value:iVal,
-          installment_interest:totalJuros,
-          has_entry:hasEntry,
-          entry_amount:hasEntry?entryAmt:null,
-          entry_payment_method:hasEntry?entryMethod:null,
-          entry_card_name:hasEntry?entryCard:null,
-          entry_paid:hasEntry&&['pix','debito','dinheiro'].includes(entryMethod),
-        })
-        if (error) throw error
+        const hoje = new Date()
+        const hojeStr = format(hoje,'yyyy-MM-dd')
+        const dataCompra = parseISO(date)
+        
+        // Criar UMA transação para CADA parcela
+        for (let p = 1; p <= (nParcelas || 1); p++) {
+          // Calcular data de cada parcela (mês a mês a partir da compra)
+          const dataParcela = new Date(dataCompra.getFullYear(), dataCompra.getMonth() + (p - 1), dataCompra.getDate())
+          const purchaseDateP = format(dataParcela, 'yyyy-MM-dd')
+          const bmP = format(calcBillingMonth(dataParcela, cardClosing[card] || 1), 'yyyy-MM-dd')
+          
+          // Status automático baseado na data
+          let statusP = 'Pendente'
+          if (purchaseDateP < hojeStr) statusP = 'Pago'  // parcela passada = já paga
+          else if (purchaseDateP > hojeStr) statusP = 'Previsto'  // futura
+          
+          const { error } = await supabase.from('transactions').insert({
+            owner_id:user.id, owner_name:ownerName, holder, transaction_type:'parcelada', type:'Despesa',
+            description:`${desc} (${p}/${nParcelas})`, amount:iVal, category:cat, subcategory:subcat||null,
+            purchase_date:purchaseDateP, notes:p===1?notes||null:null,
+            card_name:card, billing_month:bmP, status:statusP,
+            payment_method:'cartao_credito',
+            installment_total:nParcelas||1, installment_value:iVal,
+            installment_num:p,
+            has_entry:p===1&&hasEntry,
+            entry_amount:p===1&&hasEntry?entryAmt:null,
+            entry_payment_method:p===1&&hasEntry?entryMethod:null,
+            entry_card_name:p===1&&hasEntry?entryCard:null,
+            entry_paid:p===1&&hasEntry&&['pix','debito','dinheiro'].includes(entryMethod),
+          })
+          if (error) throw error
+        }
         // Entrada separada
         if (hasEntry && entryAmt > 0) {
           const entBm = entryMethod==='cartao_credito'

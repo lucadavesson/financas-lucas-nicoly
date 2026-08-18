@@ -65,7 +65,7 @@ export default function Parametros() {
     setSaving(true)
     const s=createClient();const {data:{user}}=await s.auth.getUser();if(!user)return
     const p={name:form.name,bank:form.bank,holder:form.holder,card_type:form.card_type,closing_day:parseInt(form.closing_day)||1,due_day:parseInt(form.due_day)||1,credit_limit:parsM(form.limitRaw),alert_pct:parseInt(form.alertRaw.replace('%',''))||80,color:form.color,is_active:true}
-    const {error}=editC?await s.from('cards').update(p).eq('id',editC.id):await s.from('cards').insert({...p,owner_id:user.id})
+    const {error}=editC?await s.from('cards').update(p).eq('id',editC.id):await s.from('cards').insert({...p,owner_id:user.id,owner_name:form.holder||'Lucas'})
     if(error){toast.error(`Erro: ${error.message}`);setSaving(false);return}
     toast.success(editC?'Cartão atualizado!':'Cartão adicionado!');setShowC(false);loadCards();setSaving(false)
   }
@@ -110,11 +110,45 @@ export default function Parametros() {
   }
   async function saveSalary(){
     const s=createClient();const {data:{user}}=await s.auth.getUser();if(!user)return
-    const payload={salary_day:parseInt(salaryDay)||1,salary_lucas:unmaskCurrency(salaryAmountL),salary_nicoly:unmaskCurrency(salaryAmountN)}
+    const day=parseInt(salaryDay)||1
+    const valL=unmaskCurrency(salaryAmountL)
+    const valN=unmaskCurrency(salaryAmountN)
+    const payload={salary_day:day,salary_lucas:valL,salary_nicoly:valN}
     const {data:existing}=await s.from('app_settings').select('id').eq('owner_id',user.id).single()
     if(existing){await s.from('app_settings').update(payload).eq('id',existing.id)}
     else{await s.from('app_settings').insert({...payload,owner_id:user.id})}
-    toast.success('Configuração salarial salva!')
+
+    // Criar receita recorrente do mês ATUAL (se não existe)
+    const now=new Date()
+    const mesKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
+    const lastDay=new Date(now.getFullYear(),now.getMonth()+1,0).getDate()
+    const actualDay=Math.min(day,lastDay)
+    const salaryDate=`${mesKey}-${String(actualDay).padStart(2,'0')}`
+    const hojeStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+    const mesStart=`${mesKey}-01`
+    const mesEnd=`${mesKey}-${String(lastDay).padStart(2,'0')}`
+
+    // Buscar receitas existentes deste mês
+    const {data:existingTxs}=await s.from('transactions').select('id,description,holder')
+      .gte('purchase_date',mesStart).lte('purchase_date',mesEnd).eq('owner_id',user.id)
+
+    const criar=async(nome:string,holder:string,valor:number)=>{
+      if(valor<=0)return
+      const existe=(existingTxs||[]).some(t=>t.description===nome&&t.holder===holder)
+      if(existe)return
+      await s.from('transactions').insert({
+        owner_id:user.id,owner_name:holder,holder,
+        type:'Receita',transaction_type:'receita',nature:'Fixo',
+        description:nome,amount:valor,category:'Salário',
+        purchase_date:salaryDate,
+        status:salaryDate<=hojeStr?'Pago':'Previsto',
+        is_recurring:true,recurring_day:day,expected_amount:valor,
+      })
+    }
+    await criar('Salário Lucas','Lucas',valL)
+    await criar('Salário Nicoly','Nicoly',valN)
+
+    toast.success('Ciclo salarial salvo! Receita criada para este mês.')
   }
 
   // ── Recorrentes ──
