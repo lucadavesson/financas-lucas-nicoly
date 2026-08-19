@@ -150,8 +150,9 @@ export default function Parcelamentos() {
                         }
                         const isPago=parcela?.status==='Pago'
                         // Parcelas com data FUTURA (> hoje) não podem estar pagas
-                        const hoje=new Date().toISOString().slice(0,10)
-                        const isFutura=parcela?.purchase_date?parcela.purchase_date>hoje:num>g.parcelas.length
+                        const hoje=new Date().toISOString().slice(0,7) // yyyy-MM
+                        const mesParcela=parcela?.purchase_date?.slice(0,7)
+                        const isFutura=mesParcela?mesParcela>hoje:num>g.parcelas.length
                         const statusFinal=isFutura?false:isPago
                         return (
                           <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:i<total-1?'0.5px solid rgba(0,0,0,0.04)':undefined}}>

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { calcBillingMonth, CATS_RECEITA, CATS_DESPESA, SUBCATS } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ChevronLeft, Loader2, Plus, X, ChevronDown } from 'lucide-react'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Simulador from './simulador'
 
@@ -173,20 +173,22 @@ export default function NovoLancamento() {
       if (tipo === 'parcelada') {
         const iVal = instValue || (amount - entryAmt) / (nParcelas || 1)
         const hoje = new Date()
-        const hojeStr = format(hoje,'yyyy-MM-dd')
         const dataCompra = parseISO(date)
         
         // Criar UMA transação para CADA parcela
         for (let p = 1; p <= (nParcelas || 1); p++) {
           // Calcular data de cada parcela (mês a mês a partir da compra)
-          const dataParcela = new Date(dataCompra.getFullYear(), dataCompra.getMonth() + (p - 1), dataCompra.getDate())
+          const dataParcela = addMonths(dataCompra, p - 1)
           const purchaseDateP = format(dataParcela, 'yyyy-MM-dd')
           const bmP = format(calcBillingMonth(dataParcela, cardClosing[card] || 1), 'yyyy-MM-dd')
           
           // Status automático baseado na data
+          const mesParcela = format(dataParcela, 'yyyy-MM')
+          const mesHoje = format(hoje, 'yyyy-MM')
           let statusP = 'Pendente'
-          if (purchaseDateP < hojeStr) statusP = 'Pago'  // parcela passada = já paga
-          else if (purchaseDateP > hojeStr) statusP = 'Previsto'  // futura
+          if (mesParcela < mesHoje) statusP = 'Pago'  // mês já passou = já paga
+          else if (mesParcela > mesHoje) statusP = 'Previsto'  // mês futuro
+          // mesParcela === mesHoje → fica 'Pendente' (fatura do mês corrente)
           
           const { error } = await supabase.from('transactions').insert({
             owner_id:user.id, owner_name:ownerName, holder, transaction_type:'parcelada', type:'Despesa',
