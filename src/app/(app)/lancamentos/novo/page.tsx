@@ -87,6 +87,7 @@ export default function NovoLancamento() {
   const CONTAS_DEBITO = contasDebito.length > 0 ? contasDebito : CONTAS_DEBITO_FALLBACK
 
   const [card, setCard]         = useState('')
+  const [parcMethod, setParcMethod] = useState<'cartao_credito'|'boleto'>('cartao_credito')
   const [installments, setInst] = useState('')
   const [instRaw, setInstRaw]   = useState('')
   const [hasEntry, setHasEntry] = useState(false)
@@ -180,7 +181,7 @@ export default function NovoLancamento() {
           // Calcular data de cada parcela (mês a mês a partir da compra)
           const dataParcela = addMonths(dataCompra, p - 1)
           const purchaseDateP = format(dataParcela, 'yyyy-MM-dd')
-          const bmP = format(calcBillingMonth(dataParcela, cardClosing[card] || 1), 'yyyy-MM-dd')
+          const bmP = parcMethod==='cartao_credito' ? format(calcBillingMonth(dataParcela, cardClosing[card] || 1), 'yyyy-MM-dd') : null
           
           // Status automático baseado na data
           const mesParcela = format(dataParcela, 'yyyy-MM')
@@ -194,8 +195,8 @@ export default function NovoLancamento() {
             owner_id:user.id, owner_name:ownerName, holder, transaction_type:'parcelada', type:'Despesa',
             description:`${desc} (${p}/${nParcelas})`, amount:iVal, category:cat, subcategory:subcat||null,
             purchase_date:purchaseDateP, notes:p===1?notes||null:null,
-            card_name:card, billing_month:bmP, status:statusP,
-            payment_method:'cartao_credito',
+            card_name:parcMethod==='cartao_credito'?card:null, billing_month:bmP, status:statusP,
+            payment_method:parcMethod,
             installment_total:nParcelas||1, installment_value:iVal,
             installment_num:p,
             has_entry:p===1&&hasEntry,
@@ -456,6 +457,22 @@ export default function NovoLancamento() {
         {/* ── PARCELADA ── */}
         {tipo === 'parcelada' && (<>
           <div>
+            <label style={S.lbl}>Forma de pagamento</label>
+            <div style={{display:'flex',gap:8}}>
+              <button type="button" onClick={()=>setParcMethod('cartao_credito')}
+                style={{flex:1,height:44,borderRadius:12,border:'none',cursor:'pointer',fontSize:13,fontWeight:parcMethod==='cartao_credito'?600:400,
+                  background:parcMethod==='cartao_credito'?'#C4622D':'rgba(0,0,0,0.03)',color:parcMethod==='cartao_credito'?'#fff':'#1C1C1E'}}>
+                💳 Cartão de crédito
+              </button>
+              <button type="button" onClick={()=>setParcMethod('boleto')}
+                style={{flex:1,height:44,borderRadius:12,border:'none',cursor:'pointer',fontSize:13,fontWeight:parcMethod==='boleto'?600:400,
+                  background:parcMethod==='boleto'?'#C4622D':'rgba(0,0,0,0.03)',color:parcMethod==='boleto'?'#fff':'#1C1C1E'}}>
+                📄 Boleto/Financiamento
+              </button>
+            </div>
+          </div>
+          {parcMethod==='cartao_credito'&&(
+          <div>
             <label style={S.lbl}>Cartão de crédito</label>
             <div style={{position:'relative'}}>
               <select value={card} onChange={e=>setCard(e.target.value)} style={S.sel}>
@@ -469,6 +486,7 @@ export default function NovoLancamento() {
               </p>
             )}
           </div>
+          )}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
             <div>
               <label style={S.lbl}>Nº de parcelas</label>
