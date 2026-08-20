@@ -34,6 +34,7 @@ export default function Parametros() {
   const [form,setForm]=useState({name:'',bank:'',holder:'Lucas',card_type:'credito',closing_day:'',due_day:'',limitRaw:'',alertRaw:'80%',color:'#6B3FA0'})
   // Limites
   const [limits, setLimits] = useState<Record<string,number>>({})
+  const [limitInputs, setLimitInputs] = useState<Record<string,string>>({})
   const [limitsLoading, setLimitsLoading] = useState(false)
   // Salário
   const [salaryDay, setSalaryDay] = useState('1')
@@ -117,8 +118,9 @@ export default function Parametros() {
     if(!user){setLimitsLoading(false);return}
     const {data}=await s.from('category_limits').select('*').eq('owner_id',user.id)
     const map:Record<string,number>={}
-    data?.forEach((r:any)=>{map[r.category]=r.limit_amount})
-    setLimits(map);setLimitsLoading(false)
+    const inputsMap:Record<string,string>={}
+    data?.forEach((r:any)=>{map[r.category]=r.limit_amount;inputsMap[r.category]=maskCurrency(Math.round(r.limit_amount*100).toString())})
+    setLimits(map);setLimitInputs(inputsMap);setLimitsLoading(false)
   }
   async function saveLimit(cat:string, val:string){
     const amount=unmaskCurrency(val)
@@ -126,6 +128,7 @@ export default function Parametros() {
     if(amount<=0){
       await s.from('category_limits').delete().eq('owner_id',user.id).eq('category',cat)
       setLimits(p=>{const n={...p};delete n[cat];return n})
+      setLimitInputs(p=>({...p,[cat]:''}))
       return
     }
     const {data:existing}=await s.from('category_limits').select('id').eq('owner_id',user.id).eq('category',cat).single()
@@ -355,7 +358,8 @@ export default function Parametros() {
               <div style={{position:'relative',width:120}}>
                 <span style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',fontSize:11,color:TEXTMU,fontWeight:600}}>R$</span>
                 <input type="text" inputMode="numeric" placeholder="Sem limite"
-                  defaultValue={val?maskCurrency(Math.round(val*100).toString()):''}
+                  value={limitInputs[cat]??''}
+                  onChange={e=>setLimitInputs(p=>({...p,[cat]:maskCurrency(e.target.value)}))}
                   onBlur={e=>saveLimit(cat,e.target.value)}
                   style={{width:'100%',height:36,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.06)',borderRadius:10,padding:'0 10px 0 32px',fontSize:13,fontWeight:600,color:TEXT,outline:'none',boxSizing:'border-box',textAlign:'right'}}/>
               </div>
