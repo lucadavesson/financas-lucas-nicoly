@@ -123,7 +123,7 @@ export default function Dashboard() {
 
   const hoje=new Date()
   const hojeStr=format(hoje,'yyyy-MM-dd')
-  const isCartao=(t:Tx)=>t.payment_method==='cartao_credito'||t.transaction_type==='parcelada'
+  const isCartao=(t:Tx)=>t.payment_method==='cartao_credito'
   // Atrasadas: data ANTES de hoje E não pago
   const atrasados=despesas.filter(t=>{
     if(t.status==='Pago'||t.status==='Cancelado')return false

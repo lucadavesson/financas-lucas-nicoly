@@ -81,6 +81,21 @@ export default function NovoLancamento() {
       }
     }
     loadCards()
+
+    // Carregar subcategorias customizadas persistidas (compartilhadas entre Lucas e Nicoly)
+    async function loadCustomSubs() {
+      try {
+        const { data, error } = await createClient().from('custom_subcategories').select('category,subcategory')
+        if (error || !data) return // tabela pode não existir ainda - falha silenciosa
+        const grouped: Record<string,string[]> = {}
+        data.forEach((r:any) => {
+          if (!grouped[r.category]) grouped[r.category] = []
+          if (!grouped[r.category].includes(r.subcategory)) grouped[r.category].push(r.subcategory)
+        })
+        setCustomSubs(grouped)
+      } catch { /* silencioso - tabela ainda não criada */ }
+    }
+    loadCustomSubs()
   }, [])
 
   const CARDS_CREDITO = cardsCredito.length > 0 ? cardsCredito : CARDS_CREDITO_FALLBACK
@@ -89,6 +104,7 @@ export default function NovoLancamento() {
   const [card, setCard]         = useState('')
   const [parcMethod, setParcMethod] = useState<'cartao_credito'|'boleto'>('cartao_credito')
   const [installments, setInst] = useState('')
+  const [jaPagas, setJaPagas] = useState('')
   const [instRaw, setInstRaw]   = useState('')
   const [hasEntry, setHasEntry] = useState(false)
   const [entryRaw, setEntryRaw] = useState('')
@@ -146,12 +162,21 @@ export default function NovoLancamento() {
   const extraSubs  = customSubs[cat] || []
   const allSubs    = [...baseSubs, ...extraSubs]
 
-  function addCustomSub() {
+  async function addCustomSub() {
     if (!newSubName.trim() || !cat) return
-    setCustomSubs(p => ({ ...p, [cat]: [...(p[cat]||[]), newSubName.trim()] }))
-    setSubcat(newSubName.trim())
+    const subName = newSubName.trim()
+    // Atualiza o estado local imediatamente (feedback instantâneo)
+    setCustomSubs(p => ({ ...p, [cat]: [...(p[cat]||[]), subName] }))
+    setSubcat(subName)
     setNewSubName(''); setShowAddSub(false)
     toast.success('Subcategoria criada!')
+    // Persiste no Supabase para não sumir depois (compartilhado com Nicoly)
+    try {
+      const { data: { user } } = await createClient().auth.getUser()
+      if (user) {
+        await createClient().from('custom_subcategories').insert({ owner_id: user.id, category: cat, subcategory: subName })
+      }
+    } catch { /* silencioso - se a tabela não existir ainda, ao menos funciona nesta sessão */ }
   }
 
   // Qual tipo de conta mostrar baseado na forma de pagamento
@@ -183,13 +208,21 @@ export default function NovoLancamento() {
           const purchaseDateP = format(dataParcela, 'yyyy-MM-dd')
           const bmP = parcMethod==='cartao_credito' ? format(calcBillingMonth(dataParcela, cardClosing[card] || 1), 'yyyy-MM-dd') : null
           
-          // Status automático baseado na data
-          const mesParcela = format(dataParcela, 'yyyy-MM')
-          const mesHoje = format(hoje, 'yyyy-MM')
-          let statusP = 'Pendente'
-          if (mesParcela < mesHoje) statusP = 'Pago'  // mês já passou = já paga
-          else if (mesParcela > mesHoje) statusP = 'Previsto'  // mês futuro
-          // mesParcela === mesHoje → fica 'Pendente' (fatura do mês corrente)
+          let statusP: string
+          const nJaPagas = parseInt(jaPagas) || 0
+          if (jaPagas.trim() !== '') {
+            // Usuário informou explicitamente quantas já pagou (compra antiga) — tem prioridade
+            if (p <= nJaPagas) statusP = 'Pago'
+            else if (p === nJaPagas + 1) statusP = 'Pendente'
+            else statusP = 'Previsto'
+          } else {
+            // Compra recente: calcula automaticamente pelo mês
+            const mesParcela = format(dataParcela, 'yyyy-MM')
+            const mesHoje = format(hoje, 'yyyy-MM')
+            statusP = 'Pendente'
+            if (mesParcela < mesHoje) statusP = 'Pago'
+            else if (mesParcela > mesHoje) statusP = 'Previsto'
+          }
           
           const { error } = await supabase.from('transactions').insert({
             owner_id:user.id, owner_name:ownerName, holder, transaction_type:'parcelada', type:'Despesa',
@@ -317,7 +350,7 @@ export default function NovoLancamento() {
         </p>
         {[
           { t:'receita' as TipoLanc,    emoji:'↑', label:'Receita',           desc:'Salário, renda extra, investimento recebido',    bg:'rgba(34,199,89,0.1)', border:'rgba(34,199,89,0.25)', ec:'#fff' },
-          { t:'parcelada' as TipoLanc,  emoji:'💳', label:'Compra parcelada',  desc:'Pagamento em várias vezes no cartão de crédito', bg:'rgba(196,98,45,0.2)', border:'rgba(196,98,45,0.4)', ec:'#fff' },
+          { t:'parcelada' as TipoLanc,  emoji:'💳', label:'Compra/financiamento parcelado',  desc:'Cartão de crédito ou boleto em várias vezes', bg:'rgba(196,98,45,0.2)', border:'rgba(196,98,45,0.4)', ec:'#fff' },
           { t:'avista' as TipoLanc,     emoji:'💵', label:'Compra à vista',    desc:'Crédito, débito, PIX, dinheiro ou boleto',       bg:'rgba(196,98,45,0.15)', border:'rgba(196,98,45,0.35)', ec:'#fff' },
           { t:'recorrente' as TipoLanc, emoji:'🔄', label:'Conta recorrente',  desc:'Energia, assinatura, financiamento...',           bg:'rgba(0,0,0,0.03)', border:'rgba(0,0,0,0.08)', ec:'#fff' },
         ].map(item => (
@@ -489,17 +522,27 @@ export default function NovoLancamento() {
           )}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
             <div>
-              <label style={S.lbl}>Nº de parcelas</label>
+              <label style={S.lbl}>{parcMethod==='boleto'?'Nº de mensalidades':'Nº de parcelas'}</label>
               <input type="number" value={installments} onChange={e=>setInst(e.target.value)}
                 placeholder="Ex: 12" style={S.inp} min="2"/>
             </div>
             <div>
-              <label style={S.lbl}>Valor da parcela</label>
+              <label style={S.lbl}>{parcMethod==='boleto'?'Valor da mensalidade':'Valor da parcela'}</label>
               <input type="text" inputMode="numeric" value={instRaw}
                 onChange={e=>setInstRaw(formatMoneyInput(e.target.value))}
                 placeholder="R$ 0,00" style={S.inp}/>
             </div>
           </div>
+          {date && format(parseISO(date),'yyyy-MM') < format(new Date(),'yyyy-MM') && (
+            <div>
+              <label style={S.lbl}>{parcMethod==='boleto'?'Quantas mensalidades já foram pagas?':'Quantas parcelas já foram pagas?'}</label>
+              <input type="number" value={jaPagas} onChange={e=>setJaPagas(e.target.value)}
+                placeholder="Ex: 10" style={S.inp} min="0" max={installments||undefined}/>
+              <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
+                {parcMethod==='boleto'?'Financiamento':'Compra'} antigo detectado. Informe quantas {parcMethod==='boleto'?'mensalidades':'parcelas'} já pagou — o resto será calculado automaticamente.
+              </p>
+            </div>
+          )}
           {totalJuros > 0 && (
             <div style={{background:'rgba(196,98,45,0.15)',border:'0.5px solid rgba(196,98,45,0.3)',borderRadius:12,padding:12}}>
               <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}}>

@@ -298,8 +298,13 @@ export default function Lancamentos() {
               </div>
             </div>
             <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
-              {sel.transaction_type!=='receita'&&sel.status!=='Pago'&&(
+              {sel.transaction_type!=='receita'&&sel.status!=='Pago'&&sel.payment_method!=='cartao_credito'&&(
                 <button onClick={()=>openPay(sel!)} style={{ width:'100%',height:50,background:TERRA,color:'#fff',fontWeight:700,fontSize:15,borderRadius:24,border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(196,98,45,0.3)' }}>✓ Marcar como pago</button>
+              )}
+              {sel.transaction_type!=='receita'&&sel.status!=='Pago'&&sel.payment_method==='cartao_credito'&&(
+                <div style={{ width:'100%',padding:'12px 16px',background:'rgba(196,98,45,0.06)',borderRadius:16,border:'1px solid rgba(196,98,45,0.12)' }}>
+                  <p style={{ fontSize:12,color:TERRA,fontWeight:600,margin:0,textAlign:'center' }}>💳 Pago junto com a fatura do cartão</p>
+                </div>
               )}
               <Link href={`/lancamentos/editar/${sel.id}`} onClick={()=>setSel(null)}
                 style={{ width:'100%',height:46,background:'rgba(0,0,0,0.03)',color:TEXT,fontWeight:600,fontSize:14,borderRadius:24,display:'flex',alignItems:'center',justifyContent:'center' }}>
