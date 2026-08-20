@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { CATS_DESPESA, CATS_RECEITA, SUBCATS, maskCurrency, unmaskCurrency } from '@/lib/utils'
+import { CATS_DESPESA, CATS_RECEITA, SUBCATS, maskCurrency, unmaskCurrency, formatCurrency } from '@/lib/utils'
 import { ChevronLeft, Loader2, Trash2, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -24,6 +24,8 @@ export default function EditarLancamento(){
   const [form,setForm]=useState<any>({})
   const [cards,setCards]=useState<any[]>([])
   const [valRaw,setValRaw]=useState('')
+  const [instValRaw,setInstValRaw]=useState('')
+  const [paidAmountRaw,setPaidAmountRaw]=useState('')
 
   useEffect(()=>{
     load()
@@ -41,7 +43,11 @@ export default function EditarLancamento(){
       s.from('transactions').select('*').eq('id',id).single(),
       s.from('cards').select('*').eq('is_active',true).order('holder').order('name'),
     ])
-    if(data){setTx(data);setForm(data);setValRaw(maskCurrency(Math.round((data.amount||0)*100).toString()))}
+    if(data){
+      setTx(data);setForm(data);setValRaw(maskCurrency(Math.round((data.amount||0)*100).toString()))
+      if(data.installment_value){setInstValRaw(maskCurrency(Math.round(data.installment_value*100).toString()))}
+      if(data.paid_amount){setPaidAmountRaw(maskCurrency(Math.round(data.paid_amount*100).toString()))}
+    }
     setCards(cardsData||[])
     setLoading(false)
   }
@@ -66,9 +72,9 @@ export default function EditarLancamento(){
       card_name:form.card_name||null,
       status:form.payment_method==='cartao_credito'?'Pendente':form.status,
       notes:form.notes||null,
-      paid_amount:form.paid_amount?parseFloat(form.paid_amount):null,
+      paid_amount:paidAmountRaw?unmaskCurrency(paidAmountRaw):null,
       paid_date:form.paid_date||null,
-      installment_value:form.installment_value?parseFloat(form.installment_value):null,
+      installment_value:instValRaw?unmaskCurrency(instValRaw):null,
       installment_total:form.installment_total?parseInt(form.installment_total):null,
       is_recurring:form.transaction_type==='recorrente',
     }).eq('id',id)
@@ -187,7 +193,12 @@ export default function EditarLancamento(){
             </div>
             <div>
               <label style={lbl}>Valor da parcela</label>
-              <input type="number" inputMode="decimal" step="0.01" value={form.installment_value||''} onChange={e=>sf('installment_value',parseFloat(e.target.value)||null)} style={inp} placeholder="Calc. automático"/>
+              <div style={{position:'relative'}}>
+                <span style={{position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',fontSize:13,color:TEXTMU,fontWeight:600}}>R$</span>
+                <input type="text" inputMode="numeric" value={instValRaw}
+                  onChange={e=>setInstValRaw(maskCurrency(e.target.value))}
+                  style={{...inp,paddingLeft:38}} placeholder="Calc. automático"/>
+              </div>
             </div>
           </div>
         )}
@@ -286,14 +297,30 @@ export default function EditarLancamento(){
             <div style={{display:'flex',gap:10}}>
               <div style={{flex:1}}>
                 <label style={{...lbl,color:'#48484A'}}>Valor pago (R$)</label>
-                <input type="number" inputMode="decimal" value={form.paid_amount||''} onChange={e=>sf('paid_amount',e.target.value)}
-                  placeholder="Valor real" style={{...inp,height:42}} step="0.01"/>
+                <input type="text" inputMode="numeric" value={paidAmountRaw}
+                  onChange={e=>setPaidAmountRaw(maskCurrency(e.target.value))}
+                  placeholder="Valor real" style={{...inp,height:42}}/>
               </div>
               <div style={{flex:1}}>
                 <label style={{...lbl,color:'#48484A'}}>Data</label>
                 <input type="date" value={form.paid_date||''} onChange={e=>sf('paid_date',e.target.value)} style={{...inp,height:42}}/>
               </div>
             </div>
+            {(()=>{
+              const valorOriginal = instValRaw ? unmaskCurrency(instValRaw) : unmaskCurrency(valRaw)
+              const valorPago = unmaskCurrency(paidAmountRaw)
+              const desconto = valorOriginal - valorPago
+              if (valorPago > 0 && desconto > 0.01 && desconto < valorOriginal) {
+                return (
+                  <div style={{marginTop:10,background:'rgba(52,199,89,0.08)',borderRadius:10,padding:'8px 12px'}}>
+                    <p style={{fontSize:12,color:GREEN,fontWeight:600,margin:0}}>
+                      💰 Desconto obtido: {formatCurrency(desconto)} ({((desconto/valorOriginal)*100).toFixed(1)}%)
+                    </p>
+                  </div>
+                )
+              }
+              return null
+            })()}
           </div>
         )}
 

@@ -45,6 +45,13 @@ export default function Parametros() {
   const [faceIdEnabled, setFaceIdEnabled] = useState(false)
   const [userId, setUserId] = useState('')
   const [userEmail, setUserEmail] = useState('')
+  // Categorias/Subcategorias
+  const [customSubsDB, setCustomSubsDB] = useState<{id:string;category:string;subcategory:string}[]>([])
+  const [catsLoading, setCatsLoading] = useState(false)
+  const [newSubCat, setNewSubCat] = useState('')
+  const [newSubName, setNewSubName] = useState('')
+  const [editingSubId, setEditingSubId] = useState<string|null>(null)
+  const [editingSubName, setEditingSubName] = useState('')
 
   useEffect(()=>{
     if(sec==='cartoes') loadCards()
@@ -52,7 +59,40 @@ export default function Parametros() {
     if(sec==='salario') loadSalary()
     if(sec==='recorrentes') loadRecurrents()
     if(sec==='seguranca') loadSecurity()
+    if(sec==='categorias') loadCustomSubs()
   },[sec])
+
+  // ── Categorias/Subcategorias ──
+  async function loadCustomSubs(){
+    setCatsLoading(true)
+    try{
+      const {data,error}=await createClient().from('custom_subcategories').select('*').order('category').order('subcategory')
+      if(!error&&data)setCustomSubsDB(data)
+    }catch{ /* tabela pode não existir ainda */ }
+    setCatsLoading(false)
+  }
+  async function addSubcategory(){
+    if(!newSubCat||!newSubName.trim()){toast.error('Selecione a categoria e informe o nome');return}
+    const s=createClient();const {data:{user}}=await s.auth.getUser();if(!user)return
+    const {error}=await s.from('custom_subcategories').insert({owner_id:user.id,category:newSubCat,subcategory:newSubName.trim()})
+    if(error){toast.error(error.message.includes('duplicate')?'Essa subcategoria já existe':`Erro: ${error.message}`);return}
+    toast.success('Subcategoria criada!')
+    setNewSubName('')
+    loadCustomSubs()
+  }
+  async function deleteSubcategory(id:string){
+    if(!confirm('Excluir esta subcategoria?'))return
+    await createClient().from('custom_subcategories').delete().eq('id',id)
+    toast.success('Excluída')
+    loadCustomSubs()
+  }
+  async function renameSubcategory(id:string){
+    if(!editingSubName.trim())return
+    await createClient().from('custom_subcategories').update({subcategory:editingSubName.trim()}).eq('id',id)
+    toast.success('Renomeada')
+    setEditingSubId(null)
+    loadCustomSubs()
+  }
 
   // ── Cartões ──
   async function loadCards(){const {data}=await createClient().from('cards').select('*').order('holder').order('name');setCards(data||[])}
@@ -391,6 +431,75 @@ export default function Parametros() {
   )
 
   // ────────────────────────────────────────────────────────────
+  // SEÇÃO: CATEGORIAS E SUBCATEGORIAS
+  // ────────────────────────────────────────────────────────────
+  if(sec==='categorias') return (
+    <div style={{background:BG,minHeight:'100%',padding:'14px 14px 160px'}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
+        {backBtn()}
+        <h2 style={{fontSize:17,fontWeight:700,color:TEXT,flex:1}}>Categorias e Subcategorias</h2>
+      </div>
+      <p style={{fontSize:12,color:TEXTMU,marginBottom:16,paddingLeft:4}}>Adicione subcategorias personalizadas às categorias existentes. Elas ficam disponíveis em todos os lançamentos.</p>
+
+      {/* Formulário de nova subcategoria */}
+      <div style={{...sCard,padding:'16px',marginBottom:20}}>
+        <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:'0 0 12px'}}>+ Nova subcategoria</p>
+        <div style={{marginBottom:10}}>
+          <label style={sLbl}>Categoria</label>
+          <select value={newSubCat} onChange={e=>setNewSubCat(e.target.value)} style={{...sInp,appearance:'none' as const}}>
+            <option value="">Selecione...</option>
+            {CATS_DESPESA.map(c=><option key={c} value={c}>{CAT_ICONS[c]||'📦'} {c}</option>)}
+          </select>
+        </div>
+        <div style={{marginBottom:12}}>
+          <label style={sLbl}>Nome da subcategoria</label>
+          <input type="text" value={newSubName} onChange={e=>setNewSubName(e.target.value)} placeholder="Ex: Padaria" style={sInp}/>
+        </div>
+        <button onClick={addSubcategory} style={sBtn(TERRA,'#fff')}>Adicionar</button>
+      </div>
+
+      {/* Lista de categorias com subcategorias */}
+      {catsLoading?(
+        <div style={{textAlign:'center',padding:30}}><Loader2 size={22} color={TERRA} style={{animation:'spin 0.8s linear infinite'}}/></div>
+      ):(
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {CATS_DESPESA.map(cat=>{
+            const baseSubs=SUBCATS[cat]||[]
+            const customs=customSubsDB.filter(s=>s.category===cat)
+            if(baseSubs.length===0&&customs.length===0)return null
+            return (
+              <div key={cat} style={{...sCard,padding:'14px 16px'}}>
+                <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:'0 0 8px'}}>{CAT_ICONS[cat]||'📦'} {cat}</p>
+                <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                  {baseSubs.map(s=>(
+                    <span key={s} style={{fontSize:11,padding:'4px 10px',borderRadius:10,background:'rgba(0,0,0,0.04)',color:TEXTMU}}>{s}</span>
+                  ))}
+                  {customs.map(s=>(
+                    editingSubId===s.id?(
+                      <div key={s.id} style={{display:'flex',gap:4,alignItems:'center'}}>
+                        <input autoFocus value={editingSubName} onChange={e=>setEditingSubName(e.target.value)}
+                          style={{fontSize:11,padding:'4px 8px',borderRadius:10,border:`1px solid ${TERRA}`,width:100}}/>
+                        <button onClick={()=>renameSubcategory(s.id)} style={{background:'none',border:'none',cursor:'pointer',color:GREEN,fontSize:11,fontWeight:700}}>✓</button>
+                        <button onClick={()=>setEditingSubId(null)} style={{background:'none',border:'none',cursor:'pointer',color:TEXTMU,fontSize:11}}>✕</button>
+                      </div>
+                    ):(
+                      <span key={s.id} style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,padding:'4px 6px 4px 10px',borderRadius:10,background:'rgba(196,98,45,0.1)',color:TERRA,fontWeight:600}}>
+                        {s.subcategory}
+                        <button onClick={()=>{setEditingSubId(s.id);setEditingSubName(s.subcategory)}} style={{background:'none',border:'none',cursor:'pointer',padding:2,display:'flex'}}><Pencil size={10} color={TERRA}/></button>
+                        <button onClick={()=>deleteSubcategory(s.id)} style={{background:'none',border:'none',cursor:'pointer',padding:2,display:'flex'}}><X size={11} color={TERRA}/></button>
+                      </span>
+                    )
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+
+  // ────────────────────────────────────────────────────────────
   // SEÇÃO: SEGURANÇA
   // ────────────────────────────────────────────────────────────
   if(sec==='seguranca') return (
@@ -512,6 +621,7 @@ export default function Parametros() {
         <MenuItem icon={<Target size={20} color={TERRA}/>} label="Limites por Categoria" desc="Definir teto de gastos por categoria" section="limites"/>
         <MenuItem icon={<Calendar size={20} color={TERRA}/>} label="Ciclo Salarial" desc="Dia do pagamento e valores de cada titular" section="salario"/>
         <MenuItem icon={<RefreshCw size={20} color={TERRA}/>} label="Contas Recorrentes" desc="Ver e gerenciar contas que repetem todo mês" section="recorrentes"/>
+        <MenuItem icon={<Tag size={20} color={TERRA}/>} label="Categorias e Subcategorias" desc="Ver, criar e organizar categorias de gastos" section="categorias"/>
       </div>
 
       {/* Segurança e Conta */}
