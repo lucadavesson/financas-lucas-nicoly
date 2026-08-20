@@ -102,7 +102,6 @@ export default function NovoLancamento() {
   const CONTAS_DEBITO = contasDebito.length > 0 ? contasDebito : CONTAS_DEBITO_FALLBACK
 
   const [card, setCard]         = useState('')
-  const [parcMethod, setParcMethod] = useState<'cartao_credito'|'boleto'>('cartao_credito')
   const [installments, setInst] = useState('')
   const [jaPagas, setJaPagas] = useState('')
   const [instRaw, setInstRaw]   = useState('')
@@ -206,7 +205,7 @@ export default function NovoLancamento() {
           // Calcular data de cada parcela (mês a mês a partir da compra)
           const dataParcela = addMonths(dataCompra, p - 1)
           const purchaseDateP = format(dataParcela, 'yyyy-MM-dd')
-          const bmP = parcMethod==='cartao_credito' ? format(calcBillingMonth(dataParcela, cardClosing[card] || 1), 'yyyy-MM-dd') : null
+          const bmP = format(calcBillingMonth(dataParcela, cardClosing[card] || 1), 'yyyy-MM-dd')
           
           let statusP: string
           const nJaPagas = parseInt(jaPagas) || 0
@@ -228,8 +227,8 @@ export default function NovoLancamento() {
             owner_id:user.id, owner_name:ownerName, holder, transaction_type:'parcelada', type:'Despesa',
             description:`${desc} (${p}/${nParcelas})`, amount:iVal, category:cat, subcategory:subcat||null,
             purchase_date:purchaseDateP, notes:p===1?notes||null:null,
-            card_name:parcMethod==='cartao_credito'?card:null, billing_month:bmP, status:statusP,
-            payment_method:parcMethod,
+            card_name:card, billing_month:bmP, status:statusP,
+            payment_method:'cartao_credito',
             installment_total:nParcelas||1, installment_value:iVal,
             installment_num:p,
             has_entry:p===1&&hasEntry,
@@ -350,7 +349,7 @@ export default function NovoLancamento() {
         </p>
         {[
           { t:'receita' as TipoLanc,    emoji:'↑', label:'Receita',           desc:'Salário, renda extra, investimento recebido',    bg:'rgba(34,199,89,0.1)', border:'rgba(34,199,89,0.25)', ec:'#fff' },
-          { t:'parcelada' as TipoLanc,  emoji:'💳', label:'Compra/financiamento parcelado',  desc:'Cartão de crédito ou boleto em várias vezes', bg:'rgba(196,98,45,0.2)', border:'rgba(196,98,45,0.4)', ec:'#fff' },
+          { t:'parcelada' as TipoLanc,  emoji:'💳', label:'Compra parcelada',  desc:'Pagamento em várias vezes no cartão de crédito', bg:'rgba(196,98,45,0.2)', border:'rgba(196,98,45,0.4)', ec:'#fff' },
           { t:'avista' as TipoLanc,     emoji:'💵', label:'Compra à vista',    desc:'Crédito, débito, PIX, dinheiro ou boleto',       bg:'rgba(196,98,45,0.15)', border:'rgba(196,98,45,0.35)', ec:'#fff' },
           { t:'recorrente' as TipoLanc, emoji:'🔄', label:'Conta recorrente',  desc:'Energia, assinatura, financiamento...',           bg:'rgba(0,0,0,0.03)', border:'rgba(0,0,0,0.08)', ec:'#fff' },
         ].map(item => (
@@ -490,22 +489,6 @@ export default function NovoLancamento() {
         {/* ── PARCELADA ── */}
         {tipo === 'parcelada' && (<>
           <div>
-            <label style={S.lbl}>Forma de pagamento</label>
-            <div style={{display:'flex',gap:8}}>
-              <button type="button" onClick={()=>setParcMethod('cartao_credito')}
-                style={{flex:1,height:44,borderRadius:12,border:'none',cursor:'pointer',fontSize:13,fontWeight:parcMethod==='cartao_credito'?600:400,
-                  background:parcMethod==='cartao_credito'?'#C4622D':'rgba(0,0,0,0.03)',color:parcMethod==='cartao_credito'?'#fff':'#1C1C1E'}}>
-                💳 Cartão de crédito
-              </button>
-              <button type="button" onClick={()=>setParcMethod('boleto')}
-                style={{flex:1,height:44,borderRadius:12,border:'none',cursor:'pointer',fontSize:13,fontWeight:parcMethod==='boleto'?600:400,
-                  background:parcMethod==='boleto'?'#C4622D':'rgba(0,0,0,0.03)',color:parcMethod==='boleto'?'#fff':'#1C1C1E'}}>
-                📄 Boleto/Financiamento
-              </button>
-            </div>
-          </div>
-          {parcMethod==='cartao_credito'&&(
-          <div>
             <label style={S.lbl}>Cartão de crédito</label>
             <div style={{position:'relative'}}>
               <select value={card} onChange={e=>setCard(e.target.value)} style={S.sel}>
@@ -519,15 +502,14 @@ export default function NovoLancamento() {
               </p>
             )}
           </div>
-          )}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
             <div>
-              <label style={S.lbl}>{parcMethod==='boleto'?'Nº de mensalidades':'Nº de parcelas'}</label>
+              <label style={S.lbl}>Nº de parcelas</label>
               <input type="number" value={installments} onChange={e=>setInst(e.target.value)}
                 placeholder="Ex: 12" style={S.inp} min="2"/>
             </div>
             <div>
-              <label style={S.lbl}>{parcMethod==='boleto'?'Valor da mensalidade':'Valor da parcela'}</label>
+              <label style={S.lbl}>Valor da parcela</label>
               <input type="text" inputMode="numeric" value={instRaw}
                 onChange={e=>setInstRaw(formatMoneyInput(e.target.value))}
                 placeholder="R$ 0,00" style={S.inp}/>
@@ -535,11 +517,11 @@ export default function NovoLancamento() {
           </div>
           {date && format(parseISO(date),'yyyy-MM') < format(new Date(),'yyyy-MM') && (
             <div>
-              <label style={S.lbl}>{parcMethod==='boleto'?'Quantas mensalidades já foram pagas?':'Quantas parcelas já foram pagas?'}</label>
+              <label style={S.lbl}>Quantas parcelas já foram pagas?</label>
               <input type="number" value={jaPagas} onChange={e=>setJaPagas(e.target.value)}
                 placeholder="Ex: 10" style={S.inp} min="0" max={installments||undefined}/>
               <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
-                {parcMethod==='boleto'?'Financiamento':'Compra'} antigo detectado. Informe quantas {parcMethod==='boleto'?'mensalidades':'parcelas'} já pagou — o resto será calculado automaticamente.
+                Compra antiga detectada. Informe quantas parcelas já pagou — o resto será calculado automaticamente.
               </p>
             </div>
           )}

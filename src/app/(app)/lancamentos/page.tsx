@@ -282,7 +282,7 @@ export default function Lancamentos() {
       {sel&&(
         <div style={{ position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end' }} onClick={()=>setSel(null)}>
           <div style={{ position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(8px)' }}/>
-          <div style={{ position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'#FFFFFF',borderRadius:'32px 32px 0 0',padding:'20px 20px 48px',boxShadow:'0 -8px 32px rgba(255,255,255,0.1)' }} onClick={e=>e.stopPropagation()}>
+          <div style={{ position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'#FFFFFF',borderRadius:'32px 32px 0 0',padding:'20px 20px calc(28px + env(safe-area-inset-bottom, 20px))',boxShadow:'0 -8px 32px rgba(255,255,255,0.1)' }} onClick={e=>e.stopPropagation()}>
             <div style={{ width:36,height:3,background:'rgba(255,255,255,0.1)',borderRadius:2,margin:'0 auto 18px' }}/>
             <div style={{ display:'flex',alignItems:'center',gap:12,marginBottom:16,paddingBottom:16,borderBottom:`1px solid rgba(0,0,0,0.04)` }}>
               <div style={{ width:44,height:44,borderRadius:14,background:sel.transaction_type==='receita'?GREENBG:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20 }}>{CAT_ICONS[sel.category]||'📦'}</div>
