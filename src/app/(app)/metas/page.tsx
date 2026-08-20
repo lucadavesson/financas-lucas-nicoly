@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, maskCurrency, unmaskCurrency } from '@/lib/utils'
 import { Plus, Pencil, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -35,19 +35,19 @@ export default function Metas() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
-    const t=parseFloat(form.target_amount)
-    if(!form.name||isNaN(t)||t<=0){toast.error('Preencha nome e valor');return}
+    const t=unmaskCurrency(form.target_amount)
+    if(!form.name||!t||t<=0){toast.error('Preencha nome e valor');return}
     setSaving(true)
     const s=createClient()
     const {data:{user}}=await s.auth.getUser()
     if(!user){return}
     const ownerN=form.holder==='Casal'?'Lucas':form.holder==='Prata'?'Lucas':form.holder
-    const payload={name:form.name,holder:form.holder,owner_name:ownerN,target_amount:t,current_amount:parseFloat(form.current_amount||'0'),monthly_target:form.monthly_target?parseFloat(form.monthly_target):null,deadline:form.deadline?form.deadline+'-01':null,icon:form.icon,color:form.color,status:'ativa'}
+    const payload={name:form.name,holder:form.holder,owner_name:ownerN,target_amount:t,current_amount:unmaskCurrency(form.current_amount||''),monthly_target:form.monthly_target?unmaskCurrency(form.monthly_target):null,deadline:form.deadline?form.deadline+'-01':null,icon:form.icon,color:form.color,status:'ativa'}
     const {error}=editId?await s.from('goals').update(payload).eq('id',editId):await s.from('goals').insert({...payload,owner_id:user.id})
     if(error){toast.error(`Erro: ${error.message}`);setSaving(false);return}
     toast.success(editId?'Atualizada!':'Meta criada!')
     setShow(false);setEditId(null)
-    setForm({name:'',holder:'Casal',target_amount:'',current_amount:'0',monthly_target:'',deadline:'',icon:'target',color:'#1D9E75'})
+    setForm({name:'',holder:'Casal',target_amount:'',current_amount:'',monthly_target:'',deadline:'',icon:'target',color:'#1D9E75'})
     load();setSaving(false)
   }
 
@@ -63,7 +63,7 @@ export default function Metas() {
           <h1 style={{fontSize:20,fontWeight:800,color:TEXT,margin:'0 0 2px'}}>Metas</h1>
           <p style={{fontSize:12,color:TEXTMU,margin:0}}>{goals.length} ativa{goals.length!==1?'s':''}</p>
         </div>
-        <button onClick={()=>{setForm({name:'',holder:'Casal',target_amount:'',current_amount:'0',monthly_target:'',deadline:'',icon:'target',color:'#1D9E75'});setEditId(null);setShow(true)}}
+        <button onClick={()=>{setForm({name:'',holder:'Casal',target_amount:'',current_amount:'',monthly_target:'',deadline:'',icon:'target',color:'#1D9E75'});setEditId(null);setShow(true)}}
           style={{width:40,height:40,background:TERRA,borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',border:'none',cursor:'pointer',boxShadow:'0 4px 14px rgba(196,98,45,0.4)'}}>
           <Plus size={20} color={'#fff'}/>
         </button>
@@ -98,7 +98,7 @@ export default function Metas() {
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:8}}>
                     <p style={{fontSize:14,fontWeight:800,margin:0,color:g.color,fontVariantNumeric:'tabular-nums'}}>{pct.toFixed(0)}%</p>
-                    <button onClick={()=>{setForm({name:g.name,holder:g.holder,target_amount:g.target_amount.toString(),current_amount:g.current_amount.toString(),monthly_target:g.monthly_target?.toString()||'',deadline:g.deadline?.slice(0,7)||'',icon:g.icon||'target',color:g.color||'#1D9E75'});setEditId(g.id);setShow(true)}}
+                    <button onClick={()=>{setForm({name:g.name,holder:g.holder,target_amount:maskCurrency(Math.round((g.target_amount||0)*100).toString()),current_amount:g.current_amount?maskCurrency(Math.round(g.current_amount*100).toString()):'',monthly_target:g.monthly_target?maskCurrency(Math.round(g.monthly_target*100).toString()):'',deadline:g.deadline?.slice(0,7)||'',icon:g.icon||'target',color:g.color||'#1D9E75'});setEditId(g.id);setShow(true)}}
                       style={{width:30,height:30,background:'rgba(0,0,0,0.03)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
                       <Pencil size={13} color={TEXTMU}/>
                     </button>
@@ -186,9 +186,9 @@ export default function Metas() {
 
                 <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>De quem</label><div style={{display:'flex',gap:8}}>{['Casal','Lucas','Nicoly'].map(p=><button key={p} type="button" onClick={()=>sf('holder',p)} style={seg(form.holder===p)}>{p}</button>)}</div></div>
 
-                <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>Valor da meta (R$) *</label><input type="number" inputMode="decimal" value={form.target_amount} onChange={e=>sf('target_amount',e.target.value)} required placeholder="0.00" style={inp} step="0.01" min="0.01"/></div>
-                <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>Já acumulado (R$)</label><input type="number" inputMode="decimal" value={form.current_amount} onChange={e=>sf('current_amount',e.target.value)} placeholder="0.00" style={inp} step="0.01" min="0"/></div>
-                <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>Aporte mensal (R$)</label><input type="number" inputMode="decimal" value={form.monthly_target} onChange={e=>sf('monthly_target',e.target.value)} placeholder="Para calcular projeção" style={inp} step="0.01" min="0"/></div>
+                <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>Valor da meta (R$) *</label><input type="text" inputMode="numeric" value={form.target_amount} onChange={e=>sf('target_amount',maskCurrency(e.target.value))} required placeholder="R$ 0,00" style={inp}/></div>
+                <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>Já acumulado (R$)</label><input type="text" inputMode="numeric" value={form.current_amount} onChange={e=>sf('current_amount',maskCurrency(e.target.value))} placeholder="R$ 0,00" style={inp}/></div>
+                <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>Aporte mensal (R$)</label><input type="text" inputMode="numeric" value={form.monthly_target} onChange={e=>sf('monthly_target',maskCurrency(e.target.value))} placeholder="Para calcular projeção" style={inp}/></div>
                 <div><label style={{fontSize:11,fontWeight:600,color:TEXTMU,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.04em'}}>Prazo</label><input type="month" value={form.deadline} onChange={e=>sf('deadline',e.target.value)} style={inp}/></div>
 
                 <div>
