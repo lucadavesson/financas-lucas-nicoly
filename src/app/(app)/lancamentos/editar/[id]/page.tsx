@@ -274,7 +274,10 @@ export default function EditarLancamento(){
                 const colors:Record<string,string>={Pago:GREEN,Pendente:TERRA,Previsto:'#B37700',Atrasado:'#FF3B30',Cancelado:TEXTMU}
                 const on=form.status===s
                 return(
-                  <button key={s} type="button" onClick={()=>sf('status',s)}
+                  <button key={s} type="button" onClick={()=>{
+                    sf('status',s)
+                    if(s==='Pago'&&!form.paid_date){sf('paid_date',format(new Date(),'yyyy-MM-dd'))}
+                  }}
                     style={{height:36,padding:'0 14px',borderRadius:10,border:on?`1px solid ${colors[s]}40`:'1px solid transparent',cursor:'pointer',fontSize:12,fontWeight:on?600:400,
                       background:on?`${colors[s]}18`:'rgba(0,0,0,0.03)',color:on?colors[s]:TEXTMU}}>
                     {s}
