@@ -39,6 +39,8 @@ export default function Dashboard() {
   const [settings,setSettings]=useState<any>(null)
   const [catLimits,setCatLimits]=useState<Record<string,number>>({})
   const [goals,setGoals]=useState<any[]>([])
+  const [cards,setCards]=useState<any[]>([])
+  const [faturaPorCartao,setFaturaPorCartao]=useState<Record<string,number>>({})
   useEffect(()=>{load()}, [curMonth])
   useEffect(()=>{try{sessionStorage.setItem('ln_dash_secs',JSON.stringify(dashSecs))}catch{}},[dashSecs])
   const togSec=(k:string)=>setDashSecs(p=>({...p,[k]:!p[k]}))
@@ -47,18 +49,36 @@ export default function Dashboard() {
     setLoad(true)
     const s=createClient()
     const {data:{user}}=await s.auth.getUser()
-    const [{data},{data:settingsData},{data:limitsData},{data:goalsData}]=await Promise.all([
+    const monthStart=format(startOfMonth(curMonth),'yyyy-MM-dd')
+    const monthEnd=format(endOfMonth(curMonth),'yyyy-MM-dd')
+    const [{data},{data:settingsData},{data:limitsData},{data:goalsData},{data:cardsData},{data:faturaTxs}]=await Promise.all([
       s.from('transactions').select('*')
-        .gte('purchase_date',format(startOfMonth(curMonth),'yyyy-MM-dd'))
-        .lte('purchase_date',format(endOfMonth(curMonth),'yyyy-MM-dd'))
+        .gte('purchase_date',monthStart)
+        .lte('purchase_date',monthEnd)
         .order('purchase_date',{ascending:false}),
       s.from('app_settings').select('*').eq('owner_id',user?.id||'').maybeSingle(),
       s.from('category_limits').select('*').eq('owner_id',user?.id||''),
       s.from('goals').select('*').eq('status','ativa').order('name'),
+      s.from('cards').select('*').eq('is_active',true),
+      // Transações de cartão cuja fatura vence neste mês (billing_month, com fallback pra purchase_date se billing_month faltar)
+      s.from('transactions').select('card_name,amount,installment_value,status,billing_month,purchase_date')
+        .eq('payment_method','cartao_credito')
+        .neq('status','Cancelado'),
     ])
     setTxs(data||[])
     setSettings(settingsData)
     setGoals(goalsData||[])
+    setCards(cardsData||[])
+    // Agrupar fatura pendente por cartão - usa billing_month, ou purchase_date como fallback (dados antigos)
+    const faturaMap:Record<string,number>={}
+    ;(faturaTxs||[]).forEach((t:any)=>{
+      if(t.status==='Pago')return
+      const mesRef=t.billing_month||t.purchase_date
+      if(!mesRef||mesRef<monthStart||mesRef>monthEnd)return
+      const key=t.card_name||'Cartão'
+      faturaMap[key]=(faturaMap[key]||0)+(t.installment_value||t.amount||0)
+    })
+    setFaturaPorCartao(faturaMap)
     const lm:Record<string,number>={}
     limitsData?.forEach((r:any)=>{lm[r.category]=r.limit_amount})
     setCatLimits(lm)
@@ -138,6 +158,8 @@ export default function Dashboard() {
     return t.purchase_date>=hojeStr
   }).sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date)).slice(0,5)
   const venceHoje=despesas.filter(t=>t.status!=="Pago"&&t.status!=="Cancelado"&&t.purchase_date===hojeStr&&!isCartao(t))
+  const em3dias=format(addDays(hoje,3),'yyyy-MM-dd')
+  const venceEmBreve=despesas.filter(t=>t.status!=="Pago"&&t.status!=="Cancelado"&&!isCartao(t)&&t.purchase_date>hojeStr&&t.purchase_date<=em3dias)
 
   const catMap:Record<string,number>={}
   despesas.forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+(t.installment_value||t.amount)})
@@ -260,6 +282,25 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Vence em breve (próximos 3 dias) */}
+      {venceEmBreve.length>0&&(
+        <div style={{...card(),background:'rgba(255,204,0,0.06)',border:'1px solid rgba(255,204,0,0.2)',marginBottom:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
+            <span style={{fontSize:14}}>⏰</span>
+            <p style={{fontSize:13,fontWeight:700,color:'#8A6D00',margin:0}}>Vence em breve — {venceEmBreve.length} conta{venceEmBreve.length>1?'s':''}</p>
+          </div>
+          {venceEmBreve.map((tx,i)=>(
+            <div key={tx.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderTop:i>0?'0.5px solid rgba(0,0,0,0.04)':undefined}}>
+              <span style={{fontSize:13,color:TEXT}}>{tx.description}</span>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:12,color:'#8A6D00',fontWeight:600}}>{format(parseISO(tx.purchase_date),'dd/MM')}</span>
+                <span style={{fontSize:13,fontWeight:700,color:'#8A6D00'}}>{v(tx.installment_value||tx.amount)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {atrasados.length>0&&(
         <div style={{...card(),background:'rgba(255,59,48,0.03)',border:'1px solid rgba(255,59,48,0.1)'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
@@ -282,12 +323,12 @@ export default function Dashboard() {
       )}
 
       {/* Próximos pagamentos */}
-      {proximos.length>0&&(
+      {(proximos.length>0||Object.keys(faturaPorCartao).length>0)&&(
         <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.04)',overflow:'hidden'}}>
           <button onClick={()=>togSec('proximos')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <span style={{fontSize:14,fontWeight:700,color:TEXT}}>📅 Próximos pagamentos</span>
-              <span style={{fontSize:11,color:TEXTMU,background:'rgba(0,0,0,0.04)',borderRadius:8,padding:'1px 7px',fontWeight:600}}>{proximos.length}</span>
+              <span style={{fontSize:11,color:TEXTMU,background:'rgba(0,0,0,0.04)',borderRadius:8,padding:'1px 7px',fontWeight:600}}>{proximos.length+Object.keys(faturaPorCartao).length}</span>
             </div>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <Link href="/pagamentos" onClick={e=>e.stopPropagation()} style={{fontSize:11,color:TERRA,fontWeight:600,textDecoration:'none'}}>Ver todos</Link>
@@ -295,8 +336,25 @@ export default function Dashboard() {
             </div>
           </button>
           {dashSecs.proximos&&(<div style={{padding:'0 16px 12px'}}>
+          {/* Faturas de cartão resumidas */}
+          {Object.entries(faturaPorCartao).filter(([,total])=>total>0).map(([cardName,total],i)=>{
+            const cardInfo=cards.find(c=>`${c.name} — ${c.holder}`===cardName)
+            return (
+              <Link key={cardName} href="/cartoes" style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderTop:i>0?'1px solid rgba(0,0,0,0.04)':undefined,textDecoration:'none'}}>
+                <div style={{width:36,height:36,borderRadius:10,background:'rgba(196,98,45,0.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>💳</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontSize:14,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>Fatura {cardName}</p>
+                  <p style={{fontSize:12,color:TEXTMU,margin:'2px 0 0'}}>{cardInfo?.due_day?`Vence dia ${cardInfo.due_day}`:'Ver detalhes'}</p>
+                </div>
+                <div style={{textAlign:'right',flexShrink:0}}>
+                  <p style={{fontSize:14,fontWeight:600,color:TEXT,fontVariantNumeric:'tabular-nums',margin:'0 0 3px'}}>{v(total)}</p>
+                  <span style={{fontSize:11,color:TERRA,fontWeight:600}}>Ver fatura →</span>
+                </div>
+              </Link>
+            )
+          })}
           {proximos.map((tx,i)=>(
-            <div key={tx.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderTop:i>0?'1px solid rgba(0,0,0,0.04)':undefined}}>
+            <div key={tx.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderTop:(i>0||Object.keys(faturaPorCartao).length>0)?'1px solid rgba(0,0,0,0.04)':undefined}}>
               <div style={{width:36,height:36,borderRadius:10,background:'rgba(0,0,0,0.03)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>{CAT_ICONS[tx.category]||'📦'}</div>
               <div style={{flex:1,minWidth:0}}>
                 <p style={{fontSize:14,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.description}</p>
