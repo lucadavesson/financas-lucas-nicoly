@@ -70,7 +70,7 @@ export default function EditarLancamento(){
       purchase_date:form.purchase_date,
       payment_method:form.payment_method||null,
       card_name:form.card_name||null,
-      status:form.payment_method==='cartao_credito'?'Pendente':form.status,
+      status:(form.payment_method==='cartao_credito'&&form.transaction_type!=='parcelada')?'Pendente':form.status,
       notes:form.notes||null,
       paid_amount:paidAmountRaw?unmaskCurrency(paidAmountRaw):null,
       paid_date:form.paid_date||null,
@@ -105,7 +105,7 @@ export default function EditarLancamento(){
   const isReceita=form.transaction_type==='receita'||form.type==='Receita'
   const cats=isReceita?CATS_RECEITA:CATS_DESPESA
   const subs=SUBCATS[form.category]||[]
-  const isCredito=form.payment_method==='cartao_credito'
+  const isCredito=form.payment_method==='cartao_credito'&&form.transaction_type!=='parcelada'
 
   return(
     <div style={{background:BG,minHeight:'100%'}}>
