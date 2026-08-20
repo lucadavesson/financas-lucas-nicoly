@@ -34,7 +34,7 @@ function getBankKey(bank:string){
 }
 
 interface Card { id:string;name:string;bank:string;holder:string;card_type?:string;credit_limit:number;closing_day:number;due_day:number;alert_pct?:number;color:string;is_active:boolean }
-interface Tx { id:string;description:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;category:string;holder:string;card_name?:string;payment_method?:string;transaction_type:string }
+interface Tx { id:string;description:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;category:string;holder:string;card_name?:string;payment_method?:string;transaction_type:string;paid_amount?:number }
 
 export default function Cartoes() {
   const [cards,setCards]=useState<Card[]>([])
@@ -170,8 +170,8 @@ export default function Cartoes() {
 
   const totalUsado=credito.reduce((s,c)=>s+txsDoCartao(c).reduce((ss,t)=>ss+(t.installment_value||t.amount),0),0)
   const totalDisp=credito.reduce((s,c)=>s+c.credit_limit,0)-totalUsado
-  const totalPago=credito.reduce((s,c)=>s+txsDoCartao(c).filter(t=>t.status==='Pago').reduce((ss,t)=>ss+(t.installment_value||t.amount),0),0)
-  const totalPend=totalUsado-totalPago
+  const totalPago=credito.reduce((s,c)=>s+txsDoCartao(c).filter(t=>t.status==='Pago').reduce((ss,t)=>ss+(t.paid_amount||t.installment_value||t.amount),0),0)
+  const totalPend=credito.reduce((s,c)=>s+txsDoCartao(c).filter(t=>t.status!=='Pago'&&t.status!=='Cancelado').reduce((ss,t)=>ss+(t.installment_value||t.amount),0),0)
 
   if(loading) return (
     <div style={{background:BG,minHeight:'100%',display:'flex',justifyContent:'center',alignItems:'center',paddingTop:80}}>
@@ -235,8 +235,8 @@ export default function Cartoes() {
           {sortedCards.map((c,idx)=>{
             const itens=txsDoCartao(c)
             const gasto=itens.reduce((s,t)=>s+(t.installment_value||t.amount),0)
-            const pago=itens.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.installment_value||t.amount),0)
-            const pendente=gasto-pago
+            const pago=itens.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.paid_amount||t.installment_value||t.amount),0)
+            const pendente=itens.filter(t=>t.status!=='Pago'&&t.status!=='Cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)
             const bk=getBankKey(c.bank)
             const grad=BANK_GRADIENT[bk]||BANK_GRADIENT.default
             const sigla=BANK_SIGLA[bk]||c.bank[0]

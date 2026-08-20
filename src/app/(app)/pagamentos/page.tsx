@@ -47,7 +47,7 @@ interface Tx {
   id:string; description:string; amount:number; installment_value?:number
   status:string; purchase_date:string; category:string; holder:string
   transaction_type:string; payment_method?:string; card_name?:string
-  due_day?: number; billing_month?: string
+  due_day?: number; billing_month?: string; paid_amount?: number
 }
 interface Card { id:string; name:string; bank:string; holder:string; card_type?:string; due_day:number; closing_day:number; credit_limit:number; color:string }
 
@@ -184,8 +184,8 @@ export default function Pagamentos() {
         t.holder === card.holder && t.card_name?.toLowerCase().includes(card.name.toLowerCase().split(' ')[0])
       )
       const total    = itens.reduce((s,t)=>s+(t.installment_value||t.amount),0)
-      const pago     = itens.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.installment_value||t.amount),0)
-      const pendente = total - pago
+      const pago     = itens.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.paid_amount||t.installment_value||t.amount),0)
+      const pendente = itens.filter(t=>t.status!=='Pago'&&t.status!=='Cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)
       return { card, txs: itens, total, pago, pendente, isPago: total>0&&pendente===0 }
     })
     .filter(f => f.total > 0)  // só mostra cartões com movimentação

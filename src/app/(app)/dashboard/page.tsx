@@ -9,7 +9,7 @@ import { ChevronRight, ChevronDown, ChevronUp, ArrowUpRight, ArrowDownRight, Wal
 import Link from 'next/link'
 import { toast } from 'sonner'
 
-type Tx = { id:string;holder:string;description:string;category:string;amount:number;status:string;purchase_date:string;transaction_type:string;type?:string;installment_value?:number;payment_method?:string;card_name?:string }
+type Tx = { id:string;holder:string;description:string;category:string;amount:number;status:string;purchase_date:string;transaction_type:string;type?:string;installment_value?:number;payment_method?:string;card_name?:string;paid_amount?:number }
 
 const BG='#F5F5F7'; const TEXT='#1C1C1E'; const TEXTLT='#48484A'; const TEXTMU='#8E8E93'
 const GREEN='#34C759'; const GREENBG='rgba(52,199,89,0.08)'; const RED='#FF3B30'; const REDBG='rgba(255,59,48,0.06)'
@@ -133,7 +133,7 @@ export default function Dashboard() {
   const totalEntrou=receitas.filter(t=>t.status==='Pago').reduce((s,t)=>s+t.amount,0)
   const totalPrevisto=receitas.filter(t=>t.status==='Previsto').reduce((s,t)=>s+t.amount,0)
   const totalGastou=despesas.reduce((s,t)=>s+(t.installment_value||t.amount),0)
-  const totalPago=despesas.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.installment_value||t.amount),0)
+  const totalPago=despesas.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.paid_amount||t.installment_value||t.amount),0)
   const totalPendente=despesas.filter(t=>t.status!=='Pago'&&t.status!=='Cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)
   const salarioEsperado=(settings?.salary_lucas||0)+(settings?.salary_nicoly||0)
   const saldo=totalEntrou-totalGastou
