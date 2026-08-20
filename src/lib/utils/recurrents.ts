@@ -88,6 +88,8 @@ export async function generateRecurrents(targetMonth: Date) {
           description: 'Salário Lucas', amount: settings.salary_lucas,
           category: 'Salário', purchase_date: salaryDate,
           status: salaryDate <= format(new Date(), 'yyyy-MM-dd') ? 'Pago' : 'Previsto',
+          paid_date: salaryDate <= format(new Date(), 'yyyy-MM-dd') ? salaryDate : null,
+          paid_amount: salaryDate <= format(new Date(), 'yyyy-MM-dd') ? settings.salary_lucas : null,
           is_recurring: true, recurring_day: salaryDay,
           expected_amount: settings.salary_lucas,
         })
@@ -105,6 +107,8 @@ export async function generateRecurrents(targetMonth: Date) {
           description: 'Salário Nicoly', amount: settings.salary_nicoly,
           category: 'Salário', purchase_date: salaryDate,
           status: salaryDate <= format(new Date(), 'yyyy-MM-dd') ? 'Pago' : 'Previsto',
+          paid_date: salaryDate <= format(new Date(), 'yyyy-MM-dd') ? salaryDate : null,
+          paid_amount: salaryDate <= format(new Date(), 'yyyy-MM-dd') ? settings.salary_nicoly : null,
           is_recurring: true, recurring_day: salaryDay,
           expected_amount: settings.salary_nicoly,
         })
