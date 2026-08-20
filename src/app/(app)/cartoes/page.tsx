@@ -50,12 +50,12 @@ export default function Cartoes() {
   async function load(){
     setLoading(true)
     const s=createClient()
-    const [{data:cardsData},{data:txDataMes},{data:txDataParc}]=await Promise.all([
+    const [{data:cardsData},{data:txDataCartao},{data:txDataParc}]=await Promise.all([
       s.from('cards').select('*').eq('is_active',true).order('holder').order('name'),
-      // Transações do mês selecionado
+      // Todas as transações de cartão de crédito (filtramos por billing_month depois,
+      // não por purchase_date, para refletir corretamente antecipações)
       s.from('transactions').select('*')
-        .gte('purchase_date',format(startOfMonth(curMonth),'yyyy-MM-dd'))
-        .lte('purchase_date',format(endOfMonth(curMonth),'yyyy-MM-dd'))
+        .eq('payment_method','cartao_credito')
         .neq('transaction_type','receita')
         .order('purchase_date',{ascending:false}),
       // Parcelas de TODOS os meses (para projetar em meses futuros)
@@ -66,9 +66,14 @@ export default function Cartoes() {
     const c=cardsData||[]
     setCards(c)
 
-    // Construir lista de transações do mês: inclui compras do mês + parcelas projetadas
+    // Construir lista de transações do mês: usa billing_month (fallback purchase_date p/ dados antigos)
     const mesKey=format(curMonth,'yyyy-MM')
-    const txsDoMes=[...(txDataMes||[])]
+    const monthStart=format(startOfMonth(curMonth),'yyyy-MM-dd')
+    const monthEnd=format(endOfMonth(curMonth),'yyyy-MM-dd')
+    const txsDoMes=(txDataCartao||[]).filter((t:any)=>{
+      const mesRef=t.billing_month||t.purchase_date
+      return mesRef>=monthStart&&mesRef<=monthEnd
+    })
 
     // Para cada parcela, projetar em meses futuros
     const jaAdicionado=new Set(txsDoMes.map((t:any)=>t.id))
