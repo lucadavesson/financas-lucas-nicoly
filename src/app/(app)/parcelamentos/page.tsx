@@ -243,7 +243,8 @@ export default function Parcelamentos() {
 }
 
 // ── Modal de antecipação/quitação ──────────────────────────
-function ModalAntecipar({grupo,cards,onClose,onConfirm}:{grupo:any;cards:any[];onClose:()=>void;onConfirm:(n:number,valor:number)=>void}) {
+function ModalAntecipar({grupo,cards,onClose,onConfirm}:{grupo:any;cards:any[];onClose:()=>void;onConfirm:(n:number,valor:number)=>Promise<void>|void}) {
+  const [salvando,setSalvando]=useState(false)
   const pendentes=grupo.parcelas.filter((p:Tx)=>p.status!=='Pago').sort((a:Tx,b:Tx)=>a.purchase_date.localeCompare(b.purchase_date))
   const [n,setN]=useState(pendentes.length) // default: quitar tudo
   const [valorPagoRaw,setValorPagoRaw]=useState('')
@@ -305,9 +306,9 @@ function ModalAntecipar({grupo,cards,onClose,onConfirm}:{grupo:any;cards:any[];o
 
         <div style={{display:'flex',gap:8}}>
           <button onClick={onClose} style={{flex:1,height:46,background:'#F5F5F7',color:'#48484A',borderRadius:12,border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancelar</button>
-          <button onClick={()=>onConfirm(n,valorPago||valorOriginal)} disabled={n<1}
-            style={{flex:1,height:46,background:TERRA,color:'#fff',borderRadius:12,border:'none',fontSize:14,fontWeight:700,cursor:'pointer'}}>
-            ✓ Confirmar
+          <button onClick={async()=>{if(salvando)return;setSalvando(true);await onConfirm(n,valorPago||valorOriginal)}} disabled={n<1||salvando}
+            style={{flex:1,height:46,background:TERRA,color:'#fff',borderRadius:12,border:'none',fontSize:14,fontWeight:700,cursor:salvando?'default':'pointer',opacity:salvando?0.6:1}}>
+            {salvando?'Salvando...':'✓ Confirmar'}
           </button>
         </div>
       </div>
