@@ -23,8 +23,47 @@ export default function Parcelamentos() {
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string|null>(null)
   const [antecipando, setAntecipando] = useState<any|null>(null)
+  const [recalculando, setRecalculando] = useState<string|null>(null)
 
   useEffect(()=>{load()},[])
+
+  async function recalcularStatus(grupo:any) {
+    setRecalculando(grupo.base+grupo.holder)
+    const mesHoje = format(new Date(), 'yyyy-MM')
+    const s = createClient()
+    let corrigidas = 0
+    for (const p of grupo.parcelas) {
+      const mesParcela = p.purchase_date.slice(0, 7)
+      let novoStatus: string
+      if (mesParcela < mesHoje) novoStatus = 'Pago'
+      else if (mesParcela === mesHoje) novoStatus = 'Pendente'
+      else novoStatus = 'Previsto'
+
+      // Só atualiza se estiver errado, sem sobrescrever pagamentos/cancelamentos reais
+      if (p.status === novoStatus) continue
+      if (p.status === 'Cancelado') continue
+      if (novoStatus === 'Pago' && p.status !== 'Pago') {
+        await s.from('transactions').update({
+          status: 'Pago',
+          paid_date: p.purchase_date,
+          paid_amount: p.installment_value || p.amount,
+        }).eq('id', p.id)
+        corrigidas++
+      } else if (novoStatus !== 'Pago' && p.status === 'Pago') {
+        // Não desfaz pagamento real - só corrige se faltar paid_date (dado inconsistente)
+        if (!p.paid_date) {
+          await s.from('transactions').update({ status: novoStatus }).eq('id', p.id)
+          corrigidas++
+        }
+      } else {
+        await s.from('transactions').update({ status: novoStatus }).eq('id', p.id)
+        corrigidas++
+      }
+    }
+    toast.success(corrigidas > 0 ? `${corrigidas} parcela${corrigidas>1?'s':''} corrigida${corrigidas>1?'s':''}!` : 'Já está tudo certo')
+    setRecalculando(null)
+    load()
+  }
 
   async function load() {
     setLoading(true)
@@ -118,9 +157,23 @@ export default function Parcelamentos() {
             const pct=total>0?Math.round((pagas/total)*100):0
             const isOpen=expanded===g.base+g.holder
             const finalizada=pagas>=total
+            const mesHoje=format(new Date(),'yyyy-MM')
+            const precisaRecalcular=g.parcelas.some(p=>{
+              const mesP=p.purchase_date.slice(0,7)
+              return mesP<mesHoje && p.status!=='Pago' && p.status!=='Cancelado'
+            })
 
             return (
               <div key={gi} style={{background:'#fff',borderRadius:20,overflow:'hidden',border:'1px solid rgba(0,0,0,0.05)',opacity:finalizada?0.55:1}}>
+                {precisaRecalcular&&(
+                  <div style={{background:'rgba(255,170,0,0.08)',padding:'8px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+                    <p style={{fontSize:11,color:'#B37700',margin:0,fontWeight:600}}>⚠️ Datas antigas com status desatualizado</p>
+                    <button onClick={(e)=>{e.stopPropagation();recalcularStatus(g)}} disabled={recalculando===g.base+g.holder}
+                      style={{fontSize:11,fontWeight:700,color:'#fff',background:'#FF9500',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer',flexShrink:0}}>
+                      {recalculando===g.base+g.holder?'Corrigindo...':'🔄 Corrigir'}
+                    </button>
+                  </div>
+                )}
                 <button onClick={()=>setExpanded(isOpen?null:g.base+g.holder)}
                   style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'16px 18px',textAlign:'left'}}>
                   <div style={{display:'flex',alignItems:'center',gap:12}}>

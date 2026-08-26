@@ -77,6 +77,7 @@ export default function EditarLancamento(){
       installment_value:instValRaw?unmaskCurrency(instValRaw):null,
       installment_total:form.installment_total?parseInt(form.installment_total):null,
       is_recurring:form.transaction_type==='recorrente',
+      recurring_day:form.transaction_type==='recorrente'?(form.recurring_day||null):null,
     }).eq('id',id)
     if(error){toast.error(`Erro: ${error.message}`);setSaving(false);return}
     toast.success('Salvo!')
@@ -150,6 +151,18 @@ export default function EditarLancamento(){
             })}
           </div>
         </div>
+
+        {/* Dia de vencimento - só para recorrente */}
+        {form.transaction_type==='recorrente'&&(
+          <div>
+            <label style={lbl}>Dia do vencimento</label>
+            <input type="number" value={form.recurring_day||''} onChange={e=>sf('recurring_day',e.target.value?parseInt(e.target.value):null)}
+              placeholder="Ex: 6 (todo dia 6)" style={inp} min="1" max="31"/>
+            <p style={{fontSize:11,color:TEXTMU,margin:'5px 0 0'}}>
+              Usado para gerar alertas de vencimento próximo e da conta do mês.
+            </p>
+          </div>
+        )}
 
         {/* Responsável */}
         <div>
