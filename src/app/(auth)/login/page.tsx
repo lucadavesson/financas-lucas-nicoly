@@ -28,6 +28,7 @@ function LoginContent() {
   const [faceLoading, setFaceLoading] = useState(false)
   const [userName, setUserName] = useState('')
   const [userId, setUserId]     = useState('')
+  const [wantsSignup, setWantsSignup] = useState(false)
   const [faceAvailable, setFaceAvailable] = useState(false)
 
   useEffect(() => {
@@ -87,20 +88,29 @@ function LoginContent() {
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+
+    // Modo signup: usuário clicou explicitamente em "Criar conta" (não é resposta a erro ambíguo)
+    if (wantsSignup) {
+      const { data: signUpData, error: signUpError } = await createClient().auth.signUp({ email: savedEmail, password })
+      if (signUpError) { toast.error(`Erro ao criar conta: ${signUpError.message}`); setLoading(false); return }
+      if (signUpData?.user?.identities?.length === 0) {
+        toast.error('Esse email já tem conta. Tente entrar com sua senha.')
+        setWantsSignup(false)
+        setLoading(false)
+        return
+      }
+      toast.success('Conta criada! Verifique seu email para confirmar.')
+      setLoading(false)
+      return
+    }
+
     const { data, error } = await createClient().auth.signInWithPassword({ email: savedEmail, password })
     if (error) {
-      // Se não encontrou o usuário, tentar criar conta
-      if (error.message?.includes('Invalid login') || error.message?.includes('invalid')) {
-        const confirm = window.confirm('Conta não encontrada. Deseja criar uma conta com esse email?')
-        if (confirm) {
-          const { data: signUpData, error: signUpError } = await createClient().auth.signUp({ email: savedEmail, password })
-          if (signUpError) { toast.error(`Erro ao criar conta: ${signUpError.message}`); setLoading(false); return }
-          if (signUpData?.user?.identities?.length === 0) { toast.error('Esse email já está cadastrado. Verifique a senha.'); setLoading(false); return }
-          toast.success('Conta criada! Verifique seu email para confirmar.'); setLoading(false); return
-        }
-        setLoading(false); return
-      }
-      toast.error('Senha incorreta'); setLoading(false); return
+      // Mensagem do Supabase é a mesma para "conta não existe" e "senha errada" (por segurança,
+      // não revela quais emails existem). Não dá pra distinguir aqui - sempre mostra senha incorreta.
+      // Se realmente não tiver conta, a pessoa usa o link 'Criar conta' abaixo, deliberadamente.
+      toast.error('Senha incorreta. Verifique e tente novamente.')
+      setLoading(false); return
     }
     const uid = data.user?.id || ''
     setUserId(uid)
@@ -170,7 +180,7 @@ function LoginContent() {
         <div style={{ ...S.logo, width:60, height:60, borderRadius:18 }}><span style={{color:'#fff',fontSize:18,fontWeight:800,letterSpacing:'-0.5px'}}>L&N</span></div>
         <p style={{ fontSize:13, color:'rgba(250,247,244,0.5)', marginBottom:3 }}>Olá,</p>
         <h2 style={{ fontSize:22, fontWeight:700, color:'#FFFFFF', margin:0 }}>{userName} 👋</h2>
-        <button onClick={()=>{setStep('email');setPassword('')}}
+        <button onClick={()=>{setStep('email');setPassword('');setWantsSignup(false)}}
           style={{ fontSize:11, color:'#C4622D', background:'none', border:'none', cursor:'pointer', marginTop:4 }}>
           ✏️ Trocar conta
         </button>
@@ -202,14 +212,20 @@ function LoginContent() {
             </div>
           </div>
           <button type="submit" disabled={loading} style={S.btn}>
-            {loading ? <><Loader2 size={18} style={{animation:'spin 0.8s linear infinite'}}/> Entrando...</> : 'Entrar com senha'}
+            {loading ? <><Loader2 size={18} style={{animation:'spin 0.8s linear infinite'}}/> {wantsSignup?'Criando...':'Entrando...'}</> : (wantsSignup?'Criar conta':'Entrar com senha')}
           </button>
-          <button type="button" onClick={async()=>{
-            const {error}=await createClient().auth.resetPasswordForEmail(savedEmail,{redirectTo:`${window.location.origin}/login`})
-            if(error){toast.error(`Erro: ${error.message}`)}
-            else{toast.success('Email de redefinição enviado! Verifique sua caixa de entrada.')}
-          }} style={{background:'none',border:'none',color:'#C4622D',fontSize:13,cursor:'pointer',padding:'8px 0',fontWeight:500}}>
-            Esqueci minha senha
+          {!wantsSignup&&(
+            <button type="button" onClick={async()=>{
+              const {error}=await createClient().auth.resetPasswordForEmail(savedEmail,{redirectTo:`${window.location.origin}/login`})
+              if(error){toast.error(`Erro: ${error.message}`)}
+              else{toast.success('Email de redefinição enviado! Verifique sua caixa de entrada.')}
+            }} style={{background:'none',border:'none',color:'#C4622D',fontSize:13,cursor:'pointer',padding:'8px 0',fontWeight:500}}>
+              Esqueci minha senha
+            </button>
+          )}
+          <button type="button" onClick={()=>setWantsSignup(w=>!w)}
+            style={{background:'none',border:'none',color:'#8E8E93',fontSize:13,cursor:'pointer',padding:'4px 0',fontWeight:500}}>
+            {wantsSignup?'← Já tenho conta, entrar':'Ainda não tenho conta, criar uma'}
           </button>
         </form>
       </div>
