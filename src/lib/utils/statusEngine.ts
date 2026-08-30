@@ -122,6 +122,32 @@ export async function materializarParcelasFaltantes(): Promise<{ criadas: number
       const n = numDaDescricao(p.description) ?? p.installment_num ?? p.installment_number
       if (n && !existentes.has(n)) existentes.set(n, p)
     })
+    // Antes de qualquer coisa: linhas legadas sem número de parcela recebem os
+    // números que estão faltando no grupo (em ordem de data) e são gravadas
+    // assim no banco. Sem isso a linha fica "órfã" — existe, conta para o
+    // total, mas nenhuma posição da lista casa com ela, e a tela mostra a
+    // parcela como se ela não tivesse linha nenhuma.
+    const semNumero = parcelas.filter(p => {
+      const n = numDaDescricao(p.description) ?? p.installment_num ?? p.installment_number
+      return !n
+    }).sort((a, b) => (a.purchase_date || '').localeCompare(b.purchase_date || ''))
+
+    if (semNumero.length > 0) {
+      const livres: number[] = []
+      for (let n = 1; n <= total && livres.length < semNumero.length; n++) {
+        if (!existentes.has(n)) livres.push(n)
+      }
+      for (let i = 0; i < semNumero.length && i < livres.length; i++) {
+        const linha = semNumero[i]
+        const n = livres[i]
+        await s.from('transactions').update({
+          installment_num: n,
+          description: `${baseDaDescricao(linha.description)} (${n}/${total})`,
+        }).eq('id', linha.id)
+        existentes.set(n, linha)
+      }
+    }
+
     // GUARDA DE IDEMPOTÊNCIA — precisa vir antes de tudo.
     // Uma linha legada sem número (sem "(3/12)" na descrição e sem
     // installment_num) nunca entra em `existentes`. Sem esta guarda, a cada
