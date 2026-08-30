@@ -7,6 +7,10 @@ import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
 import { format, parseISO, subMonths, addMonths } from 'date-fns'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 
+// A partir de quantas parcelas um parcelamento conta como "financiamento longo"
+// (imóvel, consórcio). 24 = 2 anos.
+const LIMITE_LONGO = 24
+
 const BG='#F5F5F7',TEXT='#1C1C1E',TEXTLT='#48484A',TEXTMU='#8E8E93',TERRA='#C4622D',GREEN='#34C759',RED='#FF3B30'
 
 interface Tx {
@@ -89,6 +93,17 @@ export default function Parcelamentos() {
 
   const [filtro, setFiltro] = useState<'todos'|'abertos'|'quitados'>('todos')
   const [ordenacao, setOrdenacao] = useState<'menos_faltam'|'mais_faltam'|'az'|'recentes'>('menos_faltam')
+  // Financiamentos muito longos (imóvel, consórcio) somam centenas de milhares e
+  // achatam todo o resto na tela. Este toggle tira eles da lista E dos totais.
+  const [ocultarLongos, setOcultarLongos] = useState(false)
+  useEffect(()=>{try{setOcultarLongos(localStorage.getItem('ln_ocultar_longos')==='1')}catch{}},[])
+  function toggleLongos(){
+    setOcultarLongos(v=>{
+      const novo=!v
+      try{localStorage.setItem('ln_ocultar_longos',novo?'1':'0')}catch{}
+      return novo
+    })
+  }
 
   const gruposBase = useMemo(() => {
     const map = new Map<string, { base:string; parcelas:Tx[]; holder:string; card:string; category:string; totalParcelas:number; valorParcela:number; valorTotal:number }>()
@@ -123,8 +138,14 @@ export default function Parcelamentos() {
     return Array.from(map.values())
   }, [txs])
 
+  // Só faz sentido oferecer o toggle se existir algum financiamento longo
+  const longos = gruposBase.filter(g=>g.totalParcelas>=LIMITE_LONGO)
+  const gruposNoEscopo = ocultarLongos
+    ? gruposBase.filter(g=>g.totalParcelas<LIMITE_LONGO)
+    : gruposBase
+
   const grupos = useMemo(() => {
-    let arr = gruposBase.filter(g=>{
+    let arr = gruposNoEscopo.filter(g=>{
       const restam = g.parcelas.filter(p=>p.status!=='Pago').length
       const finalizada = restam<=0
       if (filtro==='abertos') return !finalizada
@@ -151,7 +172,7 @@ export default function Parcelamentos() {
       return a.base.localeCompare(b.base)
     })
     return arr
-  }, [gruposBase, filtro, ordenacao])
+  }, [gruposNoEscopo, filtro, ordenacao])
 
   if (loading) return (
     <div style={{background:BG,minHeight:'100%',display:'flex',justifyContent:'center',alignItems:'center',paddingTop:80}}>
@@ -160,8 +181,8 @@ export default function Parcelamentos() {
     </div>
   )
 
-  const totalPendente=gruposBase.reduce((s,g)=>s+g.parcelas.filter(p=>p.status!=='Pago').reduce((ss,p)=>ss+(p.installment_value||p.amount),0),0)
-  const totalGeral=gruposBase.reduce((s,g)=>s+g.valorTotal,0)
+  const totalPendente=gruposNoEscopo.reduce((s,g)=>s+g.parcelas.filter(p=>p.status!=='Pago').reduce((ss,p)=>ss+(p.installment_value||p.amount),0),0)
+  const totalGeral=gruposNoEscopo.reduce((s,g)=>s+g.valorTotal,0)
 
   return (
     <div style={{background:BG,minHeight:'100%',padding:'14px 14px 160px'}}>
@@ -200,6 +221,29 @@ export default function Parcelamentos() {
           </select>
         </div>
       </div>
+
+      {longos.length>0&&(
+        <button onClick={toggleLongos}
+          style={{width:'100%',marginBottom:16,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,
+            background:ocultarLongos?'rgba(196,98,45,0.08)':'#fff',
+            border:`1px solid ${ocultarLongos?'rgba(196,98,45,0.35)':'rgba(0,0,0,0.08)'}`,
+            borderRadius:12,padding:'11px 14px',cursor:'pointer',textAlign:'left'}}>
+          <div style={{minWidth:0}}>
+            <p style={{fontSize:12.5,fontWeight:700,color:ocultarLongos?TERRA:TEXT,margin:0}}>
+              {ocultarLongos?'Financiamentos longos ocultos':'Ocultar financiamentos longos'}
+            </p>
+            <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+              {longos.length===1?longos[0].base:`${longos.length} financiamentos`} · {LIMITE_LONGO}+ parcelas
+            </p>
+          </div>
+          <div style={{width:44,height:26,borderRadius:13,flexShrink:0,position:'relative',transition:'background 0.2s',
+            background:ocultarLongos?TERRA:'rgba(0,0,0,0.15)'}}>
+            <div style={{position:'absolute',top:3,width:20,height:20,background:'#fff',borderRadius:'50%',
+              boxShadow:'0 1px 3px rgba(0,0,0,0.2)',transition:'transform 0.2s',
+              transform:ocultarLongos?'translateX(21px)':'translateX(3px)'}}/>
+          </div>
+        </button>
+      )}
 
       {grupos.length===0?(
         <div style={{textAlign:'center',padding:'48px 0'}}>
