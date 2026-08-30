@@ -122,15 +122,28 @@ export async function materializarParcelasFaltantes(): Promise<{ criadas: number
       const n = numDaDescricao(p.description) ?? p.installment_num ?? p.installment_number
       if (n && !existentes.has(n)) existentes.set(n, p)
     })
-    // Dado legado sem número em lugar nenhum (nem "(3/12)" na descrição, nem
-    // installment_num): trata a linha mais antiga como sendo a parcela 1.
-    // Sem esta guarda, Math.min de um Map vazio dá Infinity e a linha seguinte
-    // estoura com "Cannot read properties of undefined", travando a tela.
+    // GUARDA DE IDEMPOTÊNCIA — precisa vir antes de tudo.
+    // Uma linha legada sem número (sem "(3/12)" na descrição e sem
+    // installment_num) nunca entra em `existentes`. Sem esta guarda, a cada
+    // carregamento de tela o grupo parecia estar faltando uma parcela e uma
+    // nova linha era criada, duplicando dados a cada visita. Contar as LINHAS
+    // (e não os números reconhecidos) torna a operação segura de repetir.
+    if (parcelas.length >= total) continue
+
+    // Dado legado sem número em lugar nenhum: trata a linha mais antiga como
+    // sendo a parcela 1. Sem esta guarda, Math.min de um Map vazio dá Infinity
+    // e a linha seguinte estoura com "Cannot read properties of undefined".
     if (existentes.size === 0) {
       const maisAntiga = [...parcelas].sort((a, b) =>
         (a.purchase_date || '').localeCompare(b.purchase_date || ''))[0]
       if (!maisAntiga?.purchase_date) continue
       existentes.set(1, maisAntiga)
+      // Normaliza a linha no banco para ela passar a ser reconhecida como a
+      // parcela 1 daqui pra frente, em vez de continuar "invisível"
+      await s.from('transactions').update({
+        installment_num: 1,
+        description: `${baseDaDescricao(maisAntiga.description)} (1/${total})`,
+      }).eq('id', maisAntiga.id)
     }
     if (existentes.size >= total) continue // grupo completo, nada a fazer
 
