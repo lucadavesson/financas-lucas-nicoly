@@ -18,6 +18,7 @@ import { calcBillingMonth } from '@/lib/utils'
  * sempre mostrem o mesmo status (fonte única de verdade: o banco).
  */
 export async function autoCorrigirStatusVencido(): Promise<{ corrigidas: number }> {
+  try {
   const s = createClient()
   const mesHoje = format(new Date(), 'yyyy-MM')
 
@@ -52,6 +53,10 @@ export async function autoCorrigirStatusVencido(): Promise<{ corrigidas: number 
     if (!upErr) corrigidas++
   }
   return { corrigidas }
+  } catch (e) {
+    console.error('autoCorrigirStatusVencido:', e)
+    return { corrigidas: 0 }
+  }
 }
 
 /** Extrai o número da parcela de uma descrição no formato "Nome (3/12)". */
@@ -82,6 +87,7 @@ function baseDaDescricao(desc: string): string {
  * É idempotente: só insere números de parcela que ainda não existem no grupo.
  */
 export async function materializarParcelasFaltantes(): Promise<{ criadas: number }> {
+  try {
   const s = createClient()
   const { data: { user } } = await s.auth.getUser()
   if (!user) return { criadas: 0 }
@@ -116,11 +122,22 @@ export async function materializarParcelasFaltantes(): Promise<{ criadas: number
       const n = numDaDescricao(p.description) ?? p.installment_num ?? p.installment_number
       if (n && !existentes.has(n)) existentes.set(n, p)
     })
+    // Dado legado sem número em lugar nenhum (nem "(3/12)" na descrição, nem
+    // installment_num): trata a linha mais antiga como sendo a parcela 1.
+    // Sem esta guarda, Math.min de um Map vazio dá Infinity e a linha seguinte
+    // estoura com "Cannot read properties of undefined", travando a tela.
+    if (existentes.size === 0) {
+      const maisAntiga = [...parcelas].sort((a, b) =>
+        (a.purchase_date || '').localeCompare(b.purchase_date || ''))[0]
+      if (!maisAntiga?.purchase_date) continue
+      existentes.set(1, maisAntiga)
+    }
     if (existentes.size >= total) continue // grupo completo, nada a fazer
 
     // Data da parcela 1 (retrocalculada se a 1 não existir)
     const menorNum = Math.min(...Array.from(existentes.keys()))
-    const refer = existentes.get(menorNum)!
+    const refer = existentes.get(menorNum)
+    if (!refer?.purchase_date) continue
     const dataParcela1 = addMonths(parseISO(refer.purchase_date), -(menorNum - 1))
 
     const modelo = existentes.get(1) || refer
@@ -170,4 +187,9 @@ export async function materializarParcelasFaltantes(): Promise<{ criadas: number
   const { error } = await s.from('transactions').insert(novasLinhas)
   if (error) return { criadas: 0 }
   return { criadas: novasLinhas.length }
+  } catch (e) {
+    // Correção de dado legado nunca pode impedir a tela de carregar
+    console.error('materializarParcelasFaltantes:', e)
+    return { criadas: 0 }
+  }
 }
