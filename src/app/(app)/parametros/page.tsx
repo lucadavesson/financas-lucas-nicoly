@@ -42,6 +42,8 @@ export default function Parametros() {
   const [salaryAmountN, setSalaryAmountN] = useState('')
   // Recorrentes
   const [recurrents, setRecurrents] = useState<any[]>([])
+  const [editingDueDay, setEditingDueDay] = useState<string|null>(null)
+  const [dueDayRaw, setDueDayRaw] = useState('')
   // Segurança
   const [faceIdEnabled, setFaceIdEnabled] = useState(false)
   const [userId, setUserId] = useState('')
@@ -198,6 +200,16 @@ export default function Parametros() {
   async function loadRecurrents(){
     const {data}=await createClient().from('transactions').select('*').eq('is_recurring',true).order('description')
     setRecurrents(data||[])
+  }
+  async function saveDueDay(tx:any){
+    const dia=parseInt(dueDayRaw)
+    if(!dia||dia<1||dia>31){toast.error('Informe um dia válido (1-31)');return}
+    // Atualiza todas as ocorrências dessa recorrente (mesma descrição+titular), não só o template mais recente
+    const {error}=await createClient().from('transactions').update({recurring_day:dia}).eq('description',tx.description).eq('holder',tx.holder).eq('is_recurring',true)
+    if(error){toast.error('Erro ao salvar');return}
+    toast.success('Dia de vencimento salvo!')
+    setEditingDueDay(null); setDueDayRaw('')
+    loadRecurrents()
   }
 
   // ── Segurança ──
@@ -417,18 +429,42 @@ export default function Parametros() {
         {backBtn()}
         <h2 style={{fontSize:17,fontWeight:700,color:TEXT,flex:1}}>Contas Recorrentes</h2>
       </div>
-      <p style={{fontSize:12,color:TEXTMU,marginBottom:16,paddingLeft:4}}>Lançamentos marcados como recorrentes. Eles serão gerados automaticamente todo mês.</p>
+      <p style={{fontSize:12,color:TEXTMU,marginBottom:16,paddingLeft:4}}>Lançamentos marcados como recorrentes. Eles serão gerados automaticamente todo mês. Contas no cartão de crédito não precisam de dia de vencimento próprio — elas entram na fatura e o alerta é feito por lá.</p>
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        {recurrents.map(tx=>(
-          <div key={tx.id} style={{...sCard,padding:'14px 16px',display:'flex',alignItems:'center',gap:12}}>
-            <span style={{fontSize:18}}>{CAT_ICONS[tx.category]||'📦'}</span>
-            <div style={{flex:1,minWidth:0}}>
-              <p style={{fontSize:13,fontWeight:600,color:TEXT,margin:0}}>{tx.description}</p>
-              <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>{tx.holder} · Dia {tx.recurring_day||'?'} · {tx.payment_method}</p>
+        {recurrents.map(tx=>{
+          const isCartaoRec = tx.payment_method==='cartao_credito'
+          const semVencimento = !isCartaoRec && !tx.recurring_day
+          const isEditing = editingDueDay===tx.id
+          return (
+          <div key={tx.id} style={{...sCard,padding:'14px 16px',display:'flex',flexDirection:'column',gap:8,border:semVencimento?'1px solid rgba(255,149,0,0.35)':undefined}}>
+            <div style={{display:'flex',alignItems:'center',gap:12}}>
+              <span style={{fontSize:18}}>{CAT_ICONS[tx.category]||'📦'}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{fontSize:13,fontWeight:600,color:TEXT,margin:0}}>{tx.description}</p>
+                <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
+                  {tx.holder} · {isCartaoRec?'Fatura do cartão':`Vence dia ${tx.recurring_day||'?'}`} · {tx.payment_method}
+                </p>
+              </div>
+              <p style={{fontSize:14,fontWeight:700,color:RED,margin:0}}>{formatCurrency(tx.expected_amount||tx.amount)}</p>
             </div>
-            <p style={{fontSize:14,fontWeight:700,color:RED,margin:0}}>{formatCurrency(tx.expected_amount||tx.amount)}</p>
+            {!isCartaoRec&&(isEditing?(
+              <div style={{display:'flex',gap:8,alignItems:'center',paddingLeft:30}}>
+                <input type="number" min={1} max={31} value={dueDayRaw} onChange={e=>setDueDayRaw(e.target.value)}
+                  placeholder="Dia" autoFocus
+                  style={{width:70,height:34,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:8,padding:'0 10px',fontSize:13,color:TEXT,outline:'none'}}/>
+                <button onClick={()=>saveDueDay(tx)} style={{height:34,padding:'0 12px',background:TERRA,color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>Salvar</button>
+                <button onClick={()=>{setEditingDueDay(null);setDueDayRaw('')}} style={{height:34,padding:'0 12px',background:'rgba(0,0,0,0.04)',color:TEXTMU,border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>Cancelar</button>
+              </div>
+            ):(
+              <div style={{paddingLeft:30}}>
+                <button onClick={()=>{setEditingDueDay(tx.id);setDueDayRaw(tx.recurring_day?String(tx.recurring_day):'')}}
+                  style={{fontSize:11,fontWeight:700,color:semVencimento?'#B37700':TERRA,background:semVencimento?'rgba(255,149,0,0.1)':'rgba(196,98,45,0.08)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
+                  {semVencimento?'⚠️ Definir dia de vencimento':'✏️ Editar dia de vencimento'}
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
+        )})}
         {recurrents.length===0&&<p style={{fontSize:13,color:TEXTMU,textAlign:'center',padding:20}}>Nenhuma conta recorrente cadastrada. Crie um lançamento do tipo "Recorrente".</p>}
       </div>
     </div>

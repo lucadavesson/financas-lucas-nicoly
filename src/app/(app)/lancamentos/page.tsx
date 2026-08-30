@@ -7,6 +7,7 @@ import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, SlidersHorizontal, X } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
 
 
 type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;type?:string;payment_method?:string;card_name?:string;is_recurring?:boolean }
@@ -63,6 +64,7 @@ export default function Lancamentos() {
 
   async function loadData() {
     setLoad(true)
+    await autoCorrigirStatusVencido()
     const {data}=await createClient().from('transactions').select('*')
       .gte('purchase_date',format(startOfMonth(date),'yyyy-MM-dd'))
       .lte('purchase_date',format(endOfMonth(date),'yyyy-MM-dd'))

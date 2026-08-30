@@ -5,6 +5,7 @@ import { formatCurrency, CAT_ICONS } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, parseISO, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronDown, ChevronUp, ArrowUp, ArrowDown } from 'lucide-react'
+import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
 
 const BG='#F5F5F7',TEXT='#1C1C1E',TEXTLT='#48484A',TEXTMU='#8E8E93'
 const GREEN='#34C759',TERRA='#C4622D'
@@ -49,6 +50,7 @@ export default function Cartoes() {
 
   async function load(){
     setLoading(true)
+    await autoCorrigirStatusVencido()
     const s=createClient()
     const [{data:cardsData},{data:txDataCartao},{data:txDataParc}]=await Promise.all([
       s.from('cards').select('*').eq('is_active',true).order('holder').order('name'),

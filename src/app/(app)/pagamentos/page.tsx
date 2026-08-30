@@ -6,6 +6,7 @@ import { format, startOfMonth, endOfMonth, parseISO, addDays, subMonths, addMont
 import { ptBR } from 'date-fns/locale'
 import { Check, ChevronDown, ChevronUp, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
+import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
 import Link from 'next/link'
 
 const BG     = '#F5F5F7'
@@ -79,6 +80,7 @@ export default function Pagamentos() {
 
   async function load() {
     setLoad(true)
+    await autoCorrigirStatusVencido()
     const s = createClient()
     const [{ data: txData }, { data: cardData }] = await Promise.all([
       s.from('transactions').select('*')

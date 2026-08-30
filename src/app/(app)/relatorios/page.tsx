@@ -5,6 +5,7 @@ import { formatCurrency, CAT_ICONS } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, subMonths, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Eye, EyeOff, X } from 'lucide-react'
+import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
 
 const BG='#F5F5F7',CARD='#FFFFFF',TEXT='#1C1C1E',TEXTLT='#48484A',TEXTMU='#8E8E93'
 const GREEN='#34C759',RED='#FF3B30',TERRA='#C4622D'
@@ -44,6 +45,7 @@ export default function Relatorios() {
 
   async function load(){
     setLoading(true)
+    await autoCorrigirStatusVencido()
     const start=format(startOfMonth(subMonths(date,5)),'yyyy-MM-dd')
     const end=format(endOfMonth(date),'yyyy-MM-dd')
     const {data}=await createClient().from('transactions').select('*').gte('purchase_date',start).lte('purchase_date',end)

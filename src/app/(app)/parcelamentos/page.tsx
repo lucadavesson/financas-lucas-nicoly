@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS, calcBillingMonth, maskCurrency, unmaskCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
+import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
 import { format, parseISO, subMonths, addMonths } from 'date-fns'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 
@@ -67,6 +68,7 @@ export default function Parcelamentos() {
 
   async function load() {
     setLoading(true)
+    await autoCorrigirStatusVencido()
     const from = format(subMonths(new Date(), 36), 'yyyy-MM-dd')
     const s = createClient()
     const [{ data }, { data: cardsData }] = await Promise.all([
@@ -80,7 +82,10 @@ export default function Parcelamentos() {
     setLoading(false)
   }
 
-  const grupos = useMemo(() => {
+  const [filtro, setFiltro] = useState<'todos'|'abertos'|'quitados'>('todos')
+  const [ordenacao, setOrdenacao] = useState<'menos_faltam'|'mais_faltam'|'az'|'recentes'>('menos_faltam')
+
+  const gruposBase = useMemo(() => {
     const map = new Map<string, { base:string; parcelas:Tx[]; holder:string; card:string; category:string; totalParcelas:number; valorParcela:number; valorTotal:number }>()
 
     for (const tx of txs) {
@@ -106,16 +111,38 @@ export default function Parcelamentos() {
 
     for (const g of map.values()) g.parcelas.sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date))
 
-    return Array.from(map.values()).sort((a,b)=>{
+    return Array.from(map.values())
+  }, [txs])
+
+  const grupos = useMemo(() => {
+    let arr = gruposBase.filter(g=>{
+      const restam = g.parcelas.filter(p=>p.status!=='Pago').length
+      const finalizada = restam<=0
+      if (filtro==='abertos') return !finalizada
+      if (filtro==='quitados') return finalizada
+      return true
+    })
+
+    arr = arr.sort((a,b)=>{
       const aRestam=a.parcelas.filter(p=>p.status!=='Pago').length
       const bRestam=b.parcelas.filter(p=>p.status!=='Pago').length
       const aFinal=aRestam<=0
       const bFinal=bRestam<=0
-      if(aFinal!==bFinal)return aFinal?1:-1 // quitados vão pro final
-      if(aRestam!==bRestam)return aRestam-bRestam // menos restantes primeiro
+      // Quitados sempre vão pro final, exceto quando o filtro é só "Quitados"
+      if (filtro!=='quitados' && aFinal!==bFinal) return aFinal?1:-1
+
+      if (ordenacao==='az') return a.base.localeCompare(b.base)
+      if (ordenacao==='recentes') return b.parcelas[0].purchase_date.localeCompare(a.parcelas[0].purchase_date)
+      if (ordenacao==='mais_faltam') {
+        if (aRestam!==bRestam) return bRestam-aRestam
+        return a.base.localeCompare(b.base)
+      }
+      // menos_faltam (padrão)
+      if (aRestam!==bRestam) return aRestam-bRestam
       return a.base.localeCompare(b.base)
     })
-  }, [txs])
+    return arr
+  }, [gruposBase, filtro, ordenacao])
 
   if (loading) return (
     <div style={{background:BG,minHeight:'100%',display:'flex',justifyContent:'center',alignItems:'center',paddingTop:80}}>
@@ -124,8 +151,8 @@ export default function Parcelamentos() {
     </div>
   )
 
-  const totalPendente=grupos.reduce((s,g)=>s+g.parcelas.filter(p=>p.status!=='Pago').reduce((ss,p)=>ss+(p.installment_value||p.amount),0),0)
-  const totalGeral=grupos.reduce((s,g)=>s+g.valorTotal,0)
+  const totalPendente=gruposBase.reduce((s,g)=>s+g.parcelas.filter(p=>p.status!=='Pago').reduce((ss,p)=>ss+(p.installment_value||p.amount),0),0)
+  const totalGeral=gruposBase.reduce((s,g)=>s+g.valorTotal,0)
 
   return (
     <div style={{background:BG,minHeight:'100%',padding:'14px 14px 160px'}}>
@@ -144,10 +171,33 @@ export default function Parcelamentos() {
         </div>
       </div>
 
+      {/* Filtro e ordenação */}
+      <div style={{display:'flex',gap:8,marginBottom:16}}>
+        <div style={{flex:1,position:'relative'}}>
+          <select value={filtro} onChange={e=>setFiltro(e.target.value as any)}
+            style={{width:'100%',height:38,background:'#fff',border:'1px solid rgba(0,0,0,0.08)',borderRadius:10,padding:'0 12px',fontSize:12,fontWeight:600,color:TEXT,outline:'none',appearance:'none' as const}}>
+            <option value="todos">Todos</option>
+            <option value="abertos">Em aberto</option>
+            <option value="quitados">Quitados</option>
+          </select>
+        </div>
+        <div style={{flex:1.4,position:'relative'}}>
+          <select value={ordenacao} onChange={e=>setOrdenacao(e.target.value as any)}
+            style={{width:'100%',height:38,background:'#fff',border:'1px solid rgba(0,0,0,0.08)',borderRadius:10,padding:'0 12px',fontSize:12,fontWeight:600,color:TEXT,outline:'none',appearance:'none' as const}}>
+            <option value="menos_faltam">Menos parcelas faltando</option>
+            <option value="mais_faltam">Mais parcelas faltando</option>
+            <option value="recentes">Compra mais recente</option>
+            <option value="az">Ordem alfabética</option>
+          </select>
+        </div>
+      </div>
+
       {grupos.length===0?(
         <div style={{textAlign:'center',padding:'48px 0'}}>
-          <p style={{fontSize:32,margin:'0 0 12px'}}>🎉</p>
-          <p style={{fontSize:14,fontWeight:600,color:GREEN}}>Nenhuma compra parcelada!</p>
+          <p style={{fontSize:32,margin:'0 0 12px'}}>{gruposBase.length===0?'🎉':'🔎'}</p>
+          <p style={{fontSize:14,fontWeight:600,color:gruposBase.length===0?GREEN:TEXTMU}}>
+            {gruposBase.length===0?'Nenhuma compra parcelada!':'Nenhum resultado para esse filtro'}
+          </p>
         </div>
       ):(
         <div style={{display:'flex',flexDirection:'column',gap:10}}>

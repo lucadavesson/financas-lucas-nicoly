@@ -1,5 +1,7 @@
 'use client'
 import { generateRecurrents } from '@/lib/utils/recurrents'
+import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
+import { getCicloFechado, cicloEhRecente } from '@/lib/utils/faturaEngine'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
@@ -41,12 +43,16 @@ export default function Dashboard() {
   const [goals,setGoals]=useState<any[]>([])
   const [cards,setCards]=useState<any[]>([])
   const [faturaPorCartao,setFaturaPorCartao]=useState<Record<string,number>>({})
+  const [faturasFechadas,setFaturasFechadas]=useState<{cardId:string;cardName:string;ciclo:string;total:number}[]>([])
+  const [confirmandoFatura,setConfirmandoFatura]=useState<{cardId:string;cardName:string;ciclo:string;total:number}|null>(null)
+  const [confirmValorRaw,setConfirmValorRaw]=useState('')
   useEffect(()=>{load()}, [curMonth])
   useEffect(()=>{try{sessionStorage.setItem('ln_dash_secs',JSON.stringify(dashSecs))}catch{}},[dashSecs])
   const togSec=(k:string)=>setDashSecs(p=>({...p,[k]:!p[k]}))
 
   async function load() {
     setLoad(true)
+    await autoCorrigirStatusVencido()
     const s=createClient()
     const {data:{user}}=await s.auth.getUser()
     const monthStart=format(startOfMonth(curMonth),'yyyy-MM-dd')
@@ -79,6 +85,22 @@ export default function Dashboard() {
       faturaMap[key]=(faturaMap[key]||0)+(t.installment_value||t.amount||0)
     })
     setFaturaPorCartao(faturaMap)
+
+    // Detectar faturas que acabaram de fechar e ainda não foram confirmadas pelo usuário
+    const pendentesConfirmacao:{cardId:string;cardName:string;ciclo:string;total:number}[]=[]
+    ;(cardsData||[]).forEach((c:any)=>{
+      if(c.card_type&&c.card_type!=='credito')return
+      const ciclo=getCicloFechado(c.closing_day||1)
+      if(!cicloEhRecente(ciclo))return
+      if(c.last_confirmed_billing_month===ciclo)return // já confirmada
+      const cardName=`${c.name} — ${c.holder}`
+      const total=(faturaTxs||[]).filter((t:any)=>t.card_name===cardName&&(t.billing_month||t.purchase_date)===ciclo)
+        .reduce((sum:number,t:any)=>sum+(t.installment_value||t.amount||0),0)
+      if(total<=0)return
+      pendentesConfirmacao.push({cardId:c.id,cardName,ciclo,total})
+    })
+    setFaturasFechadas(pendentesConfirmacao)
+
     const lm:Record<string,number>={}
     limitsData?.forEach((r:any)=>{lm[r.category]=r.limit_amount})
     setCatLimits(lm)
@@ -126,6 +148,27 @@ export default function Dashboard() {
     load()
   }
 
+  function openConfirmFatura(f:{cardId:string;cardName:string;ciclo:string;total:number}) {
+    setConfirmValorRaw(maskCurrency(Math.round(f.total*100).toString()))
+    setConfirmandoFatura(f)
+  }
+
+  async function confirmFatura() {
+    if (!confirmandoFatura) return
+    const valorReal = unmaskCurrency(confirmValorRaw) || confirmandoFatura.total
+    const { error } = await createClient().from('cards').update({
+      last_confirmed_billing_month: confirmandoFatura.ciclo,
+      last_confirmed_total: valorReal,
+    }).eq('id', confirmandoFatura.cardId)
+    if (error) {
+      toast.error('Ainda não é possível salvar — falta rodar a migration supabase-fatura-confirmation.sql no banco')
+      return
+    }
+    toast.success(`✓ Fatura ${confirmandoFatura.cardName} confirmada`)
+    setConfirmandoFatura(null)
+    load()
+  }
+
   const v=(n:number)=>hide?'•••':formatCurrency(n)
   const isReceita=(t:Tx)=>t.transaction_type==='receita'||t.type==='Receita'
   const despesas=txs.filter(t=>!isReceita(t))
@@ -160,6 +203,20 @@ export default function Dashboard() {
   const venceHoje=despesas.filter(t=>t.status!=="Pago"&&t.status!=="Cancelado"&&t.purchase_date===hojeStr&&!isCartao(t))
   const em3dias=format(addDays(hoje,3),'yyyy-MM-dd')
   const venceEmBreve=despesas.filter(t=>t.status!=="Pago"&&t.status!=="Cancelado"&&!isCartao(t)&&t.purchase_date>hojeStr&&t.purchase_date<=em3dias)
+
+  // Faturas de cartão a vencer/vencidas — só faz sentido olhando o mês corrente
+  const faturasAtencao = isCurrentMonth ? Object.entries(faturaPorCartao)
+    .filter(([,total])=>total>0)
+    .map(([cardName,total])=>{
+      const cardInfo=cards.find(c=>`${c.name} — ${c.holder}`===cardName)
+      const dueDay=cardInfo?.due_day
+      const dueDate=dueDay?format(new Date(curMonth.getFullYear(),curMonth.getMonth(),dueDay),'yyyy-MM-dd'):null
+      const diasParaVencer=dueDate?Math.round((parseISO(dueDate).getTime()-hoje.getTime())/86400000):null
+      return {cardName,total,dueDay,dueDate,diasParaVencer}
+    })
+    .filter(f=>f.dueDate!==null && (f.diasParaVencer as number)<=3)
+    .sort((a,b)=>(a.diasParaVencer as number)-(b.diasParaVencer as number))
+    : []
 
   const catMap:Record<string,number>={}
   despesas.forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+(t.installment_value||t.amount)})
@@ -298,6 +355,53 @@ export default function Dashboard() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Fatura fechou e ainda não foi confirmada pelo usuário */}
+      {faturasFechadas.length>0&&(
+        <div style={{...card(),background:'rgba(0,122,255,0.05)',border:'1px solid rgba(0,122,255,0.18)',marginBottom:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
+            <span style={{fontSize:14}}>🔒</span>
+            <p style={{fontSize:13,fontWeight:700,color:BLUE,margin:0}}>Fatura{faturasFechadas.length>1?'s':''} fechada{faturasFechadas.length>1?'s':''} — confirme o valor</p>
+          </div>
+          {faturasFechadas.map((f,i)=>(
+            <div key={f.cardId} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:i>0?'0.5px solid rgba(0,0,0,0.05)':undefined}}>
+              <div>
+                <p style={{fontSize:13,fontWeight:600,color:TEXT,margin:0}}>{f.cardName}</p>
+                <p style={{fontSize:11,color:BLUE,fontWeight:600,margin:'2px 0 0'}}>Calculado: {v(f.total)}</p>
+              </div>
+              <button onClick={()=>openConfirmFatura(f)} style={{fontSize:11,fontWeight:700,color:'#fff',background:BLUE,border:'none',borderRadius:8,padding:'5px 12px',cursor:'pointer'}}>Confirmar</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Faturas de cartão a vencer/vencidas — sempre visível, não colapsa */}
+      {faturasAtencao.length>0&&(
+        <div style={{...card(),background:'rgba(196,98,45,0.05)',border:'1px solid rgba(196,98,45,0.18)',marginBottom:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
+            <span style={{fontSize:14}}>💳</span>
+            <p style={{fontSize:13,fontWeight:700,color:TERRA,margin:0}}>Fatura{faturasAtencao.length>1?'s':''} de cartão — {faturasAtencao.length}</p>
+          </div>
+          {faturasAtencao.map((f,i)=>{
+            const venceu=(f.diasParaVencer as number)<0
+            const hojeVence=f.diasParaVencer===0
+            return (
+              <div key={f.cardName} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:i>0?'0.5px solid rgba(0,0,0,0.05)':undefined}}>
+                <div>
+                  <p style={{fontSize:13,fontWeight:600,color:TEXT,margin:0}}>{f.cardName}</p>
+                  <p style={{fontSize:11,color:venceu?RED:TERRA,fontWeight:600,margin:'2px 0 0'}}>
+                    {venceu?`Venceu dia ${f.dueDay} — atualize o status`:hojeVence?`Vence hoje, dia ${f.dueDay}`:`Vence dia ${f.dueDay}`}
+                  </p>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{fontSize:13,fontWeight:700,color:venceu?RED:TERRA}}>{v(f.total)}</span>
+                  <Link href="/pagamentos" style={{fontSize:11,fontWeight:700,color:'#fff',background:venceu?RED:TERRA,borderRadius:8,padding:'4px 10px',textDecoration:'none'}}>Pagar</Link>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -499,6 +603,44 @@ export default function Dashboard() {
             <div style={{display:'flex',gap:8}}>
               <button onClick={()=>setPayModal(null)} style={{flex:1,height:46,background:'#F5F5F7',color:'#48484A',borderRadius:12,border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancelar</button>
               <button onClick={confirmPay} style={{flex:1,height:46,background:'#34C759',color:'#fff',borderRadius:12,border:'none',fontSize:14,fontWeight:700,cursor:'pointer'}}>✓ Confirmar</button>
+            </div>
+          </div>
+        </div>
+        )})()}
+
+      {/* Modal confirmar fechamento de fatura */}
+      {confirmandoFatura&&(()=>{
+        const valorCalculado=confirmandoFatura.total
+        const valorReal=unmaskCurrency(confirmValorRaw)||0
+        const diff=valorReal-valorCalculado
+        const temDiferenca=Math.abs(diff)>0.01
+        return (
+        <div style={{position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setConfirmandoFatura(null)}>
+          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.3)',backdropFilter:'blur(4px)'}}/>
+          <div style={{position:'relative',width:'88%',maxWidth:340,background:'#fff',borderRadius:20,padding:'24px 16px',boxShadow:'0 8px 40px rgba(0,0,0,0.15)'}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{fontSize:16,fontWeight:700,color:'#1C1C1E',margin:'0 0 4px'}}>Fatura fechou 🔒</h3>
+            <p style={{fontSize:13,color:'#8E8E93',margin:'0 0 4px'}}>{confirmandoFatura.cardName}</p>
+            <p style={{fontSize:12,color:'#48484A',margin:'0 0 16px'}}>Valor calculado pelo app: <strong>{v(valorCalculado)}</strong></p>
+            <div style={{marginBottom:temDiferenca?10:20}}>
+              <label style={{fontSize:11,fontWeight:600,color:'#8E8E93',display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.05em'}}>Valor real da fatura</label>
+              <div style={{position:'relative'}}>
+                <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:14,color:'#8E8E93',fontWeight:600}}>R$</span>
+                <input type="text" inputMode="numeric" value={confirmValorRaw}
+                  onChange={e=>setConfirmValorRaw(maskCurrency(e.target.value))}
+                  style={{width:'100%',height:44,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:10,padding:'0 14px 0 40px',fontSize:16,fontWeight:700,color:'#1C1C1E',outline:'none',boxSizing:'border-box'}}/>
+              </div>
+              <p style={{fontSize:11,color:'#8E8E93',margin:'6px 0 0'}}>Se você esqueceu de lançar alguma compra, ajuste aqui o valor real que veio na fatura do banco.</p>
+            </div>
+            {temDiferenca&&(
+              <div style={{background:'rgba(255,149,0,0.08)',borderRadius:10,padding:'8px 12px',marginBottom:16,border:'1px solid rgba(255,149,0,0.15)'}}>
+                <p style={{fontSize:12,color:'#B37700',fontWeight:600,margin:0}}>
+                  ⚠️ {diff>0?'A mais':'A menos'} que o calculado: {v(Math.abs(diff))}
+                </p>
+              </div>
+            )}
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setConfirmandoFatura(null)} style={{flex:1,height:46,background:'#F5F5F7',color:'#48484A',borderRadius:12,border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancelar</button>
+              <button onClick={confirmFatura} style={{flex:1,height:46,background:BLUE,color:'#fff',borderRadius:12,border:'none',fontSize:14,fontWeight:700,cursor:'pointer'}}>✓ Confirmar</button>
             </div>
           </div>
         </div>

@@ -188,6 +188,10 @@ export default function NovoLancamento() {
       toast.error('Preencha todos os campos obrigatórios')
       return
     }
+    if (tipo === 'recorrente' && recMethod !== 'cartao_credito' && !recDay) {
+      toast.error('Informe o dia de vencimento (para o app te avisar quando estiver perto)')
+      return
+    }
     setLoading(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -699,6 +703,11 @@ export default function NovoLancamento() {
             <label style={S.lbl}>Dia do vencimento</label>
             <input type="number" value={recDay} onChange={e=>setRecDay(e.target.value)}
               placeholder="Ex: 15" style={S.inp} min="1" max="31"/>
+            <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
+              {recMethod==='cartao_credito'
+                ? 'Se for no cartão de crédito, o vencimento é o da fatura — pode deixar em branco.'
+                : 'É esse dia que o app usa para te avisar no Início quando estiver perto de vencer.'}
+            </p>
           </div>
 
           <div>
