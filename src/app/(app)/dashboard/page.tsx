@@ -5,13 +5,18 @@ import { getCicloFechado, cicloEhRecente } from '@/lib/utils/faturaEngine'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
-import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns'
+import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronRight, ChevronDown, ChevronUp, ArrowUpRight, ArrowDownRight, Wallet, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
-type Tx = { id:string;holder:string;description:string;category:string;amount:number;status:string;purchase_date:string;transaction_type:string;type?:string;installment_value?:number;payment_method?:string;card_name?:string;paid_amount?:number }
+type Tx = { id:string;holder:string;description:string;category:string;amount:number;status:string;purchase_date:string;transaction_type:string;type?:string;installment_value?:number;payment_method?:string;card_name?:string;paid_amount?:number;is_recurring?:boolean;recurring_day?:number;paid_date?:string }
+
+type Conta = {
+  key:string; txId?:string; titulo:string; subtitulo:string; valor:number
+  dueDate:string; tipo:'conta'|'fatura'; pago:boolean; categoria?:string
+}
 
 const BG='#F5F5F7'; const TEXT='#1C1C1E'; const TEXTLT='#48484A'; const TEXTMU='#8E8E93'
 const GREEN='#34C759'; const GREENBG='rgba(52,199,89,0.08)'; const RED='#FF3B30'; const REDBG='rgba(255,59,48,0.06)'
@@ -46,6 +51,7 @@ export default function Dashboard() {
   const [faturasFechadas,setFaturasFechadas]=useState<{cardId:string;cardName:string;ciclo:string;total:number}[]>([])
   const [confirmandoFatura,setConfirmandoFatura]=useState<{cardId:string;cardName:string;ciclo:string;total:number}|null>(null)
   const [confirmValorRaw,setConfirmValorRaw]=useState('')
+  const [abaContas,setAbaContas]=useState<'a_pagar'|'vencidas'|'pagas'>('a_pagar')
   useEffect(()=>{load()}, [curMonth])
   useEffect(()=>{try{sessionStorage.setItem('ln_dash_secs',JSON.stringify(dashSecs))}catch{}},[dashSecs])
   const togSec=(k:string)=>setDashSecs(p=>({...p,[k]:!p[k]}))
@@ -177,7 +183,6 @@ export default function Dashboard() {
   const totalPrevisto=receitas.filter(t=>t.status==='Previsto').reduce((s,t)=>s+t.amount,0)
   const totalGastou=despesas.reduce((s,t)=>s+(t.installment_value||t.amount),0)
   const totalPago=despesas.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.paid_amount||t.installment_value||t.amount),0)
-  const totalPendente=despesas.filter(t=>t.status!=='Pago'&&t.status!=='Cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)
   const salarioEsperado=(settings?.salary_lucas||0)+(settings?.salary_nicoly||0)
   const saldo=totalEntrou-totalGastou
   const pctPago=totalGastou>0?Math.min(100,(totalPago/totalGastou)*100):0
@@ -187,36 +192,69 @@ export default function Dashboard() {
   const hoje=new Date()
   const hojeStr=format(hoje,'yyyy-MM-dd')
   const isCartao=(t:Tx)=>t.payment_method==='cartao_credito'
-  // Atrasadas: data ANTES de hoje E não pago
-  const atrasados=despesas.filter(t=>{
-    if(t.status==='Pago'||t.status==='Cancelado')return false
-    if(t.status==='Atrasado')return true
-    return t.purchase_date<hojeStr && !isCartao(t)
-  })
-  const totalAtrasado=atrasados.reduce((s,t)=>s+(t.installment_value||t.amount),0)
-  // Próximos: pendentes com data >= hoje (exclui atrasados e cartão)
-  const proximos=despesas.filter(t=>{
-    if(t.status==='Pago'||t.status==='Cancelado')return false
-    if(isCartao(t))return false
-    return t.purchase_date>=hojeStr
-  }).sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date)).slice(0,5)
-  const venceHoje=despesas.filter(t=>t.status!=="Pago"&&t.status!=="Cancelado"&&t.purchase_date===hojeStr&&!isCartao(t))
-  const em3dias=format(addDays(hoje,3),'yyyy-MM-dd')
-  const venceEmBreve=despesas.filter(t=>t.status!=="Pago"&&t.status!=="Cancelado"&&!isCartao(t)&&t.purchase_date>hojeStr&&t.purchase_date<=em3dias)
 
-  // Faturas de cartão a vencer/vencidas — só faz sentido olhando o mês corrente
-  const faturasAtencao = isCurrentMonth ? Object.entries(faturaPorCartao)
+  // ── Central de Contas ──────────────────────────────────────
+  // Data em que a conta REALMENTE precisa ser paga. Para recorrentes usamos o
+  // dia de vencimento configurado (clampado no último dia do mês, p/ dia 31 em
+  // fevereiro); para o resto, a própria data do lançamento.
+  function dueDateDe(t:Tx):string{
+    if(t.recurring_day){
+      const [y,m]=t.purchase_date.split('-').map(Number)
+      const ultimoDia=new Date(y,m,0).getDate()
+      const dia=Math.min(t.recurring_day,ultimoDia)
+      return `${t.purchase_date.slice(0,8)}${String(dia).padStart(2,'0')}`
+    }
+    return t.purchase_date
+  }
+
+  const contasDespesa:Conta[]=despesas
+    .filter(t=>t.status!=='Cancelado'&&!isCartao(t))
+    .map(t=>({
+      key:t.id, txId:t.id,
+      titulo:t.description,
+      subtitulo:`${t.holder} · ${t.category}`,
+      valor:t.status==='Pago'?(t.paid_amount||t.installment_value||t.amount):(t.installment_value||t.amount),
+      dueDate:dueDateDe(t),
+      tipo:'conta' as const,
+      pago:t.status==='Pago',
+      categoria:t.category,
+    }))
+
+  const ultimoDiaMes=new Date(curMonth.getFullYear(),curMonth.getMonth()+1,0).getDate()
+  const contasFatura:Conta[]=Object.entries(faturaPorCartao)
     .filter(([,total])=>total>0)
     .map(([cardName,total])=>{
       const cardInfo=cards.find(c=>`${c.name} — ${c.holder}`===cardName)
-      const dueDay=cardInfo?.due_day
-      const dueDate=dueDay?format(new Date(curMonth.getFullYear(),curMonth.getMonth(),dueDay),'yyyy-MM-dd'):null
-      const diasParaVencer=dueDate?Math.round((parseISO(dueDate).getTime()-hoje.getTime())/86400000):null
-      return {cardName,total,dueDay,dueDate,diasParaVencer}
+      const dia=Math.min(cardInfo?.due_day||1,ultimoDiaMes)
+      return {
+        key:'fatura_'+cardName,
+        titulo:`Fatura ${cardName}`,
+        subtitulo:'Cartão de crédito',
+        valor:total,
+        dueDate:format(new Date(curMonth.getFullYear(),curMonth.getMonth(),dia),'yyyy-MM-dd'),
+        tipo:'fatura' as const,
+        pago:false,
+      }
     })
-    .filter(f=>f.dueDate!==null && (f.diasParaVencer as number)<=3)
-    .sort((a,b)=>(a.diasParaVencer as number)-(b.diasParaVencer as number))
-    : []
+
+  const todasContas=[...contasDespesa,...contasFatura]
+  const porVencimento=(a:Conta,b:Conta)=>a.dueDate.localeCompare(b.dueDate)
+  const contasVencidas=todasContas.filter(c=>!c.pago&&c.dueDate<hojeStr).sort(porVencimento)
+  const contasAPagar=todasContas.filter(c=>!c.pago&&c.dueDate>=hojeStr).sort(porVencimento)
+  const contasPagas=todasContas.filter(c=>c.pago).sort((a,b)=>b.dueDate.localeCompare(a.dueDate))
+  const contasVisiveis=abaContas==='vencidas'?contasVencidas:abaContas==='pagas'?contasPagas:contasAPagar
+  const totalVencidas=contasVencidas.reduce((s,c)=>s+c.valor,0)
+  const totalAPagar=contasAPagar.reduce((s,c)=>s+c.valor,0)
+
+  // Rótulo de status no estilo do extrato de boletos do banco
+  function labelVencimento(c:Conta){
+    const dias=Math.round((parseISO(c.dueDate).getTime()-parseISO(hojeStr).getTime())/86400000)
+    if(c.pago)return {txt:`Pago · ${format(parseISO(c.dueDate),'dd/MM/yy')}`,cor:GREEN,icone:'✓'}
+    if(dias<0)return {txt:`Venceu em ${format(parseISO(c.dueDate),'dd/MM/yy')}`,cor:RED,icone:'⚠️'}
+    if(dias===0)return {txt:`Vence hoje, ${format(parseISO(c.dueDate),'dd/MM/yy')}`,cor:'#CC7700',icone:'🔔'}
+    if(dias<=3)return {txt:`Vence em ${format(parseISO(c.dueDate),'dd/MM/yy')}`,cor:'#CC7700',icone:'⏰'}
+    return {txt:`Vence em ${format(parseISO(c.dueDate),'dd/MM/yy')}`,cor:TEXTLT,icone:'📅'}
+  }
 
   const catMap:Record<string,number>={}
   despesas.forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+(t.installment_value||t.amount)})
@@ -249,56 +287,63 @@ export default function Dashboard() {
 
       
       
-      {/* Saldo */}
-      <div style={{...card()}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
-          <div>
-            <p style={{fontSize:12,color:TEXTMU,margin:'0 0 4px'}}>Saldo disponível</p>
-            <p style={{fontSize:24,fontWeight:800,color:saldo>=0?GREEN:RED,margin:0,lineHeight:1,fontVariantNumeric:'tabular-nums'}}>{v(saldo)}</p>
+      {/* ── Hero: saldo do mês ────────────────────────────── */}
+      <div style={{borderRadius:26,padding:'22px 22px 20px',marginBottom:12,position:'relative',overflow:'hidden',
+        background:'linear-gradient(150deg,#3A2016 0%,#5C3320 55%,#7A4526 100%)',boxShadow:'0 6px 22px rgba(58,32,22,0.28)'}}>
+        <div style={{position:'absolute',top:-70,right:-50,width:210,height:210,borderRadius:'50%',background:'rgba(255,255,255,0.05)',pointerEvents:'none'}}/>
+        <div style={{position:'absolute',bottom:-90,left:-40,width:170,height:170,borderRadius:'50%',background:'rgba(255,255,255,0.035)',pointerEvents:'none'}}/>
+
+        <div style={{position:'relative'}}>
+          <p style={{fontSize:12,color:'rgba(255,255,255,0.55)',margin:'0 0 6px',letterSpacing:'0.02em'}}>Saldo disponível</p>
+          <p style={{fontSize:36,fontWeight:800,color:'#fff',margin:0,lineHeight:1.05,letterSpacing:'-1px',fontVariantNumeric:'tabular-nums'}}>{v(saldo)}</p>
+          <p style={{fontSize:12,color:saldo>=0?'rgba(120,230,160,0.9)':'rgba(255,140,130,0.95)',fontWeight:600,margin:'8px 0 0'}}>
+            {saldo>0?`Pode gastar ${v(gastoDia)}/dia · ${diasRest} dias restantes`:'Orçamento estourado neste mês'}
+          </p>
+
+          <div style={{display:'flex',gap:10,marginTop:20}}>
+            <div style={{flex:1,background:'rgba(255,255,255,0.09)',borderRadius:16,padding:'11px 13px',backdropFilter:'blur(6px)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:5}}>
+                <ArrowUpRight size={13} color="rgba(120,230,160,0.95)"/>
+                <span style={{fontSize:11,color:'rgba(255,255,255,0.6)',fontWeight:600}}>Entrou</span>
+              </div>
+              <p style={{fontSize:16,fontWeight:700,color:'#fff',margin:0,fontVariantNumeric:'tabular-nums'}}>{v(totalEntrou)}</p>
+              {totalPrevisto>0&&<p style={{fontSize:10,color:'rgba(255,255,255,0.4)',margin:'2px 0 0'}}>+{v(totalPrevisto)} previsto</p>}
+            </div>
+            <div style={{flex:1,background:'rgba(255,255,255,0.09)',borderRadius:16,padding:'11px 13px',backdropFilter:'blur(6px)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:5}}>
+                <ArrowDownRight size={13} color="rgba(255,150,140,0.95)"/>
+                <span style={{fontSize:11,color:'rgba(255,255,255,0.6)',fontWeight:600}}>Gastou</span>
+              </div>
+              <p style={{fontSize:16,fontWeight:700,color:'#fff',margin:0,fontVariantNumeric:'tabular-nums'}}>{v(totalGastou)}</p>
+              <p style={{fontSize:10,color:'rgba(255,255,255,0.4)',margin:'2px 0 0'}}>{despesas.length} lançamentos</p>
+            </div>
           </div>
-          <div style={{textAlign:'right'}}>
-            {saldo>0?(
-              <>
-                <p style={{fontSize:10,color:TEXTMU,margin:'0 0 2px'}}>Pode gastar</p>
-                <p style={{fontSize:14,fontWeight:600,color:TEXTLT,margin:'0 0 2px',fontVariantNumeric:'tabular-nums'}}>{v(gastoDia)}<span style={{fontSize:10,fontWeight:400,color:TEXTMU}}>/dia</span></p>
-              </>
-            ):(
-              <p style={{fontSize:11,color:RED,fontWeight:600,margin:'0 0 2px'}}>Orçamento estourado</p>
-            )}
-            <p style={{fontSize:10,color:TEXTMU,margin:0}}>{diasRest} dias restantes</p>
-          </div>
-        </div>
-        {/* Grid 2x2 */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-          <div style={{background:GREENBG,borderRadius:12,padding:'12px'}}>
-            <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:6}}><ArrowUpRight size={13} color={GREEN}/><span style={{fontSize:11,color:GREEN,fontWeight:600}}>Entrou</span></div>
-            <p style={{fontSize:18,fontWeight:700,color:'#1C1C1E',margin:'0 0 2px',fontVariantNumeric:'tabular-nums'}}>{v(totalEntrou)}</p>
-            {totalPrevisto>0&&<p style={{fontSize:11,color:TEXTMU,margin:0}}>+ {v(totalPrevisto)} previsto</p>}
-            {salarioEsperado>0&&totalEntrou===0&&totalPrevisto===0&&<p style={{fontSize:11,color:TEXTMU,margin:0}}>Salário esperado: {v(salarioEsperado)}</p>}
-          </div>
-          <div style={{background:REDBG,borderRadius:12,padding:'12px'}}>
-            <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:6}}><ArrowDownRight size={13} color={RED}/><span style={{fontSize:11,color:RED,fontWeight:600}}>Gastou</span></div>
-            <p style={{fontSize:18,fontWeight:700,color:'#1C1C1E',margin:'0 0 2px',fontVariantNumeric:'tabular-nums'}}>{v(totalGastou)}</p>
-            <p style={{fontSize:11,color:TEXTMU,margin:0}}>{despesas.length} lançamentos</p>
-          </div>
-          <div style={{background:'rgba(52,199,89,0.04)',borderRadius:12,padding:'12px'}}>
-            <p style={{fontSize:11,color:GREEN,fontWeight:600,margin:'0 0 6px'}}>✓ Já pagou</p>
-            <p style={{fontSize:18,fontWeight:700,color:'#1C1C1E',margin:0,fontVariantNumeric:'tabular-nums'}}>{v(totalPago)}</p>
-          </div>
-          <div style={{background:'rgba(255,149,0,0.05)',borderRadius:12,padding:'12px'}}>
-            <p style={{fontSize:11,color:'#CC7700',fontWeight:600,margin:'0 0 6px'}}>⏳ Falta pagar</p>
-            <p style={{fontSize:18,fontWeight:700,color:'#1C1C1E',margin:0,fontVariantNumeric:'tabular-nums'}}>{v(totalPendente)}</p>
-          </div>
-        </div>
-        {/* Barra progresso */}
-        <div style={{marginTop:14}}>
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:TEXTMU,marginBottom:5}}>
-            <span>Contas pagas</span><span style={{fontWeight:600,color:pctPago>=100?GREEN:TEXT}}>{pctPago.toFixed(0)}%</span>
-          </div>
-          <div style={{height:6,background:'#FF3B30',borderRadius:99,overflow:'hidden'}}>
-            <div style={{height:'100%',borderRadius:99,width:`${pctPago}%`,background:GREEN,transition:'width 0.5s'}}/>
+
+          <div style={{marginTop:16}}>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'rgba(255,255,255,0.5)',marginBottom:6}}>
+              <span>{v(totalPago)} pago de {v(totalGastou)}</span>
+              <span style={{fontWeight:700,color:pctPago>=100?'rgba(120,230,160,0.95)':'rgba(255,255,255,0.8)'}}>{pctPago.toFixed(0)}%</span>
+            </div>
+            <div style={{height:5,background:'rgba(255,255,255,0.13)',borderRadius:99,overflow:'hidden'}}>
+              <div style={{height:'100%',borderRadius:99,width:`${pctPago}%`,background:'linear-gradient(90deg,rgba(120,230,160,0.7),rgba(120,230,160,1))',transition:'width 0.5s'}}/>
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* ── Atalhos rápidos ────────────────────────────────── */}
+      <div style={{display:'flex',gap:8,marginBottom:14}}>
+        {[
+          {href:'/lancamentos/novo',emoji:'＋',label:'Lançar'},
+          {href:'/pagamentos',emoji:'✓',label:'Pagar'},
+          {href:'/cartoes',emoji:'💳',label:'Cartões'},
+          {href:'/parcelamentos',emoji:'📄',label:'Parcelas'},
+        ].map(a=>(
+          <Link key={a.href} href={a.href} style={{flex:1,background:'#fff',borderRadius:16,padding:'12px 6px',textAlign:'center',textDecoration:'none',border:'1px solid rgba(0,0,0,0.05)',boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+            <p style={{fontSize:17,margin:'0 0 4px',lineHeight:1,color:TERRA}}>{a.emoji}</p>
+            <p style={{fontSize:11,fontWeight:600,color:TEXTLT,margin:0}}>{a.label}</p>
+          </Link>
+        ))}
       </div>
 
       {/* Por pessoa */}
@@ -319,46 +364,7 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Atrasados */}
-      {/* Vence hoje */}
-      {venceHoje.length>0&&(
-        <div style={{...card(),background:'rgba(255,170,0,0.06)',border:'1px solid rgba(255,170,0,0.15)',marginBottom:12}}>
-          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
-            <span style={{fontSize:14}}>🔔</span>
-            <p style={{fontSize:13,fontWeight:700,color:'#CC7700',margin:0}}>Vence hoje — {venceHoje.length} conta{venceHoje.length>1?'s':''}</p>
-          </div>
-          {venceHoje.map((tx,i)=>(
-            <div key={tx.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderTop:i>0?'0.5px solid rgba(0,0,0,0.04)':undefined}}>
-              <span style={{fontSize:13,color:TEXT}}>{tx.description}</span>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <span style={{fontSize:13,fontWeight:700,color:'#CC7700'}}>{v(tx.installment_value||tx.amount)}</span>
-                <button onClick={()=>openPayModal(tx.id,tx.description,tx.installment_value||tx.amount)} style={{padding:'3px 10px',background:'#FF9500',color:'#fff',borderRadius:8,border:'none',fontSize:11,fontWeight:700,cursor:'pointer'}}>Pagar</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Vence em breve (próximos 3 dias) */}
-      {venceEmBreve.length>0&&(
-        <div style={{...card(),background:'rgba(255,204,0,0.06)',border:'1px solid rgba(255,204,0,0.2)',marginBottom:12}}>
-          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
-            <span style={{fontSize:14}}>⏰</span>
-            <p style={{fontSize:13,fontWeight:700,color:'#8A6D00',margin:0}}>Vence em breve — {venceEmBreve.length} conta{venceEmBreve.length>1?'s':''}</p>
-          </div>
-          {venceEmBreve.map((tx,i)=>(
-            <div key={tx.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderTop:i>0?'0.5px solid rgba(0,0,0,0.04)':undefined}}>
-              <span style={{fontSize:13,color:TEXT}}>{tx.description}</span>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <span style={{fontSize:12,color:'#8A6D00',fontWeight:600}}>{format(parseISO(tx.purchase_date),'dd/MM')}</span>
-                <span style={{fontSize:13,fontWeight:700,color:'#8A6D00'}}>{v(tx.installment_value||tx.amount)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Fatura fechou e ainda não foi confirmada pelo usuário */}
+      {/* ── Fatura fechou: confirmar valor real ───────────── */}
       {faturasFechadas.length>0&&(
         <div style={{...card(),background:'rgba(0,122,255,0.05)',border:'1px solid rgba(0,122,255,0.18)',marginBottom:12}}>
           <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
@@ -377,102 +383,96 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Faturas de cartão a vencer/vencidas — sempre visível, não colapsa */}
-      {faturasAtencao.length>0&&(
-        <div style={{...card(),background:'rgba(196,98,45,0.05)',border:'1px solid rgba(196,98,45,0.18)',marginBottom:12}}>
-          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
-            <span style={{fontSize:14}}>💳</span>
-            <p style={{fontSize:13,fontWeight:700,color:TERRA,margin:0}}>Fatura{faturasAtencao.length>1?'s':''} de cartão — {faturasAtencao.length}</p>
-          </div>
-          {faturasAtencao.map((f,i)=>{
-            const venceu=(f.diasParaVencer as number)<0
-            const hojeVence=f.diasParaVencer===0
+      {/* ── Central de Contas ──────────────────────────────── */}
+      <div style={{marginBottom:14}}>
+        <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:10}}>
+          <h3 style={{fontSize:16,fontWeight:800,color:TEXT,margin:0}}>Central de Contas</h3>
+          <Link href="/pagamentos" style={{fontSize:11,color:TERRA,fontWeight:700,textDecoration:'none'}}>Ver todas →</Link>
+        </div>
+
+        {/* Abas */}
+        <div style={{display:'flex',gap:6,marginBottom:12,borderBottom:'1px solid rgba(0,0,0,0.06)'}}>
+          {([
+            {k:'a_pagar' as const, label:'A pagar', n:contasAPagar.length},
+            {k:'vencidas' as const,label:'Vencidas',n:contasVencidas.length},
+            {k:'pagas' as const,   label:'Pagas',   n:contasPagas.length},
+          ]).map(t=>{
+            const on=abaContas===t.k
+            const cor=t.k==='vencidas'&&t.n>0?RED:t.k==='pagas'?GREEN:TERRA
             return (
-              <div key={f.cardName} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:i>0?'0.5px solid rgba(0,0,0,0.05)':undefined}}>
-                <div>
-                  <p style={{fontSize:13,fontWeight:600,color:TEXT,margin:0}}>{f.cardName}</p>
-                  <p style={{fontSize:11,color:venceu?RED:TERRA,fontWeight:600,margin:'2px 0 0'}}>
-                    {venceu?`Venceu dia ${f.dueDay} — atualize o status`:hojeVence?`Vence hoje, dia ${f.dueDay}`:`Vence dia ${f.dueDay}`}
-                  </p>
-                </div>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{fontSize:13,fontWeight:700,color:venceu?RED:TERRA}}>{v(f.total)}</span>
-                  <Link href="/pagamentos" style={{fontSize:11,fontWeight:700,color:'#fff',background:venceu?RED:TERRA,borderRadius:8,padding:'4px 10px',textDecoration:'none'}}>Pagar</Link>
-                </div>
-              </div>
+              <button key={t.k} onClick={()=>setAbaContas(t.k)}
+                style={{background:'none',border:'none',cursor:'pointer',padding:'8px 12px 10px',position:'relative',
+                  fontSize:13,fontWeight:on?800:600,color:on?cor:TEXTMU}}>
+                {t.label} ({t.n})
+                {on&&<div style={{position:'absolute',left:8,right:8,bottom:-1,height:2.5,borderRadius:99,background:cor}}/>}
+              </button>
             )
           })}
         </div>
-      )}
 
-      {atrasados.length>0&&(
-        <div style={{...card(),background:'rgba(255,59,48,0.03)',border:'1px solid rgba(255,59,48,0.1)'}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-            <div style={{display:'flex',alignItems:'center',gap:6}}>
-              <span style={{fontSize:16}}>⚠️</span>
-              <p style={{fontSize:14,fontWeight:700,color:RED,margin:0}}>{atrasados.length} atrasada{atrasados.length>1?'s':''}</p>
-            </div>
-            <p style={{fontSize:14,fontWeight:700,color:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{v(atrasados.reduce((s,t)=>s+(t.installment_value||t.amount),0))}</p>
+        {/* Resumo da aba */}
+        {abaContas!=='pagas'&&contasVisiveis.length>0&&(
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'0 2px 10px'}}>
+            <span style={{fontSize:11,color:TEXTMU,fontWeight:600}}>
+              {abaContas==='vencidas'?'Total vencido':'Total a pagar'}
+            </span>
+            <span style={{fontSize:15,fontWeight:800,color:abaContas==='vencidas'?RED:TEXT,fontVariantNumeric:'tabular-nums'}}>
+              {v(abaContas==='vencidas'?totalVencidas:totalAPagar)}
+            </span>
           </div>
-          {atrasados.slice(0,5).map((tx,i)=>(
-            <div key={tx.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:i>0?'1px solid rgba(255,59,48,0.06)':undefined}}>
-              <p style={{fontSize:13,color:TEXT,margin:0,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginRight:12}}>{tx.description}</p>
-              <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-                <p style={{fontSize:13,fontWeight:600,color:RED,fontVariantNumeric:'tabular-nums',margin:0}}>{v(tx.installment_value||tx.amount)}</p>
-                <button onClick={()=>openPayModal(tx.id,tx.description,tx.installment_value||tx.amount)} style={{fontSize:11,background:RED,color:'#fff',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontWeight:600}}>Pagar</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+        )}
 
-      {/* Próximos pagamentos */}
-      {(proximos.length>0||Object.keys(faturaPorCartao).length>0)&&(
-        <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.04)',overflow:'hidden'}}>
-          <button onClick={()=>togSec('proximos')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <div style={{display:'flex',alignItems:'center',gap:6}}>
-              <span style={{fontSize:14,fontWeight:700,color:TEXT}}>📅 Próximos pagamentos</span>
-              <span style={{fontSize:11,color:TEXTMU,background:'rgba(0,0,0,0.04)',borderRadius:8,padding:'1px 7px',fontWeight:600}}>{proximos.length+Object.keys(faturaPorCartao).length}</span>
-            </div>
-            <div style={{display:'flex',alignItems:'center',gap:6}}>
-              <Link href="/pagamentos" onClick={e=>e.stopPropagation()} style={{fontSize:11,color:TERRA,fontWeight:600,textDecoration:'none'}}>Ver todos</Link>
-              {dashSecs.proximos?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}
-            </div>
-          </button>
-          {dashSecs.proximos&&(<div style={{padding:'0 16px 12px'}}>
-          {/* Faturas de cartão resumidas */}
-          {Object.entries(faturaPorCartao).filter(([,total])=>total>0).map(([cardName,total],i)=>{
-            const cardInfo=cards.find(c=>`${c.name} — ${c.holder}`===cardName)
-            return (
-              <Link key={cardName} href="/cartoes" style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderTop:i>0?'1px solid rgba(0,0,0,0.04)':undefined,textDecoration:'none'}}>
-                <div style={{width:36,height:36,borderRadius:10,background:'rgba(196,98,45,0.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>💳</div>
-                <div style={{flex:1,minWidth:0}}>
-                  <p style={{fontSize:14,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>Fatura {cardName}</p>
-                  <p style={{fontSize:12,color:TEXTMU,margin:'2px 0 0'}}>{cardInfo?.due_day?`Vence dia ${cardInfo.due_day}`:'Ver detalhes'}</p>
+        {contasVisiveis.length===0?(
+          <div style={{background:'#fff',borderRadius:18,padding:'28px 20px',textAlign:'center',border:'1px solid rgba(0,0,0,0.05)'}}>
+            <p style={{fontSize:26,margin:'0 0 8px'}}>{abaContas==='vencidas'?'🎉':abaContas==='pagas'?'📭':'✨'}</p>
+            <p style={{fontSize:13,fontWeight:600,color:abaContas==='vencidas'?GREEN:TEXTMU,margin:0}}>
+              {abaContas==='vencidas'?'Nenhuma conta vencida!':abaContas==='pagas'?'Nada pago ainda neste mês':'Nenhuma conta a pagar'}
+            </p>
+          </div>
+        ):(
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {contasVisiveis.map(c=>{
+              const st=labelVencimento(c)
+              const linha={display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 15px'}
+              return (
+                <div key={c.key} style={{background:'#fff',borderRadius:18,overflow:'hidden',border:'1px solid rgba(0,0,0,0.05)',boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+                  {/* Cabeçalho: nome + ação */}
+                  <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'13px 15px 11px'}}>
+                    <div style={{width:34,height:34,borderRadius:11,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,
+                      background:c.tipo==='fatura'?'rgba(196,98,45,0.1)':'rgba(0,0,0,0.035)'}}>
+                      {c.tipo==='fatura'?'💳':(CAT_ICONS[c.categoria||'']||'📦')}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <p style={{fontSize:14,fontWeight:700,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.titulo}</p>
+                      <p style={{fontSize:11.5,color:TEXTMU,margin:'2px 0 0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.subtitulo}</p>
+                    </div>
+                    {!c.pago&&(c.tipo==='fatura'?(
+                      <Link href="/pagamentos" style={{fontSize:12.5,fontWeight:700,color:TERRA,textDecoration:'none',flexShrink:0,paddingTop:2}}>Pagar</Link>
+                    ):(
+                      <button onClick={()=>openPayModal(c.txId!,c.titulo,c.valor)}
+                        style={{fontSize:12.5,fontWeight:700,color:TERRA,background:'none',border:'none',cursor:'pointer',flexShrink:0,padding:'2px 0 0'}}>Pagar</button>
+                    ))}
+                  </div>
+
+                  {/* Status */}
+                  <div style={{...linha,background:'rgba(0,0,0,0.018)',borderTop:'1px solid rgba(0,0,0,0.04)'}}>
+                    <span style={{fontSize:12,color:TEXTMU}}>Status</span>
+                    <span style={{fontSize:12,fontWeight:700,color:st.cor,display:'flex',alignItems:'center',gap:5}}>
+                      <span style={{fontSize:11}}>{st.icone}</span>{st.txt}
+                    </span>
+                  </div>
+
+                  {/* Valor */}
+                  <div style={{...linha,background:'rgba(0,0,0,0.018)',borderTop:'1px solid rgba(0,0,0,0.04)'}}>
+                    <span style={{fontSize:12,color:TEXTMU}}>Valor</span>
+                    <span style={{fontSize:14,fontWeight:800,color:c.pago?GREEN:TEXT,fontVariantNumeric:'tabular-nums'}}>{v(c.valor)}</span>
+                  </div>
                 </div>
-                <div style={{textAlign:'right',flexShrink:0}}>
-                  <p style={{fontSize:14,fontWeight:600,color:TEXT,fontVariantNumeric:'tabular-nums',margin:'0 0 3px'}}>{v(total)}</p>
-                  <span style={{fontSize:11,color:TERRA,fontWeight:600}}>Ver fatura →</span>
-                </div>
-              </Link>
-            )
-          })}
-          {proximos.map((tx,i)=>(
-            <div key={tx.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderTop:(i>0||Object.keys(faturaPorCartao).length>0)?'1px solid rgba(0,0,0,0.04)':undefined}}>
-              <div style={{width:36,height:36,borderRadius:10,background:'rgba(0,0,0,0.03)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>{CAT_ICONS[tx.category]||'📦'}</div>
-              <div style={{flex:1,minWidth:0}}>
-                <p style={{fontSize:14,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.description}</p>
-                <p style={{fontSize:12,color:TEXTMU,margin:'2px 0 0'}}>{tx.holder} · {format(parseISO(tx.purchase_date),'dd/MM')}</p>
-              </div>
-              <div style={{textAlign:'right',flexShrink:0}}>
-                <p style={{fontSize:14,fontWeight:600,color:TEXT,fontVariantNumeric:'tabular-nums',margin:'0 0 3px'}}>{v(tx.installment_value||tx.amount)}</p>
-                <button onClick={()=>openPayModal(tx.id,tx.description,tx.installment_value||tx.amount)} style={{fontSize:11,background:TERRABG,color:TERRA,border:'none',borderRadius:8,padding:'3px 10px',cursor:'pointer',fontWeight:600}}>Pagar</button>
-              </div>
-            </div>
-          ))}
-          </div>)}
-        </div>
-      )}
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Alertas de limite */}
       {catAlertas.length>0&&(

@@ -202,7 +202,31 @@ export default function Parcelamentos() {
       ):(
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
           {grupos.map((g,gi)=>{
-            const pagas=g.parcelas.filter(p=>p.status==='Pago').length
+            // Conta como paga também a parcela de mês já passado cuja linha ainda
+            // não existe no banco (dado legado) — senão o contador X/Y fica errado
+            const mesAgora=format(new Date(),'yyyy-MM')
+            const numsPagos=new Set<number>()
+            g.parcelas.forEach(p=>{
+              const m=p.description?.match(/\((\d+)\/(\d+)\)/)
+              const n=m?parseInt(m[1]):(p.installment_num||p.installment_number||0)
+              if(n>0&&p.status==='Pago')numsPagos.add(n)
+            })
+            const numsExistentes=new Set(g.parcelas.map(p=>{
+              const m=p.description?.match(/\((\d+)\/(\d+)\)/)
+              return m?parseInt(m[1]):(p.installment_num||p.installment_number||0)
+            }).filter(n=>n>0))
+            const menorExistente=numsExistentes.size>0?Math.min(...Array.from(numsExistentes)):1
+            const refParcela=g.parcelas.find(p=>{
+              const m=p.description?.match(/\((\d+)\/(\d+)\)/)
+              const n=m?parseInt(m[1]):(p.installment_num||p.installment_number||0)
+              return n===menorExistente
+            })||g.parcelas[0]
+            const base1=addMonths(parseISO(refParcela.purchase_date),-(menorExistente-1))
+            for(let n=1;n<=g.totalParcelas;n++){
+              if(numsExistentes.has(n))continue
+              if(format(addMonths(base1,n-1),'yyyy-MM')<mesAgora)numsPagos.add(n)
+            }
+            const pagas=numsPagos.size
             const total=g.totalParcelas
             const pct=total>0?Math.round((pagas/total)*100):0
             const isOpen=expanded===g.base+g.holder
@@ -251,44 +275,57 @@ export default function Parcelamentos() {
                 {isOpen&&(
                   <div style={{padding:'0 18px 16px'}}>
                     <div style={{borderTop:'1px solid rgba(0,0,0,0.04)',paddingTop:12}}>
-                      {Array.from({length:total},(_,i)=>{
-                        const num=i+1
-                        // Matching por número na descrição (X/Y), por campo, OU por posição cronológica
-                        let parcela=g.parcelas.find(p=>{
+                      {(()=>{
+                        // Data da parcela 1 do grupo — se ela não existir no banco,
+                        // retrocalcula a partir da parcela mais antiga que existir.
+                        // Isso garante que TODA parcela tenha data para exibir, mesmo
+                        // que a linha ainda não tenha sido criada no banco.
+                        const numDe=(p:Tx)=>{
                           const m=p.description?.match(/\((\d+)\/(\d+)\)/)
-                          if(m)return parseInt(m[1])===num
-                          if((p.installment_num||p.installment_number)===num)return true
-                          return false
-                        })
-                        // Fallback: usar posição cronológica (parcela 1 = mais antiga)
-                        if(!parcela && g.parcelas[i]){
-                          parcela=g.parcelas[i]
+                          if(m)return parseInt(m[1])
+                          return p.installment_num||p.installment_number||0
                         }
-                        const isPago=parcela?.status==='Pago'
-                        // Parcelas com data FUTURA (> hoje) não podem estar pagas, EXCETO se foram
-                        // legitimamente antecipadas (têm paid_date preenchido = pagamento real registrado)
-                        const hoje=new Date().toISOString().slice(0,7) // yyyy-MM
-                        const mesParcela=parcela?.purchase_date?.slice(0,7)
-                        const semPaidDate=isPago&&!parcela?.paid_date
-                        const isFutura=mesParcela?(mesParcela>hoje&&(!isPago||semPaidDate)):num>g.parcelas.length
+                        const comNum=g.parcelas.map(p=>({p,n:numDe(p)})).filter(x=>x.n>0)
+                        const menor=comNum.length>0?comNum.reduce((a,b)=>a.n<=b.n?a:b):null
+                        const dataParcela1=menor
+                          ? addMonths(parseISO(menor.p.purchase_date),-(menor.n-1))
+                          : parseISO(g.parcelas[0].purchase_date)
+                        const mesHojeStr=format(new Date(),'yyyy-MM')
+
+                        return Array.from({length:total},(_,i)=>{
+                        const num=i+1
+                        const parcela=comNum.find(x=>x.n===num)?.p
+                        // Data real (se a linha existe) ou projetada mês a mês
+                        const dataParcela=parcela?parseISO(parcela.purchase_date):addMonths(dataParcela1,num-1)
+                        const mesParcela=format(dataParcela,'yyyy-MM')
+
+                        // Status: o do banco quando a linha existe; senão, a regra de mês
+                        const isPago=parcela?parcela.status==='Pago':mesParcela<mesHojeStr
+                        // Só é "futura" de verdade se o MÊS ainda não chegou. Uma parcela de
+                        // mês passado nunca pode aparecer como Futuro (bug do Vestido Noiva).
+                        const isFutura=mesParcela>mesHojeStr&&!(isPago&&parcela?.paid_date)
                         const statusFinal=isFutura?false:isPago
+                        const semLinha=!parcela
                         return (
                           <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:i<total-1?'0.5px solid rgba(0,0,0,0.04)':undefined}}>
                             <div style={{width:24,height:24,borderRadius:12,background:statusFinal?'rgba(34,199,89,0.12)':isFutura?'rgba(0,0,0,0.03)':'rgba(255,59,48,0.12)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                               <span style={{fontSize:10,fontWeight:700,color:statusFinal?GREEN:isFutura?TEXTMU:RED}}>{statusFinal?'✓':num}</span>
                             </div>
                             <div style={{flex:1}}>
-                              <p style={{fontSize:12,fontWeight:500,color:parcela?TEXT:TEXTMU,margin:0}}>Parcela {num}/{total}</p>
-                              {parcela&&!isFutura&&<p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{format(parseISO(parcela.purchase_date),'dd/MM/yyyy')}{statusFinal&&parcela.paid_date?` · Pago ${format(parseISO(parcela.paid_date),'dd/MM')}`:''}</p>}
-                              {isFutura&&<p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>Futuro</p>}
+                              <p style={{fontSize:12,fontWeight:500,color:TEXT,margin:0}}>Parcela {num}/{total}</p>
+                              <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>
+                                {format(dataParcela,'dd/MM/yyyy')}
+                                {statusFinal&&parcela?.paid_date?` · Pago ${format(parseISO(parcela.paid_date),'dd/MM')}`:''}
+                                {isFutura?' · Futuro':''}
+                                {semLinha?' · prevista':''}
+                              </p>
                             </div>
                             <div style={{textAlign:'right'}}>
                               <p style={{fontSize:12,fontWeight:600,color:statusFinal?GREEN:isFutura?TEXTMU:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(g.valorParcela)}</p>
-                              {!parcela&&<p style={{fontSize:9,color:TEXTMU,margin:0}}>Futuro</p>}
                             </div>
                           </div>
                         )
-                      })}
+                      })})()}
                     </div>
                     <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0 0',marginTop:4}}>
                       <p style={{fontSize:12,fontWeight:600,color:TEXTMU,margin:0}}>Restam {total-pagas} parcela{total-pagas!==1?'s':''}</p>
