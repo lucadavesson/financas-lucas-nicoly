@@ -72,7 +72,12 @@ export default function Parcelamentos() {
     const from = format(subMonths(new Date(), 36), 'yyyy-MM-dd')
     const s = createClient()
     const [{ data }, { data: cardsData }] = await Promise.all([
+      // Só compras parceladas de verdade. Antes vinha TUDO, e qualquer
+      // lançamento com "(3/12)" na descrição ou installment_total > 1 — mesmo
+      // sendo à vista — era contado como financiamento, inflando os totais do
+      // topo (R$ 1,17 mi exibidos contra R$ 529 mil reais de parcelas).
       s.from('transactions').select('*')
+        .eq('transaction_type', 'parcelada')
         .gte('purchase_date', from)
         .order('purchase_date', { ascending: false }),
       s.from('cards').select('name,holder,closing_day'),
@@ -95,7 +100,7 @@ export default function Parcelamentos() {
         if (total <= 1) continue
         const key = `${tx.description}|${tx.holder}|${tx.card_name||''}`
         if (!map.has(key)) {
-          map.set(key, { base:tx.description, parcelas:[], holder:tx.holder, card:tx.card_name||'', category:tx.category, totalParcelas:total, valorParcela:tx.installment_value||tx.amount, valorTotal:tx.amount })
+          map.set(key, { base:tx.description, parcelas:[], holder:tx.holder, card:tx.card_name||'', category:tx.category, totalParcelas:total, valorParcela:tx.installment_value||tx.amount, valorTotal:(tx.installment_value||tx.amount)*total })
         }
         map.get(key)!.parcelas.push(tx)
         continue
