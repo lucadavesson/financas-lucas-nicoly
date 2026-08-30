@@ -98,9 +98,13 @@ export default function Parcelamentos() {
       if (!match) {
         const total = tx.installment_total || tx.total_installments || 0
         if (total <= 1) continue
-        const key = `${tx.description}|${tx.holder}|${tx.card_name||''}`
+        // .trim() é obrigatório: descrições legadas têm espaço sobrando no fim
+        // ("Vestido Noiva "), e sem isso a linha antiga virava um grupo separado
+        // do resto das parcelas, aparecendo duas vezes na tela
+        const nome = (tx.description||'').trim()
+        const key = `${nome}|${tx.holder}|${tx.card_name||''}`
         if (!map.has(key)) {
-          map.set(key, { base:tx.description, parcelas:[], holder:tx.holder, card:tx.card_name||'', category:tx.category, totalParcelas:total, valorParcela:tx.installment_value||tx.amount, valorTotal:(tx.installment_value||tx.amount)*total })
+          map.set(key, { base:nome, parcelas:[], holder:tx.holder, card:tx.card_name||'', category:tx.category, totalParcelas:total, valorParcela:tx.installment_value||tx.amount, valorTotal:(tx.installment_value||tx.amount)*total })
         }
         map.get(key)!.parcelas.push(tx)
         continue
