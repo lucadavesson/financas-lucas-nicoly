@@ -68,7 +68,7 @@ export default function Dashboard() {
         .gte('purchase_date',monthStart)
         .lte('purchase_date',monthEnd)
         .order('purchase_date',{ascending:false}),
-      s.from('app_settings').select('*').eq('owner_id',user?.id||'').maybeSingle(),
+      s.from('app_settings').select('*').limit(1).maybeSingle(),
       s.from('category_limits').select('*').eq('owner_id',user?.id||''),
       s.from('goals').select('*').eq('status','ativa').order('name'),
       s.from('cards').select('*').eq('is_active',true),
@@ -186,8 +186,6 @@ export default function Dashboard() {
   const salarioEsperado=(settings?.salary_lucas||0)+(settings?.salary_nicoly||0)
   const saldo=totalEntrou-totalGastou
   const pctPago=totalGastou>0?Math.min(100,(totalPago/totalGastou)*100):0
-  const diasRest=new Date(curMonth.getFullYear(),curMonth.getMonth()+1,0).getDate()-new Date().getDate()
-  const gastoDia=diasRest>0?Math.max(0,saldo/diasRest):0
 
   const hoje=new Date()
   const hojeStr=format(hoje,'yyyy-MM-dd')
@@ -296,9 +294,9 @@ export default function Dashboard() {
         <div style={{position:'relative'}}>
           <p style={{fontSize:12,color:'rgba(255,255,255,0.55)',margin:'0 0 6px',letterSpacing:'0.02em'}}>Saldo disponível</p>
           <p style={{fontSize:36,fontWeight:800,color:'#fff',margin:0,lineHeight:1.05,letterSpacing:'-1px',fontVariantNumeric:'tabular-nums'}}>{v(saldo)}</p>
-          <p style={{fontSize:12,color:saldo>=0?'rgba(120,230,160,0.9)':'rgba(255,140,130,0.95)',fontWeight:600,margin:'8px 0 0'}}>
-            {saldo>0?`Pode gastar ${v(gastoDia)}/dia · ${diasRest} dias restantes`:'Orçamento estourado neste mês'}
-          </p>
+          {saldo<0&&(
+            <p style={{fontSize:12,color:'rgba(255,140,130,0.95)',fontWeight:600,margin:'8px 0 0'}}>Orçamento estourado neste mês</p>
+          )}
 
           <div style={{display:'flex',gap:10,marginTop:20}}>
             <div style={{flex:1,background:'rgba(255,255,255,0.09)',borderRadius:16,padding:'11px 13px',backdropFilter:'blur(6px)'}}>

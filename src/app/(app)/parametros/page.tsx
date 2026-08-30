@@ -145,8 +145,11 @@ export default function Parametros() {
 
   // ── Salário ──
   async function loadSalary(){
-    const s=createClient();const {data:{user}}=await s.auth.getUser();if(!user)return
-    const {data}=await s.from('app_settings').select('*').eq('owner_id',user.id).single()
+    const s=createClient()
+    // App do casal: a configuração é COMPARTILHADA. Antes filtrava por owner_id,
+    // então o que a Nicoly salvasse o Lucas não via (e vice-versa), e .single()
+    // ainda dava erro quando não existia linha nenhuma.
+    const {data}=await s.from('app_settings').select('*').limit(1).maybeSingle()
     if(data){
       setSalaryDay(data.salary_day?.toString()||'1')
       setSalaryAmountL(data.salary_lucas?maskCurrency(Math.round(data.salary_lucas*100).toString()):'')
@@ -159,9 +162,13 @@ export default function Parametros() {
     const valL=unmaskCurrency(salaryAmountL)
     const valN=unmaskCurrency(salaryAmountN)
     const payload={salary_day:day,salary_lucas:valL,salary_nicoly:valN}
-    const {data:existing}=await s.from('app_settings').select('id').eq('owner_id',user.id).single()
-    if(existing){await s.from('app_settings').update(payload).eq('id',existing.id)}
-    else{await s.from('app_settings').insert({...payload,owner_id:user.id})}
+    const {data:existing}=await s.from('app_settings').select('id').limit(1).maybeSingle()
+    const {error:saveErr}=existing
+      ? await s.from('app_settings').update(payload).eq('id',existing.id)
+      : await s.from('app_settings').insert({...payload,owner_id:user.id})
+    // Antes o erro era engolido: a tabela não tinha as colunas de salário, o
+    // insert falhava calado e a tela abria vazia toda vez.
+    if(saveErr){toast.error(`Não foi possível salvar: ${saveErr.message}`);return}
 
     // Criar receita recorrente do mês ATUAL (se não existe)
     const now=new Date()
@@ -198,15 +205,18 @@ export default function Parametros() {
 
   // ── Recorrentes ──
   async function loadRecurrents(){
-    const {data}=await createClient().from('transactions').select('*').eq('is_recurring',true).order('description')
-    setRecurrents(data||[])
+    // Só DESPESAS recorrentes. Receita (salário) é configurada em Ciclo Salarial
+    // e não tem "dia de vencimento" — aparecer aqui pedindo vencimento confundia.
+    const {data}=await createClient().from('transactions').select('*')
+      .eq('is_recurring',true).neq('type','Receita').order('description')
+    setRecurrents((data||[]).filter((t:any)=>t.transaction_type!=='receita'))
   }
   async function saveDueDay(tx:any){
     const dia=parseInt(dueDayRaw)
     if(!dia||dia<1||dia>31){toast.error('Informe um dia válido (1-31)');return}
     // Atualiza todas as ocorrências dessa recorrente (mesma descrição+titular), não só o template mais recente
     const {error}=await createClient().from('transactions').update({recurring_day:dia}).eq('description',tx.description).eq('holder',tx.holder).eq('is_recurring',true)
-    if(error){toast.error('Erro ao salvar');return}
+    if(error){toast.error(`Erro ao salvar: ${error.message}`);return}
     toast.success('Dia de vencimento salvo!')
     setEditingDueDay(null); setDueDayRaw('')
     loadRecurrents()

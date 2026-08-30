@@ -353,20 +353,34 @@ export default function Cartoes() {
                               })()}
                             </div>
                             <div style={{textAlign:'right',flexShrink:0}}>
+                              {/* Sem status por item: compra no crédito não se paga
+                                  individualmente, entra na fatura e é quitada junto
+                                  com ela. O status fica no rodapé, na fatura toda. */}
                               <p style={{fontSize:13,fontWeight:700,color:TEXTLT,fontVariantNumeric:'tabular-nums',margin:0}}>
                                 {formatCurrency(tx.installment_value||tx.amount)}
                               </p>
-                              <span style={{fontSize:9,fontWeight:600,padding:'1px 6px',borderRadius:4,
-                                background:tx.status==='Pago'?'rgba(34,199,89,0.12)':'rgba(196,98,45,0.12)',
-                                color:tx.status==='Pago'?'#1B8A3A':'#C4622D'}}>
-                                {tx.status==='Pago'?'✓ Pago':'Pendente'}
-                              </span>
                             </div>
                           </div>
                         ))}
-                        <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0',borderTop:'0.5px solid rgba(0,0,0,0.08)',marginTop:4}}>
-                          <p style={{fontSize:13,fontWeight:700,color:TEXTLT,margin:0}}>Total da fatura</p>
-                          <p style={{fontSize:14,fontWeight:800,color:TEXT,fontVariantNumeric:'tabular-nums',margin:0}}>{formatCurrency(gasto)}</p>
+                        <div style={{borderTop:'0.5px solid rgba(0,0,0,0.08)',marginTop:4,paddingTop:10}}>
+                          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                            <p style={{fontSize:13,fontWeight:700,color:TEXTLT,margin:0}}>Total da fatura</p>
+                            <p style={{fontSize:14,fontWeight:800,color:TEXT,fontVariantNumeric:'tabular-nums',margin:0}}>{formatCurrency(gasto)}</p>
+                          </div>
+                          {/* O status é da FATURA, não de cada compra */}
+                          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:8}}>
+                            <span style={{fontSize:11,color:TEXTMU}}>
+                              {pendente<=0.01?'Fatura quitada':`Falta pagar ${formatCurrency(pendente)}`}
+                            </span>
+                            <span style={{fontSize:10,fontWeight:700,padding:'3px 9px',borderRadius:6,
+                              background:pendente<=0.01?'rgba(34,199,89,0.12)':'rgba(196,98,45,0.12)',
+                              color:pendente<=0.01?'#1B8A3A':'#C4622D'}}>
+                              {pendente<=0.01?'✓ Fatura paga':'Fatura em aberto'}
+                            </span>
+                          </div>
+                          <p style={{fontSize:10,color:TEXTMU,margin:'8px 0 0',lineHeight:1.4}}>
+                            💳 As compras acima não são pagas uma a uma — todas entram nesta fatura e são quitadas de uma vez em Pagamentos.
+                          </p>
                         </div>
                       </div>
                     )}

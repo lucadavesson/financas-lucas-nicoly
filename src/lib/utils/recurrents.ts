@@ -71,7 +71,8 @@ export async function generateRecurrents(targetMonth: Date) {
   }
 
   // Gerar receita de salário se configurado
-  const { data: settings } = await s.from('app_settings').select('*').eq('owner_id', user.id).maybeSingle()
+  // Config compartilhada do casal — não filtrar por owner_id
+  const { data: settings } = await s.from('app_settings').select('*').limit(1).maybeSingle()
   if (settings) {
     const salaryDay = settings.salary_day || 1
     const lastDay = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate()
