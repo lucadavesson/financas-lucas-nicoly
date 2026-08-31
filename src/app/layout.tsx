@@ -20,8 +20,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#C4622D" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
-        <link rel="icon" type="image/svg+xml" href="/icon-192.svg" />
+        {/* apple-touch-icon precisa ser 180x180 e SEM cantos arredondados nem
+            transparência — o iOS aplica a máscara dele por cima. O ícone antigo
+            já vinha com cantos vazados, o que criava as "abas" brancas. */}
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
       </head>
       <body>
         {children}
