@@ -3,6 +3,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { calcBillingMonth, CATS_RECEITA, CATS_DESPESA, SUBCATS } from '@/lib/utils'
+import { loadCustomCategorias, mesclarCategorias, criarCategoria, type CustomCategoria } from '@/lib/utils/categorias'
 import { toast } from 'sonner'
 import { ChevronLeft, Loader2, Plus, X, ChevronDown } from 'lucide-react'
 import { format, parseISO, addMonths } from 'date-fns'
@@ -96,6 +97,7 @@ export default function NovoLancamento() {
       } catch { /* silencioso - tabela ainda não criada */ }
     }
     loadCustomSubs()
+    loadCustomCategorias().then(setCustomCats)
   }, [])
 
   const CARDS_CREDITO = cardsCredito.length > 0 ? cardsCredito : CARDS_CREDITO_FALLBACK
@@ -129,6 +131,9 @@ export default function NovoLancamento() {
   const [customSubs, setCustomSubs] = useState<Record<string,string[]>>({})
   const [showAddSub, setShowAddSub] = useState(false)
   const [newSubName, setNewSubName] = useState('')
+  const [customCats, setCustomCats] = useState<CustomCategoria[]>([])
+  const [showAddCat, setShowAddCat] = useState(false)
+  const [newCatName, setNewCatName] = useState('')
 
   // Reseta campos ao trocar tipo
   function changeTipo(t: TipoLanc) {
@@ -155,11 +160,22 @@ export default function NovoLancamento() {
     ? calcBillingMonth(parseISO(date), cardClosing[debitCard] || 1)
     : null
 
-  const allCats = tipo === 'receita' ? [...CATS_RECEITA,...Object.keys(customSubs).filter(k=>!CATS_RECEITA.includes(k))]
-    : [...CATS_DESPESA,...Object.keys(customSubs).filter(k=>!CATS_DESPESA.includes(k))]
+  const allCats = mesclarCategorias(tipo === 'receita' ? 'receita' : 'despesa', customCats)
   const baseSubs   = SUBCATS[cat] || []
   const extraSubs  = customSubs[cat] || []
   const allSubs    = [...baseSubs, ...extraSubs]
+
+  async function addCustomCat() {
+    const nome = newCatName.trim()
+    if (!nome) return
+    const r = await criarCategoria(nome, tipo === 'receita' ? 'receita' : 'despesa')
+    if (!r.ok) { toast.error(r.erro || 'Erro ao criar categoria'); return }
+    // Recarrega do banco para a categoria continuar existindo nas próximas vezes
+    setCustomCats(await loadCustomCategorias())
+    setCat(nome); setSubcat('')
+    setNewCatName(''); setShowAddCat(false)
+    toast.success('Categoria criada!')
+  }
 
   async function addCustomSub() {
     if (!newSubName.trim() || !cat) return
@@ -433,12 +449,30 @@ export default function NovoLancamento() {
       <div>
         <label style={S.lbl}>Categoria</label>
         <div style={{position:'relative'}}>
-          <select value={cat} onChange={e=>{setCat(e.target.value);setSubcat('')}} style={S.sel} required>
+          <select value={cat} onChange={e=>{
+            if(e.target.value==='__nova_cat__'){setShowAddCat(true)}
+            else{setCat(e.target.value);setSubcat('')}
+          }} style={S.sel} required>
             <option value="">Selecione...</option>
             {allCats.map(c=><option key={c} value={c}>{c}</option>)}
+            <option value="__nova_cat__">+ Criar nova categoria...</option>
           </select>
           <ChevronDown size={14} color="#C4622D" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
         </div>
+        {showAddCat && (
+          <div style={{display:'flex',gap:8,marginTop:8}}>
+            <input type="text" value={newCatName} onChange={e=>setNewCatName(e.target.value)}
+              placeholder="Nome da nova categoria" style={{...S.inp,flex:1,height:40,fontSize:13}} autoFocus/>
+            <button type="button" onClick={addCustomCat}
+              style={{height:40,padding:'0 14px',background:'#C4622D',color:'#fff',borderRadius:10,border:'none',cursor:'pointer',fontSize:13,fontWeight:600}}>
+              OK
+            </button>
+            <button type="button" onClick={()=>{setShowAddCat(false);setNewCatName('')}}
+              style={{height:40,padding:'0 10px',background:'#FFFFFF',borderRadius:10,border:'none',cursor:'pointer'}}>
+              <X size={14} color="#C4622D"/>
+            </button>
+          </div>
+        )}
       </div>
       {cat && (
         <div>

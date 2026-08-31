@@ -102,6 +102,116 @@ export default function Relatorios() {
   const mesLabel=format(date,'MMMM yyyy',{locale:ptBR})
   const isNow=format(date,'yyyy-MM')===format(new Date(),'yyyy-MM')
 
+  // ── Insights ─────────────────────────────────────────────
+  // Comparações que exigiriam abrir 3 telas e fazer conta na mão.
+  const mesAnt=getMes(subMonths(date,1))
+  const despAnt=mesAnt.filter((t:any)=>t.transaction_type!=='receita'&&t.type!=='Receita')
+  const totalDAnt=despAnt.reduce((s:number,t:any)=>s+(t.installment_value||t.amount),0)
+  const totalRAnt=mesAnt.filter((t:any)=>t.transaction_type==='receita'||t.type==='Receita').reduce((s:number,t:any)=>s+t.amount,0)
+
+  const catAnt:Record<string,number>={}
+  despAnt.forEach((t:any)=>{catAnt[t.category]=(catAnt[t.category]||0)+(t.installment_value||t.amount)})
+
+  // Média dos 3 meses anteriores, para dizer se o mês fugiu do padrão
+  const tresAnteriores=[1,2,3].map(i=>getMes(subMonths(date,i))
+    .filter((t:any)=>t.transaction_type!=='receita'&&t.type!=='Receita')
+    .reduce((s:number,t:any)=>s+(t.installment_value||t.amount),0))
+  const mediaTres=tresAnteriores.filter(v=>v>0).length>0
+    ? tresAnteriores.filter(v=>v>0).reduce((a,b)=>a+b,0)/tresAnteriores.filter(v=>v>0).length
+    : 0
+
+  const variacaoD=totalDAnt>0?((totalD-totalDAnt)/totalDAnt)*100:0
+  const comprometido=totalR>0?(totalD/totalR)*100:0
+  const fixo=totalParc+totalRec
+  const pctFixo=totalD>0?(fixo/totalD)*100:0
+
+  // Categoria que mais subiu e que mais caiu em relação ao mês anterior
+  const deltas=Object.keys({...catMap,...catAnt}).map(c=>({
+    cat:c, agora:catMap[c]?.total||0, antes:catAnt[c]||0, delta:(catMap[c]?.total||0)-(catAnt[c]||0),
+  })).filter(d=>Math.abs(d.delta)>0.01).sort((a,b)=>b.delta-a.delta)
+  const maiorAlta=deltas[0]
+  const maiorQueda=deltas[deltas.length-1]
+  const maiorGasto=[...despesasTodas].sort((a:any,b:any)=>(b.installment_value||b.amount)-(a.installment_value||a.amount))[0]
+
+  // Projeção: só faz sentido no mês corrente, e só depois de alguns dias
+  const diaHoje=new Date().getDate()
+  const diasNoMes=new Date(date.getFullYear(),date.getMonth()+1,0).getDate()
+  const projecao=isNow&&diaHoje>=5?(totalD/diaHoje)*diasNoMes:0
+
+  type Insight={icone:string;titulo:string;texto:string;tom:'bom'|'ruim'|'neutro'}
+  const insights:Insight[]=[]
+
+  if(totalDAnt>0){
+    const subiu=variacaoD>0
+    insights.push({
+      icone:subiu?'📈':'📉',
+      titulo:`Gastos ${subiu?'subiram':'caíram'} ${Math.abs(variacaoD).toFixed(0)}% vs. o mês passado`,
+      texto:`${formatCurrency(totalD)} agora contra ${formatCurrency(totalDAnt)} em ${format(subMonths(date,1),"MMMM",{locale:ptBR})}.`,
+      tom:subiu?'ruim':'bom',
+    })
+  }
+  if(totalR>0){
+    insights.push({
+      icone:comprometido>=100?'🚨':comprometido>=80?'⚠️':'✅',
+      titulo:`${comprometido.toFixed(0)}% da renda comprometida`,
+      texto:comprometido>=100
+        ? `Os gastos passaram a receita em ${formatCurrency(totalD-totalR)}.`
+        : `Sobra ${formatCurrency(totalR-totalD)} de ${formatCurrency(totalR)} que entraram.`,
+      tom:comprometido>=100?'ruim':comprometido>=80?'neutro':'bom',
+    })
+  }
+  if(maiorAlta&&maiorAlta.delta>0){
+    insights.push({
+      icone:CAT_ICONS[maiorAlta.cat]||'📦',
+      titulo:`${maiorAlta.cat} foi o que mais aumentou`,
+      texto:`+${formatCurrency(maiorAlta.delta)} em relação ao mês anterior (${formatCurrency(maiorAlta.antes)} → ${formatCurrency(maiorAlta.agora)}).`,
+      tom:'ruim',
+    })
+  }
+  if(maiorQueda&&maiorQueda.delta<0){
+    insights.push({
+      icone:CAT_ICONS[maiorQueda.cat]||'📦',
+      titulo:`${maiorQueda.cat} foi o que mais caiu`,
+      texto:`${formatCurrency(maiorQueda.delta)} em relação ao mês anterior (${formatCurrency(maiorQueda.antes)} → ${formatCurrency(maiorQueda.agora)}).`,
+      tom:'bom',
+    })
+  }
+  if(totalD>0){
+    insights.push({
+      icone:'🔒',
+      titulo:`${pctFixo.toFixed(0)}% dos gastos são compromissos fixos`,
+      texto:`${formatCurrency(fixo)} entre parcelas e contas recorrentes. Sobram ${formatCurrency(totalD-fixo)} de gasto que dá pra ajustar mês a mês.`,
+      tom:pctFixo>=70?'ruim':'neutro',
+    })
+  }
+  if(mediaTres>0&&totalD>0){
+    const difMedia=((totalD-mediaTres)/mediaTres)*100
+    if(Math.abs(difMedia)>=10){
+      insights.push({
+        icone:'📊',
+        titulo:`${Math.abs(difMedia).toFixed(0)}% ${difMedia>0?'acima':'abaixo'} da média dos últimos meses`,
+        texto:`A média vinha sendo ${formatCurrency(mediaTres)} por mês.`,
+        tom:difMedia>0?'ruim':'bom',
+      })
+    }
+  }
+  if(projecao>0){
+    insights.push({
+      icone:'🔮',
+      titulo:`No ritmo atual, o mês fecha em ${formatCurrency(projecao)}`,
+      texto:`${formatCurrency(totalD)} gastos em ${diaHoje} dias de ${diasNoMes}.`,
+      tom:totalR>0&&projecao>totalR?'ruim':'neutro',
+    })
+  }
+  if(maiorGasto){
+    insights.push({
+      icone:'🏆',
+      titulo:`Maior gasto do mês: ${maiorGasto.description}`,
+      texto:`${formatCurrency(maiorGasto.installment_value||maiorGasto.amount)} · ${maiorGasto.category} · ${maiorGasto.holder}`,
+      tom:'neutro',
+    })
+  }
+
   if(loading)return(<div style={{background:BG,minHeight:'100%',display:'flex',justifyContent:'center',alignItems:'center',paddingTop:100}}>
     <div style={{width:24,height:24,border:`2px solid ${TERRA}`,borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
     <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -149,6 +259,29 @@ export default function Relatorios() {
         <p style={{fontSize:12,color:TEXTMU,margin:0}}>Saldo do mês</p>
         <p style={{fontSize:20,fontWeight:800,color:saldo>=0?GREEN:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{saldo>=0?'+':''}{v(saldo)}</p>
       </div>
+
+      {/* Insights — leitura pronta do mês, em vez de só números crus */}
+      {insights.length>0&&(
+        <div style={{background:CARD,borderRadius:18,padding:'16px 18px',marginBottom:12,border:'1px solid rgba(0,0,0,0.04)'}}>
+          <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:'0 0 4px'}}>💡 O que os números dizem</p>
+          <p style={{fontSize:11,color:TEXTMU,margin:'0 0 14px'}}>Comparado com {format(subMonths(date,1),"MMMM 'de' yyyy",{locale:ptBR})}</p>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {insights.map((ins,i)=>{
+              const cor=ins.tom==='bom'?GREEN:ins.tom==='ruim'?RED:TEXTLT
+              const bg=ins.tom==='bom'?'rgba(52,199,89,0.06)':ins.tom==='ruim'?'rgba(255,59,48,0.05)':'rgba(0,0,0,0.025)'
+              return (
+                <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',background:bg,borderRadius:12,padding:'10px 12px'}}>
+                  <span style={{fontSize:16,lineHeight:1.2,flexShrink:0}}>{ins.icone}</span>
+                  <div style={{minWidth:0}}>
+                    <p style={{fontSize:12.5,fontWeight:700,color:cor,margin:0,lineHeight:1.3}}>{ins.titulo}</p>
+                    <p style={{fontSize:11.5,color:TEXTMU,margin:'3px 0 0',lineHeight:1.4}}>{ins.texto}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Breakdown de despesas */}
       <div style={{background:CARD,borderRadius:18,padding:'16px 18px',marginBottom:12,border:'1px solid rgba(0,0,0,0.04)'}}>

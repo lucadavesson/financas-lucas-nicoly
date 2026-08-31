@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { CreditCard, Target, PiggyBank, Tag, ChevronRight, ChevronLeft, Plus, Pencil, X, Loader2, Shield, LogOut, Calendar, RefreshCw, Download, Trash2, Users, DollarSign, Bell } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, CATS_DESPESA, SUBCATS, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
+import { loadCustomCategorias, mesclarCategorias, criarCategoria, renomearCategoria, excluirCategoria, contarUsoCategoria, ehCategoriaFixa, type CustomCategoria } from '@/lib/utils/categorias'
 
 const BG='#F5F5F7', CARD='#FFFFFF', TEXT='#1C1C1E', TEXTLT='#48484A', TEXTMU='#8E8E93'
 const TERRA='#C4622D', GREEN='#34C759', RED='#FF3B30', ACCENT='#007AFF'
@@ -50,6 +51,11 @@ export default function Parametros() {
   const [userEmail, setUserEmail] = useState('')
   // Categorias/Subcategorias
   const [customSubsDB, setCustomSubsDB] = useState<{id:string;category:string;subcategory:string}[]>([])
+  const [customCats, setCustomCats] = useState<CustomCategoria[]>([])
+  const [newCatName, setNewCatName] = useState('')
+  const [newCatKind, setNewCatKind] = useState<'despesa'|'receita'>('despesa')
+  const [editingCatId, setEditingCatId] = useState<string|null>(null)
+  const [editingCatName, setEditingCatName] = useState('')
   const [catsLoading, setCatsLoading] = useState(false)
   const [newSubCat, setNewSubCat] = useState('')
   const [newSubName, setNewSubName] = useState('')
@@ -72,7 +78,35 @@ export default function Parametros() {
       const {data,error}=await createClient().from('custom_subcategories').select('*').order('category').order('subcategory')
       if(!error&&data)setCustomSubsDB(data)
     }catch{ /* tabela pode não existir ainda */ }
+    setCustomCats(await loadCustomCategorias())
     setCatsLoading(false)
+  }
+
+  // ── Categorias (CRUD) ──
+  async function addCategory(){
+    const r=await criarCategoria(newCatName,newCatKind)
+    if(!r.ok){toast.error(r.erro||'Erro ao criar');return}
+    toast.success('Categoria criada!')
+    setNewCatName('')
+    loadCustomSubs()
+  }
+  async function saveCategoryName(cat:CustomCategoria){
+    const r=await renomearCategoria(cat.id,cat.name,editingCatName)
+    if(!r.ok){toast.error(r.erro||'Erro ao renomear');return}
+    toast.success('Categoria renomeada — os lançamentos foram atualizados')
+    setEditingCatId(null); setEditingCatName('')
+    loadCustomSubs()
+  }
+  async function removeCategory(cat:CustomCategoria){
+    const emUso=await contarUsoCategoria(cat.name)
+    const aviso=emUso>0
+      ? `"${cat.name}" está em ${emUso} lançamento${emUso>1?'s':''}. Se excluir, esses lançamentos ficam sem categoria válida. Excluir mesmo assim?`
+      : `Excluir a categoria "${cat.name}"?`
+    if(!confirm(aviso))return
+    const r=await excluirCategoria(cat.id,cat.name)
+    if(!r.ok){toast.error(r.erro||'Erro ao excluir');return}
+    toast.success('Categoria excluída')
+    loadCustomSubs()
   }
   async function addSubcategory(){
     if(!newSubCat||!newSubName.trim()){toast.error('Selecione a categoria e informe o nome');return}
@@ -489,7 +523,53 @@ export default function Parametros() {
         {backBtn()}
         <h2 style={{fontSize:17,fontWeight:700,color:TEXT,flex:1}}>Categorias e Subcategorias</h2>
       </div>
-      <p style={{fontSize:12,color:TEXTMU,marginBottom:16,paddingLeft:4}}>Adicione subcategorias personalizadas às categorias existentes. Elas ficam disponíveis em todos os lançamentos.</p>
+      <p style={{fontSize:12,color:TEXTMU,marginBottom:16,paddingLeft:4}}>Crie suas próprias categorias e subcategorias. Elas ficam disponíveis em todos os lançamentos, para você e para a Nicoly.</p>
+
+      {/* Nova categoria */}
+      <div style={{...sCard,padding:'16px',marginBottom:14}}>
+        <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:'0 0 12px'}}>+ Nova categoria</p>
+        <div style={{marginBottom:10}}>
+          <label style={sLbl}>Tipo</label>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={()=>setNewCatKind('despesa')} style={seg(newCatKind==='despesa')}>Despesa</button>
+            <button onClick={()=>setNewCatKind('receita')} style={seg(newCatKind==='receita')}>Receita</button>
+          </div>
+        </div>
+        <div style={{marginBottom:12}}>
+          <label style={sLbl}>Nome da categoria</label>
+          <input type="text" value={newCatName} onChange={e=>setNewCatName(e.target.value)} placeholder="Ex: Pets" style={sInp}/>
+        </div>
+        <button onClick={addCategory} style={sBtn(TERRA,'#fff')}>Adicionar categoria</button>
+      </div>
+
+      {/* Categorias criadas por você */}
+      {customCats.length>0&&(
+        <div style={{...sCard,padding:'14px 16px',marginBottom:14}}>
+          <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:'0 0 10px'}}>Suas categorias</p>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {customCats.map(c=>(
+              <div key={c.id} style={{display:'flex',alignItems:'center',gap:8}}>
+                {editingCatId===c.id?(<>
+                  <input autoFocus value={editingCatName} onChange={e=>setEditingCatName(e.target.value)}
+                    style={{...sInp,height:36,fontSize:13,flex:1}}/>
+                  <button onClick={()=>saveCategoryName(c)} style={{height:36,padding:'0 12px',background:TERRA,color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>Salvar</button>
+                  <button onClick={()=>setEditingCatId(null)} style={{height:36,padding:'0 10px',background:'rgba(0,0,0,0.04)',color:TEXTMU,border:'none',borderRadius:10,fontSize:12,cursor:'pointer'}}>Cancelar</button>
+                </>):(<>
+                  <span style={{flex:1,fontSize:13,fontWeight:600,color:TEXT}}>
+                    {CAT_ICONS[c.name]||'📦'} {c.name}
+                    <span style={{fontSize:10,color:TEXTMU,fontWeight:500,marginLeft:6}}>{c.kind==='receita'?'receita':'despesa'}</span>
+                  </span>
+                  <button onClick={()=>{setEditingCatId(c.id);setEditingCatName(c.name)}}
+                    style={{background:'none',border:'none',cursor:'pointer',padding:4,display:'flex'}}><Pencil size={14} color={TERRA}/></button>
+                  <button onClick={()=>removeCategory(c)}
+                    style={{background:'none',border:'none',cursor:'pointer',padding:4,display:'flex'}}><Trash2 size={14} color={RED}/></button>
+                </>)}
+              </div>
+            ))}
+          </div>
+          <p style={{fontSize:10,color:TEXTMU,margin:'10px 0 0'}}>As categorias que já vêm no app não podem ser removidas, só as criadas por vocês.</p>
+        </div>
+      )}
 
       {/* Formulário de nova subcategoria */}
       <div style={{...sCard,padding:'16px',marginBottom:20}}>
@@ -498,7 +578,8 @@ export default function Parametros() {
           <label style={sLbl}>Categoria</label>
           <select value={newSubCat} onChange={e=>setNewSubCat(e.target.value)} style={{...sInp,appearance:'none' as const}}>
             <option value="">Selecione...</option>
-            {CATS_DESPESA.map(c=><option key={c} value={c}>{CAT_ICONS[c]||'📦'} {c}</option>)}
+            {mesclarCategorias('despesa',customCats).map(c=><option key={c} value={c}>{CAT_ICONS[c]||'📦'} {c}</option>)}
+            {mesclarCategorias('receita',customCats).map(c=><option key={'r_'+c} value={c}>{CAT_ICONS[c]||'📦'} {c}</option>)}
           </select>
         </div>
         <div style={{marginBottom:12}}>
@@ -513,7 +594,7 @@ export default function Parametros() {
         <div style={{textAlign:'center',padding:30}}><Loader2 size={22} color={TERRA} style={{animation:'spin 0.8s linear infinite'}}/></div>
       ):(
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {CATS_DESPESA.map(cat=>{
+          {[...mesclarCategorias('despesa',customCats),...mesclarCategorias('receita',customCats)].map(cat=>{
             const baseSubs=SUBCATS[cat]||[]
             const customs=customSubsDB.filter(s=>s.category===cat)
             if(baseSubs.length===0&&customs.length===0)return null
