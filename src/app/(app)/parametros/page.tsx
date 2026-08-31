@@ -242,8 +242,49 @@ export default function Parametros() {
     // Só DESPESAS recorrentes. Receita (salário) é configurada em Ciclo Salarial
     // e não tem "dia de vencimento" — aparecer aqui pedindo vencimento confundia.
     const {data}=await createClient().from('transactions').select('*')
-      .eq('is_recurring',true).neq('type','Receita').order('description')
-    setRecurrents((data||[]).filter((t:any)=>t.transaction_type!=='receita'))
+      .eq('is_recurring',true).neq('type','Receita').order('purchase_date',{ascending:false})
+    const despesas=(data||[]).filter((t:any)=>t.transaction_type!=='receita')
+
+    // Cada mês gera uma nova linha da mesma conta recorrente. A lista mostrava
+    // todas, então "Aluguel da Garagem" aparecia repetido uma vez por mês.
+    // Aqui mostramos UM card por conta (o mais recente), guardando quantas
+    // ocorrências existem para poder apagar todas de uma vez.
+    const porConta=new Map<string,any>()
+    for(const t of despesas){
+      const chave=`${(t.description||'').trim().toLowerCase()}|${t.holder}`
+      if(porConta.has(chave)){porConta.get(chave)._ocorrencias++; continue}
+      porConta.set(chave,{...t,_ocorrencias:1})
+    }
+    setRecurrents(Array.from(porConta.values()).sort((a,b)=>
+      (a.description||'').localeCompare(b.description||'')))
+  }
+
+  async function removeRecurrent(tx:any){
+    const s=createClient()
+    const n=tx._ocorrencias||1
+    const escolha=confirm(
+      `Apagar a conta recorrente "${tx.description}"?\n\n` +
+      `Existem ${n} lançamento${n>1?'s':''} desta conta.\n\n` +
+      `OK = apagar tudo (inclusive o histórico já lançado)\n` +
+      `Cancelar = não apagar nada`
+    )
+    if(!escolha)return
+    const {error}=await s.from('transactions').delete()
+      .eq('is_recurring',true).eq('holder',tx.holder).eq('description',tx.description)
+    if(error){toast.error(`Não foi possível apagar: ${error.message}`);return}
+    toast.success(`"${tx.description}" apagada (${n} lançamento${n>1?'s':''})`)
+    loadRecurrents()
+  }
+
+  async function pararRecorrencia(tx:any){
+    // Alternativa menos destrutiva: mantém o histórico, só para de gerar
+    if(!confirm(`Parar de gerar "${tx.description}" nos próximos meses?\n\nO histórico já lançado é mantido.`))return
+    const {error}=await createClient().from('transactions')
+      .update({is_recurring:false})
+      .eq('is_recurring',true).eq('holder',tx.holder).eq('description',tx.description)
+    if(error){toast.error(`Erro: ${error.message}`);return}
+    toast.success('Não será mais gerada automaticamente')
+    loadRecurrents()
   }
   async function saveDueDay(tx:any){
     const dia=parseInt(dueDayRaw)
@@ -490,6 +531,19 @@ export default function Parametros() {
                 </p>
               </div>
               <p style={{fontSize:14,fontWeight:700,color:RED,margin:0}}>{formatCurrency(tx.expected_amount||tx.amount)}</p>
+            </div>
+            <div style={{display:'flex',gap:8,paddingLeft:30,flexWrap:'wrap'}}>
+              <button onClick={()=>pararRecorrencia(tx)}
+                style={{fontSize:11,fontWeight:600,color:TEXTLT,background:'rgba(0,0,0,0.04)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
+                ⏸ Parar de gerar
+              </button>
+              <button onClick={()=>removeRecurrent(tx)}
+                style={{fontSize:11,fontWeight:600,color:RED,background:'rgba(255,59,48,0.08)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
+                🗑 Apagar
+              </button>
+              {tx._ocorrencias>1&&(
+                <span style={{fontSize:10,color:TEXTMU,alignSelf:'center'}}>{tx._ocorrencias} lançamentos</span>
+              )}
             </div>
             {!isCartaoRec&&(isEditing?(
               <div style={{display:'flex',gap:8,alignItems:'center',paddingLeft:30}}>

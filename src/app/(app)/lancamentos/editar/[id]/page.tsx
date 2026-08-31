@@ -85,9 +85,36 @@ export default function EditarLancamento(){
   }
 
   async function del(){
+    const s=createClient()
+    const ehParcelada=tx?.transaction_type==='parcelada'
+    const base=(tx?.description||'').replace(/\s*\(\d+\/\d+\)\s*$/,'').trim()
+
+    if(ehParcelada){
+      // Apagar UMA parcela não resolve: a correção automática de dados legados
+      // percebe a lacuna no grupo e recria a linha na próxima tela que abrir.
+      // Por isso, em parcelamento, a exclusão é do compromisso inteiro.
+      const {count}=await s.from('transactions')
+        .select('id',{count:'exact',head:true})
+        .eq('transaction_type','parcelada').eq('holder',tx.holder).ilike('description',`${base}%`)
+      const n=count||0
+      if(!confirm(`"${base}" é uma compra parcelada com ${n} parcela${n>1?'s':''}.\n\nApagar uma parcela só não funciona — ela é recriada automaticamente para manter o parcelamento completo.\n\nApagar o parcelamento INTEIRO (todas as ${n} parcelas)?`))return
+      const {error}=await s.from('transactions').delete()
+        .eq('transaction_type','parcelada').eq('holder',tx.holder).ilike('description',`${base}%`)
+      if(error){toast.error(`Não foi possível apagar: ${error.message}`);return}
+      toast.success(`Parcelamento apagado (${n} parcelas)`)
+      router.push('/lancamentos')
+      return
+    }
+
     if(!confirm('Apagar este lançamento?'))return
-    await createClient().from('transactions').delete().eq('id',id)
-    toast.success('Apagado!')
+    const {error}=await s.from('transactions').delete().eq('id',id)
+    if(error){toast.error(`Não foi possível apagar: ${error.message}`);return}
+    // Recorrente volta a ser gerado todo mês se o template continuar marcado
+    if(tx?.is_recurring){
+      toast.success('Apagado. Como é uma conta recorrente, ela pode ser gerada de novo — apague em Configurações > Contas Recorrentes para parar de vez.')
+    }else{
+      toast.success('Apagado!')
+    }
     router.push('/lancamentos')
   }
 
@@ -107,6 +134,9 @@ export default function EditarLancamento(){
   const cats=isReceita?CATS_RECEITA:CATS_DESPESA
   const subs=SUBCATS[form.category]||[]
   const isCredito=form.payment_method==='cartao_credito'&&form.transaction_type!=='parcelada'
+  // Qualquer coisa no crédito (à vista OU parcelada) entra na fatura e não tem
+  // status próprio: quem paga é a fatura inteira, no vencimento do cartão.
+  const naFatura=form.payment_method==='cartao_credito'
 
   return(
     <div style={{background:BG,minHeight:'100%'}}>
@@ -262,7 +292,7 @@ export default function EditarLancamento(){
         )}
 
         {/* Cartão de crédito */}
-        {isCredito&&cards.length>0&&(
+        {naFatura&&cards.length>0&&(
           <div>
             <label style={lbl}>Cartão de crédito</label>
             <div style={{position:'relative'}}>
@@ -278,8 +308,8 @@ export default function EditarLancamento(){
           </div>
         )}
 
-        {/* Status — só mostra se NÃO for crédito (crédito vai pra fatura automaticamente) */}
-        {!isCredito&&(
+        {/* Status — some para qualquer compra no crédito, à vista ou parcelada */}
+        {!naFatura&&(
           <div>
             <label style={lbl}>Status</label>
             <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
@@ -300,14 +330,18 @@ export default function EditarLancamento(){
             </div>
           </div>
         )}
-        {isCredito&&(
+        {naFatura&&(
           <div style={{background:'rgba(196,98,45,0.06)',borderRadius:12,padding:'10px 14px',border:'1px solid rgba(196,98,45,0.12)'}}>
-            <p style={{fontSize:12,color:TERRA,margin:0,fontWeight:600}}>💳 Compra no crédito — entra na fatura automaticamente</p>
+            <p style={{fontSize:12,color:TERRA,margin:0,fontWeight:600}}>
+              {form.transaction_type==='parcelada'
+                ? '💳 Parcelas no crédito — cada uma entra na fatura do seu mês e é quitada junto com ela'
+                : '💳 Compra no crédito — entra na fatura automaticamente'}
+            </p>
           </div>
         )}
 
         {/* Pagamento confirmação */}
-        {form.status==='Pago'&&(
+        {form.status==='Pago'&&!naFatura&&(
           <div style={{background:'rgba(34,199,89,0.06)',borderRadius:16,padding:'14px 16px',border:'1px solid rgba(34,199,89,0.15)'}}>
             <p style={{fontSize:12,fontWeight:700,color:GREEN,margin:'0 0 12px'}}>Confirmação de pagamento</p>
             <div style={{display:'flex',gap:10}}>

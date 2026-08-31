@@ -172,8 +172,16 @@ export default function Cartoes() {
 
   const totalUsado=credito.reduce((s,c)=>s+txsDoCartao(c).reduce((ss,t)=>ss+(t.installment_value||t.amount),0),0)
   const totalDisp=credito.reduce((s,c)=>s+c.credit_limit,0)-totalUsado
-  const totalPago=credito.reduce((s,c)=>s+txsDoCartao(c).filter(t=>t.status==='Pago').reduce((ss,t)=>ss+(t.paid_amount||t.installment_value||t.amount),0),0)
-  const totalPend=credito.reduce((s,c)=>s+txsDoCartao(c).filter(t=>t.status!=='Pago'&&t.status!=='Cancelado').reduce((ss,t)=>ss+(t.installment_value||t.amount),0),0)
+  // Fatura é tudo ou nada: contamos QUANTAS faturas estão quitadas e somamos
+  // por inteiro só as que ainda estão em aberto.
+  const faturaEstaQuitada=(c:Card)=>{
+    const itens=txsDoCartao(c)
+    if(itens.length===0)return false
+    return itens.filter(t=>t.status!=='Pago'&&t.status!=='Cancelado').length===0
+  }
+  const faturasPagas=credito.filter(faturaEstaQuitada).length
+  const totalAPagarFaturas=credito.filter(c=>!faturaEstaQuitada(c))
+    .reduce((s,c)=>s+txsDoCartao(c).reduce((ss,t)=>ss+(t.installment_value||t.amount),0),0)
 
   if(loading) return (
     <div style={{background:BG,minHeight:'100%',display:'flex',justifyContent:'center',alignItems:'center',paddingTop:80}}>
@@ -214,12 +222,12 @@ export default function Cartoes() {
             <p style={{fontSize:17,fontWeight:800,color:'#FF3B30',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalUsado)}</p>
           </div>
           <div style={{background:'rgba(34,199,89,0.04)',borderRadius:16,padding:'10px 14px',border:'1px solid rgba(34,199,89,0.1)'}}>
-            <p style={{fontSize:10,color:'#48484A',margin:'0 0 3px',fontWeight:600}}>Total Pago</p>
-            <p style={{fontSize:15,fontWeight:700,color:GREEN,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalPago)}</p>
+            <p style={{fontSize:10,color:'#48484A',margin:'0 0 3px',fontWeight:600}}>Faturas pagas</p>
+            <p style={{fontSize:15,fontWeight:700,color:GREEN,margin:0}}>{faturasPagas} de {credito.length}</p>
           </div>
           <div style={{background:'rgba(255,59,48,0.03)',borderRadius:16,padding:'10px 14px',border:'1px solid rgba(255,59,48,0.08)'}}>
-            <p style={{fontSize:10,color:'#48484A',margin:'0 0 3px',fontWeight:600}}>A Pagar</p>
-            <p style={{fontSize:15,fontWeight:700,color:'#FF3B30',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalPend)}</p>
+            <p style={{fontSize:10,color:'#48484A',margin:'0 0 3px',fontWeight:600}}>A pagar em faturas</p>
+            <p style={{fontSize:15,fontWeight:700,color:'#FF3B30',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalAPagarFaturas)}</p>
           </div>
         </div>
       </div>
@@ -239,6 +247,11 @@ export default function Cartoes() {
             const gasto=itens.reduce((s,t)=>s+(t.installment_value||t.amount),0)
             const pago=itens.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.paid_amount||t.installment_value||t.amount),0)
             const pendente=itens.filter(t=>t.status!=='Pago'&&t.status!=='Cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)
+            // Fatura não se paga pela metade: ou está toda quitada, ou está em
+            // aberto. Mostrar "pago X / pendente Y" ao mesmo tempo passava a
+            // ideia errada de pagamento parcial.
+            const faturaQuitada=itens.length>0&&pendente<=0.01
+            const valorAPagar=faturaQuitada?0:gasto
             const bk=getBankKey(c.bank)
             const grad=BANK_GRADIENT[bk]||BANK_GRADIENT.default
             const sigla=BANK_SIGLA[bk]||c.bank[0]
@@ -294,15 +307,19 @@ export default function Cartoes() {
                         </div>
                       )}
                     </div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12,position:'relative'}}>
-                      <div style={{background:'rgba(0,0,0,0.2)',borderRadius:14,padding:'8px 12px',backdropFilter:'blur(4px)'}}>
-                        <p style={{fontSize:10,color:'rgba(255,255,255,0.45)',margin:'0 0 2px'}}>✓ Pago</p>
-                        <p style={{fontSize:14,fontWeight:700,color:'rgba(93,224,138,0.9)',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(pago)}</p>
+                    <div style={{background:'rgba(0,0,0,0.2)',borderRadius:14,padding:'10px 14px',marginBottom:12,position:'relative',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+                      <div>
+                        <p style={{fontSize:10,color:'rgba(255,255,255,0.45)',margin:'0 0 2px'}}>Situação da fatura</p>
+                        <p style={{fontSize:14,fontWeight:700,margin:0,color:faturaQuitada?'rgba(93,224,138,0.95)':'rgba(255,180,100,0.95)'}}>
+                          {itens.length===0?'Sem compras':faturaQuitada?'✓ Paga':'Em aberto'}
+                        </p>
                       </div>
-                      <div style={{background:'rgba(0,0,0,0.2)',borderRadius:14,padding:'8px 12px',backdropFilter:'blur(4px)'}}>
-                        <p style={{fontSize:10,color:'rgba(255,255,255,0.45)',margin:'0 0 2px'}}>⏳ Pendente</p>
-                        <p style={{fontSize:14,fontWeight:700,color:'rgba(255,180,100,0.95)',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(pendente)}</p>
-                      </div>
+                      {!faturaQuitada&&itens.length>0&&(
+                        <div style={{textAlign:'right'}}>
+                          <p style={{fontSize:10,color:'rgba(255,255,255,0.45)',margin:'0 0 2px'}}>A pagar</p>
+                          <p style={{fontSize:15,fontWeight:800,color:'#fff',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(valorAPagar)}</p>
+                        </div>
+                      )}
                     </div>
                     {c.credit_limit>0&&(
                       <div style={{position:'relative'}}>
@@ -370,12 +387,12 @@ export default function Cartoes() {
                           {/* O status é da FATURA, não de cada compra */}
                           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:8}}>
                             <span style={{fontSize:11,color:TEXTMU}}>
-                              {pendente<=0.01?'Fatura quitada':`Falta pagar ${formatCurrency(pendente)}`}
+                              {faturaQuitada?'Quitada por inteiro':'Paga de uma vez, no vencimento'}
                             </span>
                             <span style={{fontSize:10,fontWeight:700,padding:'3px 9px',borderRadius:6,
-                              background:pendente<=0.01?'rgba(34,199,89,0.12)':'rgba(196,98,45,0.12)',
-                              color:pendente<=0.01?'#1B8A3A':'#C4622D'}}>
-                              {pendente<=0.01?'✓ Fatura paga':'Fatura em aberto'}
+                              background:faturaQuitada?'rgba(34,199,89,0.12)':'rgba(196,98,45,0.12)',
+                              color:faturaQuitada?'#1B8A3A':'#C4622D'}}>
+                              {faturaQuitada?'✓ Fatura paga':'Fatura em aberto'}
                             </span>
                           </div>
                           <p style={{fontSize:10,color:TEXTMU,margin:'8px 0 0',lineHeight:1.4}}>

@@ -260,11 +260,11 @@ export default function Relatorios() {
         <p style={{fontSize:20,fontWeight:800,color:saldo>=0?GREEN:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{saldo>=0?'+':''}{v(saldo)}</p>
       </div>
 
-      {/* Insights — leitura pronta do mês, em vez de só números crus */}
+      {/* Insights — leitura pronta do mês, em vez de só números crus.
+          Colapsável como as demais seções, e aberto por padrão. */}
       {insights.length>0&&(
-        <div style={{background:CARD,borderRadius:18,padding:'16px 18px',marginBottom:12,border:'1px solid rgba(0,0,0,0.04)'}}>
-          <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:'0 0 4px'}}>💡 O que os números dizem</p>
-          <p style={{fontSize:11,color:TEXTMU,margin:'0 0 14px'}}>Comparado com {format(subMonths(date,1),"MMMM 'de' yyyy",{locale:ptBR})}</p>
+        <Section title="O que os números dizem" icon="💡" count={insights.length} defaultOpen>
+          <p style={{fontSize:11,color:TEXTMU,margin:'12px 0 14px'}}>Comparado com {format(subMonths(date,1),"MMMM 'de' yyyy",{locale:ptBR})}</p>
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
             {insights.map((ins,i)=>{
               const cor=ins.tom==='bom'?GREEN:ins.tom==='ruim'?RED:TEXTLT
@@ -280,7 +280,7 @@ export default function Relatorios() {
               )
             })}
           </div>
-        </div>
+        </Section>
       )}
 
       {/* Breakdown de despesas */}
