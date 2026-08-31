@@ -238,7 +238,10 @@ export default function Dashboard() {
   const todasContas=[...contasDespesa,...contasFatura]
   const porVencimento=(a:Conta,b:Conta)=>a.dueDate.localeCompare(b.dueDate)
   const contasVencidas=todasContas.filter(c=>!c.pago&&c.dueDate<hojeStr).sort(porVencimento)
-  const contasAPagar=todasContas.filter(c=>!c.pago&&c.dueDate>=hojeStr).sort(porVencimento)
+  // "A pagar" é TUDO que está em aberto — conta vencida continua sendo conta a
+  // pagar. Antes as vencidas eram excluídas daqui, então a aba aparecia vazia
+  // mesmo havendo 8 contas atrasadas. As vencidas vêm primeiro na ordenação.
+  const contasAPagar=todasContas.filter(c=>!c.pago).sort(porVencimento)
   const contasPagas=todasContas.filter(c=>c.pago).sort((a,b)=>b.dueDate.localeCompare(a.dueDate))
   const contasVisiveis=abaContas==='vencidas'?contasVencidas:abaContas==='pagas'?contasPagas:contasAPagar
   const totalVencidas=contasVencidas.reduce((s,c)=>s+c.valor,0)
@@ -412,7 +415,11 @@ export default function Dashboard() {
         {abaContas!=='pagas'&&contasVisiveis.length>0&&(
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'0 2px 10px'}}>
             <span style={{fontSize:11,color:TEXTMU,fontWeight:600}}>
-              {abaContas==='vencidas'?'Total vencido':'Total a pagar'}
+              {abaContas==='vencidas'
+                ?'Total vencido'
+                :contasVencidas.length>0
+                  ?`Total a pagar · ${contasVencidas.length} já vencida${contasVencidas.length>1?'s':''}`
+                  :'Total a pagar'}
             </span>
             <span style={{fontSize:15,fontWeight:800,color:abaContas==='vencidas'?RED:TEXT,fontVariantNumeric:'tabular-nums'}}>
               {v(abaContas==='vencidas'?totalVencidas:totalAPagar)}
