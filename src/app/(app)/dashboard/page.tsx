@@ -48,6 +48,7 @@ export default function Dashboard() {
   const [goals,setGoals]=useState<any[]>([])
   const [cards,setCards]=useState<any[]>([])
   const [faturaPorCartao,setFaturaPorCartao]=useState<Record<string,number>>({})
+  const [semCartao,setSemCartao]=useState<{valor:number;qtd:number}>({valor:0,qtd:0})
   const [faturasFechadas,setFaturasFechadas]=useState<{cardId:string;cardName:string;ciclo:string;total:number}[]>([])
   const [confirmandoFatura,setConfirmandoFatura]=useState<{cardId:string;cardName:string;ciclo:string;total:number}|null>(null)
   const [confirmValorRaw,setConfirmValorRaw]=useState('')
@@ -83,14 +84,20 @@ export default function Dashboard() {
     setCards(cardsData||[])
     // Agrupar fatura pendente por cartão - usa billing_month, ou purchase_date como fallback (dados antigos)
     const faturaMap:Record<string,number>={}
+    let semCartaoValor=0, semCartaoQtd=0
     ;(faturaTxs||[]).forEach((t:any)=>{
       if(t.status==='Pago')return
       const mesRef=t.billing_month||t.purchase_date
       if(!mesRef||mesRef<monthStart||mesRef>monthEnd)return
-      const key=t.card_name||'Cartão'
-      faturaMap[key]=(faturaMap[key]||0)+(t.installment_value||t.amount||0)
+      // Compra no crédito sem cartão escolhido não é fatura de ninguém. Antes
+      // caía num balde chamado "Cartão" e virava uma "Fatura Cartão" fantasma,
+      // que não batia com nenhum cartão da tela de Cartões.
+      const nome=(t.card_name||'').trim()
+      if(!nome){ semCartaoValor+=(t.installment_value||t.amount||0); semCartaoQtd++; return }
+      faturaMap[nome]=(faturaMap[nome]||0)+(t.installment_value||t.amount||0)
     })
     setFaturaPorCartao(faturaMap)
+    setSemCartao({valor:semCartaoValor,qtd:semCartaoQtd})
 
     // Detectar faturas que acabaram de fechar e ainda não foram confirmadas pelo usuário
     const pendentesConfirmacao:{cardId:string;cardName:string;ciclo:string;total:number}[]=[]
@@ -364,6 +371,24 @@ export default function Dashboard() {
           )
         })}
       </div>
+
+      {/* Lançamento no crédito sem cartão — dado incompleto, não fatura */}
+      {semCartao.qtd>0&&(
+        <div style={{...card(),background:'rgba(255,149,0,0.06)',border:'1px solid rgba(255,149,0,0.22)',marginBottom:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
+            <span style={{fontSize:14}}>⚠️</span>
+            <p style={{fontSize:13,fontWeight:700,color:'#B37700',margin:0}}>
+              {semCartao.qtd} lançamento{semCartao.qtd>1?'s':''} no crédito sem cartão
+            </p>
+          </div>
+          <p style={{fontSize:11.5,color:TEXTMU,margin:'0 0 10px',lineHeight:1.45}}>
+            Somam {v(semCartao.valor)} e não entram na fatura de nenhum cartão. Abra cada um e escolha o cartão para eles aparecerem no lugar certo.
+          </p>
+          <Link href="/lancamentos" style={{fontSize:11.5,fontWeight:700,color:'#fff',background:'#FF9500',borderRadius:8,padding:'6px 12px',textDecoration:'none',display:'inline-block'}}>
+            Corrigir lançamentos
+          </Link>
+        </div>
+      )}
 
       {/* ── Fatura fechou: confirmar valor real ───────────── */}
       {faturasFechadas.length>0&&(

@@ -56,6 +56,10 @@ export default function EditarLancamento(){
 
   async function save(e:React.FormEvent){
     e.preventDefault()
+    if(form.payment_method==='cartao_credito'&&!(form.card_name||'').trim()){
+      toast.error('Escolha o cartão de crédito')
+      return
+    }
     setSaving(true)
     const amount=unmaskCurrency(valRaw)||parseFloat(form.amount)||0
     const {error}=await createClient().from('transactions').update({

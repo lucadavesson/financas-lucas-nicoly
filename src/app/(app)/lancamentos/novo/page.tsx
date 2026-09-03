@@ -219,6 +219,20 @@ export default function NovoLancamento() {
         : 'Preencha todos os campos obrigatórios')
       return
     }
+    // Sem cartão, a compra no crédito não entra em fatura nenhuma e vira um
+    // lançamento órfão que não aparece na tela de Cartões.
+    if (tipo === 'avista' && method === 'cartao_credito' && !debitCard) {
+      toast.error('Escolha o cartão de crédito')
+      return
+    }
+    if (tipo === 'parcelada' && !card) {
+      toast.error('Escolha o cartão de crédito')
+      return
+    }
+    if (tipo === 'recorrente' && recMethod === 'cartao_credito' && !recCard) {
+      toast.error('Escolha o cartão de crédito')
+      return
+    }
     if (tipo === 'recorrente' && recMethod !== 'cartao_credito' && !recDay) {
       toast.error('Informe o dia de vencimento (para o app te avisar quando estiver perto)')
       return
