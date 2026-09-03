@@ -7,6 +7,10 @@ import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Eye, EyeOff, X } from 'lucide-react'
 import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
 
+// A partir de quantas parcelas conta como financiamento longo (imóvel,
+// consórcio) — mesmo corte usado na tela de Parcelamentos
+const LIMITE_LONGO = 24
+
 const BG='#F5F5F7',CARD='#FFFFFF',TEXT='#1C1C1E',TEXTLT='#48484A',TEXTMU='#8E8E93'
 const GREEN='#34C759',RED='#FF3B30',TERRA='#C4622D'
 const COLORS=['#1D9E75','#7F77DD','#378ADD','#C8963C','#E24B4A','#D85A30','#0F6E56','#9B59B6','#E67E22','#2ECC71','#E74C3C','#3498DB']
@@ -129,7 +133,18 @@ export default function Relatorios() {
         t.status!=='Cancelado' &&
         t.transaction_type!=='receita' && t.type!=='Receita')
 
-      const parcelas=doMes.filter(isParcelada)
+      // Financiamento longo (24+ parcelas) sai numa faixa própria: mantê-lo
+      // junto das parcelas normais distorcia a leitura, e escondê-lo mentiria
+      // sobre o que sai da conta todo mês.
+      const ehLongo=(t:any)=>{
+        const m=t.description?.match(/\((\d+)\/(\d+)\)/)
+        const total=m?parseInt(m[2]):(t.installment_total||t.total_installments||0)
+        return total>=LIMITE_LONGO
+      }
+      const parceladasDoMes=doMes.filter(isParcelada)
+      const parcelas=parceladasDoMes.filter((t:any)=>!ehLongo(t))
+        .reduce((sum:number,t:any)=>sum+(t.installment_value||t.amount||0),0)
+      const longos=parceladasDoMes.filter(ehLongo)
         .reduce((sum:number,t:any)=>sum+(t.installment_value||t.amount||0),0)
 
       const linhasRec=doMes.filter((t:any)=>t.is_recurring&&!isParcelada(t))
@@ -138,7 +153,7 @@ export default function Relatorios() {
         : totalRecorrenteProjetado
       const projetado=linhasRec.length===0
 
-      return { mesKey, label:format(d,"MMM/yy",{locale:ptBR}), parcelas, recorrentes, total:parcelas+recorrentes, projetado }
+      return { mesKey, label:format(d,"MMM/yy",{locale:ptBR}), parcelas, longos, recorrentes, total:parcelas+longos+recorrentes, projetado }
     })
     const maior=Math.max(...linhas.map(l=>l.total),1)
     return { linhas, maior }
@@ -310,14 +325,19 @@ export default function Relatorios() {
         <Section title="O que já está contratado" icon="📅" total={compromissos.linhas[0]?.total}>
           <p style={{fontSize:11,color:TEXTMU,margin:'12px 0 12px',lineHeight:1.45}}>
             Gastos que já existem e vão acontecer nos próximos meses, sem contar compras novas:
-            parcelas em andamento e contas que se repetem.
+            parcelas em andamento e contas que se repetem. Inclui os financiamentos longos —
+            eles saem da conta todo mês, então ficam à vista aqui, só separados por cor.
           </p>
 
           {/* Legenda */}
-          <div style={{display:'flex',gap:14,marginBottom:12}}>
+          <div style={{display:'flex',gap:14,marginBottom:12,flexWrap:'wrap'}}>
             <div style={{display:'flex',alignItems:'center',gap:5}}>
               <span style={{width:9,height:9,borderRadius:3,background:TERRA,display:'inline-block'}}/>
               <span style={{fontSize:11,color:TEXTMU}}>Parcelas</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:5}}>
+              <span style={{width:9,height:9,borderRadius:3,background:'#1D6FA5',display:'inline-block'}}/>
+              <span style={{fontSize:11,color:TEXTMU}}>Financiamentos longos</span>
             </div>
             <div style={{display:'flex',alignItems:'center',gap:5}}>
               <span style={{width:9,height:9,borderRadius:3,background:'#9B59B6',display:'inline-block'}}/>
@@ -332,14 +352,16 @@ export default function Relatorios() {
                   <span style={{fontSize:11,color:TEXTMU,width:50,flexShrink:0,textTransform:'capitalize'}}>{l.label}</span>
                   <div style={{flex:1,height:16,background:'rgba(0,0,0,0.03)',borderRadius:5,overflow:'hidden',display:'flex'}}>
                     {l.parcelas>0&&<div style={{width:`${(l.parcelas/compromissos.maior)*100}%`,background:TERRA}}/>}
+                    {l.longos>0&&<div style={{width:`${(l.longos/compromissos.maior)*100}%`,background:'#1D6FA5'}}/>}
                     {l.recorrentes>0&&<div style={{width:`${(l.recorrentes/compromissos.maior)*100}%`,background:'#9B59B6'}}/>}
                   </div>
                   <span style={{fontSize:11.5,fontWeight:700,color:TEXT,width:86,textAlign:'right',flexShrink:0,fontVariantNumeric:'tabular-nums'}}>
                     {v(l.total)}
                   </span>
                 </div>
-                <div style={{display:'flex',gap:10,paddingLeft:58,marginTop:3}}>
+                <div style={{display:'flex',gap:10,paddingLeft:58,marginTop:3,flexWrap:'wrap'}}>
                   {l.parcelas>0&&<span style={{fontSize:10,color:TERRA}}>Parcelas {v(l.parcelas)}</span>}
+                  {l.longos>0&&<span style={{fontSize:10,color:'#1D6FA5'}}>Financiamentos {v(l.longos)}</span>}
                   {l.recorrentes>0&&<span style={{fontSize:10,color:'#9B59B6'}}>Recorrentes {v(l.recorrentes)}{l.projetado?' (previsto)':''}</span>}
                 </div>
               </div>

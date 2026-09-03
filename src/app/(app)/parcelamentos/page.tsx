@@ -309,6 +309,14 @@ export default function Parcelamentos() {
         </div>
       </div>
 
+      {/* Deixa claro o escopo: sem isso, comparar este total com o dos
+          Relatórios parece inconsistência, quando na verdade é filtro ligado */}
+      {ocultarLongos&&longos.length>0&&(
+        <p style={{fontSize:11,color:TEXTMU,margin:'-8px 0 14px',paddingLeft:4}}>
+          Não inclui {longos.length===1?longos[0].base:`${longos.length} financiamentos longos`}. Em Relatórios, o quadro de compromissos mostra tudo.
+        </p>
+      )}
+
       {/* Insights — recolhido por padrão */}
       {insights.length>0&&(
         <div style={{background:'#fff',borderRadius:16,marginBottom:16,border:'1px solid rgba(0,0,0,0.05)',overflow:'hidden'}}>
