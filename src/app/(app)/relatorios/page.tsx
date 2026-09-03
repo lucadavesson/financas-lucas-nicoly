@@ -108,7 +108,10 @@ export default function Relatorios() {
   const compromissos=(()=>{
     const MESES=6
     const recorrentesTpl=new Map<string,number>()
-    txs.filter((t:any)=>t.is_recurring&&t.transaction_type!=='receita'&&t.type!=='Receita')
+    // !isParcelada é essencial: uma conta como "Condomínio (2/100)" é recorrente
+    // E tem número de parcela na descrição. Sem esse filtro ela entrava na barra
+    // de parcelas e também na projeção de recorrentes, sendo contada duas vezes.
+    txs.filter((t:any)=>t.is_recurring&&!isParcelada(t)&&t.transaction_type!=='receita'&&t.type!=='Receita')
       .forEach((t:any)=>{
         const chave=`${(t.description||'').trim().toLowerCase()}|${t.holder}`
         if(!recorrentesTpl.has(chave))recorrentesTpl.set(chave,t.expected_amount||t.amount||0)
