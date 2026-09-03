@@ -105,13 +105,15 @@ export default function Relatorios() {
   // contas recorrentes só são geradas no mês corrente. Para os meses à frente
   // elas são projetadas a partir dos templates — é uma conta que se repete por
   // definição, então some do quadro se não projetar.
+  // Recalculado a cada troca de titular no filtro do topo
   const compromissos=(()=>{
     const MESES=6
     const recorrentesTpl=new Map<string,number>()
     // !isParcelada é essencial: uma conta como "Condomínio (2/100)" é recorrente
     // E tem número de parcela na descrição. Sem esse filtro ela entrava na barra
     // de parcelas e também na projeção de recorrentes, sendo contada duas vezes.
-    txs.filter((t:any)=>t.is_recurring&&!isParcelada(t)&&t.transaction_type!=='receita'&&t.type!=='Receita')
+    const doTitular=(t:any)=>holder==='Todos'||t.holder===holder
+    txs.filter((t:any)=>doTitular(t)&&t.is_recurring&&!isParcelada(t)&&t.transaction_type!=='receita'&&t.type!=='Receita')
       .forEach((t:any)=>{
         const chave=`${(t.description||'').trim().toLowerCase()}|${t.holder}`
         if(!recorrentesTpl.has(chave))recorrentesTpl.set(chave,t.expected_amount||t.amount||0)
@@ -122,6 +124,7 @@ export default function Relatorios() {
       const d=addMonths(new Date(),i)
       const mesKey=format(d,'yyyy-MM')
       const doMes=txs.filter((t:any)=>
+        doTitular(t) &&
         (t.purchase_date||'').slice(0,7)===mesKey &&
         t.status!=='Cancelado' &&
         t.transaction_type!=='receita' && t.type!=='Receita')
@@ -304,9 +307,8 @@ export default function Relatorios() {
 
       {/* Compromissos já contratados dos próximos meses */}
       {compromissos.linhas.some(l=>l.total>0)&&(
-        <div style={{background:CARD,borderRadius:18,padding:'16px 18px',marginBottom:12,border:'1px solid rgba(0,0,0,0.04)'}}>
-          <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:'0 0 4px'}}>📅 O que já está contratado</p>
-          <p style={{fontSize:11,color:TEXTMU,margin:'0 0 12px',lineHeight:1.45}}>
+        <Section title="O que já está contratado" icon="📅" total={compromissos.linhas[0]?.total}>
+          <p style={{fontSize:11,color:TEXTMU,margin:'12px 0 12px',lineHeight:1.45}}>
             Gastos que já existem e vão acontecer nos próximos meses, sem contar compras novas:
             parcelas em andamento e contas que se repetem.
           </p>
@@ -343,7 +345,7 @@ export default function Relatorios() {
               </div>
             ))}
           </div>
-        </div>
+        </Section>
       )}
 
       {/* Insights — leitura pronta do mês, em vez de só números crus.

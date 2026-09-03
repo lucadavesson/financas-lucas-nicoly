@@ -231,51 +231,53 @@ export default function Cartoes() {
         </button>
       </div>
 
-      {/* Visão Geral */}
-      <div style={{background:'#FFFFFF',borderRadius:24,padding:'16px 18px',marginBottom:20,border:'1px solid rgba(0,0,0,0.06)',boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
-        <p style={{fontSize:11,fontWeight:700,color:TEXTMU,margin:'0 0 12px',textTransform:'uppercase',letterSpacing:'0.09em'}}>
-          Visão Geral ({mes})
-        </p>
-        {/* Duas leituras diferentes, separadas de propósito: o que você DEVE
-            neste mês, e quanto de limite os cartões ainda têm. O verde grande
-            em "crédito disponível" passava a ideia de dinheiro sobrando. */}
-        <div style={{marginBottom:14}}>
-          <p style={{fontSize:10.5,fontWeight:700,color:TEXTLT,margin:'0 0 8px'}}>💳 Fatura deste mês</p>
-          <div style={{background:'rgba(0,0,0,0.02)',borderRadius:14,padding:'4px 12px'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0'}}>
-              <span style={{fontSize:12,color:TEXTMU}}>Total</span>
-              <span style={{fontSize:14,fontWeight:700,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(faturaTotal)}</span>
-            </div>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:'1px solid rgba(0,0,0,0.05)'}}>
-              <span style={{fontSize:12,color:TEXTMU}}>Paga <span style={{fontSize:10.5}}>({faturasPagas} de {credito.length} faturas)</span></span>
-              <span style={{fontSize:14,fontWeight:700,color:GREEN,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(faturaPaga)}</span>
-            </div>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:'1px solid rgba(0,0,0,0.05)'}}>
-              <span style={{fontSize:12,color:TEXTMU}}>Pendente</span>
-              <span style={{fontSize:15,fontWeight:800,color:'#FF3B30',fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalAPagarFaturas)}</span>
-            </div>
-          </div>
-        </div>
+      {/* Cartão consolidado — mesma linguagem visual dos cartões de banco,
+          em grafite para não se confundir com nenhum banco específico */}
+      <div style={{borderRadius:28,overflow:'hidden',marginBottom:20,boxShadow:'0 2px 8px rgba(0,0,0,0.12)',border:'1px solid rgba(0,0,0,0.06)'}}>
+        <div style={{background:'linear-gradient(145deg,#3D3D42,#1A1A1D)',padding:'20px 22px 18px',position:'relative',overflow:'hidden'}}>
+          <div style={{position:'absolute',top:-40,right:-40,width:160,height:160,borderRadius:'50%',background:'rgba(255,255,255,0.05)',pointerEvents:'none'}}/>
 
-        <div>
-          <p style={{fontSize:10.5,fontWeight:700,color:TEXTLT,margin:'0 0 8px'}}>🏦 Limite dos cartões</p>
-          <div style={{background:'rgba(0,0,0,0.02)',borderRadius:14,padding:'4px 12px'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0'}}>
-              <span style={{fontSize:12,color:TEXTMU}}>Total</span>
-              <span style={{fontSize:14,fontWeight:700,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(creditoTotal)}</span>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16,position:'relative'}}>
+            <div style={{width:38,height:38,borderRadius:13,background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
+              <span style={{fontSize:15}}>📊</span>
             </div>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:'1px solid rgba(0,0,0,0.05)'}}>
-              <span style={{fontSize:12,color:TEXTMU}}>Utilizado</span>
-              <span style={{fontSize:14,fontWeight:700,color:'#C4622D',fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalUsado)}</span>
-            </div>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:'1px solid rgba(0,0,0,0.05)'}}>
-              <span style={{fontSize:12,color:TEXTMU}}>Disponível</span>
-              <span style={{fontSize:14,fontWeight:700,color:TEXTLT,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalDisp)}</span>
+            <div>
+              <p style={{fontSize:11,color:'rgba(255,255,255,0.5)',margin:'0 0 1px'}}>Todos os cartões</p>
+              <p style={{fontSize:15,fontWeight:700,color:'#fff',margin:0}}>Consolidado | {mes}</p>
             </div>
           </div>
-          <p style={{fontSize:10.5,color:TEXTMU,margin:'8px 0 0',lineHeight:1.4}}>
-            Limite é quanto os cartões ainda deixam você gastar — não é dinheiro disponível na conta.
-          </p>
+
+          <div style={{position:'relative',marginBottom:14}}>
+            <p style={{fontSize:11,color:'rgba(255,255,255,0.4)',margin:'0 0 3px'}}>Fatura do mês</p>
+            <p style={{fontSize:28,fontWeight:800,color:'#fff',margin:0,letterSpacing:'-0.5px',fontVariantNumeric:'tabular-nums'}}>{formatCurrency(faturaTotal)}</p>
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14,position:'relative'}}>
+            <div style={{background:'rgba(0,0,0,0.25)',borderRadius:14,padding:'8px 12px',backdropFilter:'blur(4px)'}}>
+              <p style={{fontSize:10,color:'rgba(255,255,255,0.45)',margin:'0 0 2px'}}>✓ Paga ({faturasPagas}/{credito.length})</p>
+              <p style={{fontSize:14,fontWeight:700,color:'rgba(93,224,138,0.9)',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(faturaPaga)}</p>
+            </div>
+            <div style={{background:'rgba(0,0,0,0.25)',borderRadius:14,padding:'8px 12px',backdropFilter:'blur(4px)'}}>
+              <p style={{fontSize:10,color:'rgba(255,255,255,0.45)',margin:'0 0 2px'}}>⏳ Pendente</p>
+              <p style={{fontSize:14,fontWeight:700,color:'rgba(255,150,140,0.95)',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalAPagarFaturas)}</p>
+            </div>
+          </div>
+
+          {creditoTotal>0&&(
+            <div style={{position:'relative'}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'rgba(255,255,255,0.35)',marginBottom:5}}>
+                <span>Limite total: {formatCurrency(creditoTotal)}</span>
+                <span>{((totalUsado/creditoTotal)*100).toFixed(0)}% usado</span>
+              </div>
+              <div style={{height:4,background:'rgba(255,255,255,0.1)',borderRadius:99,overflow:'hidden'}}>
+                <div style={{height:'100%',borderRadius:99,width:`${Math.min((totalUsado/creditoTotal)*100,100)}%`,
+                  background:'linear-gradient(90deg,rgba(255,180,100,0.7),rgba(255,150,140,0.95))',transition:'width 0.5s'}}/>
+              </div>
+              <p style={{fontSize:10,color:'rgba(255,255,255,0.35)',margin:'8px 0 0'}}>
+                Ainda dá pra gastar {formatCurrency(totalDisp)} no crédito — não é dinheiro em conta
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

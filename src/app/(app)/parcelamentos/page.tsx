@@ -97,6 +97,7 @@ export default function Parcelamentos() {
   // Financiamentos muito longos (imóvel, consórcio) somam centenas de milhares e
   // achatam todo o resto na tela. Este toggle tira eles da lista E dos totais.
   const [ocultarLongos, setOcultarLongos] = useState(false)
+  const [insightsAbertos, setInsightsAbertos] = useState(false)
   useEffect(()=>{try{setOcultarLongos(localStorage.getItem('ln_ocultar_longos')==='1')}catch{}},[])
   function toggleLongos(){
     setOcultarLongos(v=>{
@@ -230,6 +231,64 @@ export default function Parcelamentos() {
     </div>
   )
 
+  // ── Insights dos parcelamentos ───────────────────────────
+  const insights=(()=>{
+    const abertos=gruposNoEscopo.filter(g=>g.pagas<g.totalParcelas)
+    if(abertos.length===0)return [] as {icone:string;titulo:string;texto:string;tom:'bom'|'ruim'|'neutro'}[]
+    const out:{icone:string;titulo:string;texto:string;tom:'bom'|'ruim'|'neutro'}[]=[]
+    const mesAtual=format(new Date(),'yyyy-MM')
+
+    // Quanto sai de parcela neste mês e daqui a 6 meses — o alívio em uma frase
+    const somaDoMes=(mes:string)=>gruposNoEscopo.reduce((sum,g)=>
+      sum+g.cronograma.filter(c=>c.mes===mes&&!c.pago).length*g.valorParcela,0)
+    const agora=somaDoMes(mesAtual)
+    const daquiSeis=somaDoMes(format(addMonths(new Date(),5),'yyyy-MM'))
+    if(agora>0){
+      out.push({icone:'💸',titulo:`${formatCurrency(agora)} de parcelas neste mês`,
+        texto:`${abertos.length} parcelamento${abertos.length>1?'s':''} em andamento.`,tom:'neutro'})
+    }
+    if(agora-daquiSeis>0.01){
+      out.push({icone:'📉',titulo:`Alivia ${formatCurrency(agora-daquiSeis)}/mês em 5 meses`,
+        texto:`De ${formatCurrency(agora)} agora para ${formatCurrency(daquiSeis)} em ${format(addMonths(new Date(),5),"MMM/yy",{locale:ptBR})}.`,tom:'bom'})
+    }
+
+    // Prestes a quitar
+    const quitandoLogo=abertos.filter(g=>g.totalParcelas-g.pagas<=2)
+      .sort((a,b)=>(a.totalParcelas-a.pagas)-(b.totalParcelas-b.pagas))
+    if(quitandoLogo.length>0){
+      const nomes=quitandoLogo.slice(0,3).map(g=>{
+        const faltam=g.totalParcelas-g.pagas
+        return `${g.base} (${faltam}x)`
+      }).join(', ')
+      out.push({icone:'🏁',titulo:`${quitandoLogo.length} prestes a quitar`,
+        texto:`${nomes}${quitandoLogo.length>3?` e mais ${quitandoLogo.length-3}`:''}. Depois disso sobra ${formatCurrency(quitandoLogo.reduce((sum,g)=>sum+g.valorParcela,0))}/mês.`,tom:'bom'})
+    }
+
+    // O que mais pesa por mês
+    const maisPesado=[...abertos].sort((a,b)=>b.valorParcela-a.valorParcela)[0]
+    if(maisPesado){
+      out.push({icone:'⚖️',titulo:`${maisPesado.base} é a parcela mais pesada`,
+        texto:`${formatCurrency(maisPesado.valorParcela)}/mês, faltam ${maisPesado.totalParcelas-maisPesado.pagas} de ${maisPesado.totalParcelas}.`,tom:'neutro'})
+    }
+
+    // O que demora mais para acabar
+    const maisLongo=[...abertos].sort((a,b)=>b.mesQuitacao.getTime()-a.mesQuitacao.getTime())[0]
+    if(maisLongo&&maisLongo!==maisPesado){
+      out.push({icone:'⏳',titulo:`${maisLongo.base} é o que termina por último`,
+        texto:`Só quita em ${format(maisLongo.mesQuitacao,'MM/yyyy')}.`,tom:'neutro'})
+    }
+
+    // Juros identificados
+    const comJuros=abertos.filter(g=>g.valorCompra&&g.juros>0.01)
+    if(comJuros.length>0){
+      const totalJuros=comJuros.reduce((sum,g)=>sum+g.juros,0)
+      out.push({icone:'⚠️',titulo:`${formatCurrency(totalJuros)} em juros embutidos`,
+        texto:`Em ${comJuros.length} compra${comJuros.length>1?'s':''} onde dá pra comparar o preço à vista com o total parcelado.`,tom:'ruim'})
+    }
+
+    return out
+  })()
+
   const totalPendente=gruposNoEscopo.reduce((s,g)=>s+g.parcelas.filter(p=>p.status!=='Pago').reduce((ss,p)=>ss+(p.installment_value||p.amount),0),0)
   const totalGeral=gruposNoEscopo.reduce((s,g)=>s+g.valorTotal,0)
 
@@ -249,6 +308,38 @@ export default function Parcelamentos() {
           <p style={{fontSize:18,fontWeight:800,color:TEXT,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalGeral)}</p>
         </div>
       </div>
+
+      {/* Insights — recolhido por padrão */}
+      {insights.length>0&&(
+        <div style={{background:'#fff',borderRadius:16,marginBottom:16,border:'1px solid rgba(0,0,0,0.05)',overflow:'hidden'}}>
+          <button onClick={()=>setInsightsAbertos(v=>!v)}
+            style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'13px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <span style={{fontSize:15}}>💡</span>
+              <span style={{fontSize:13.5,fontWeight:700,color:TEXT}}>O que os parcelamentos dizem</span>
+              <span style={{fontSize:11,color:TEXTMU,background:'rgba(0,0,0,0.04)',borderRadius:8,padding:'1px 7px',fontWeight:600}}>{insights.length}</span>
+            </div>
+            {insightsAbertos?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}
+          </button>
+          {insightsAbertos&&(
+            <div style={{padding:'0 16px 14px',display:'flex',flexDirection:'column',gap:9}}>
+              {insights.map((ins,i)=>{
+                const cor=ins.tom==='bom'?GREEN:ins.tom==='ruim'?RED:TEXTLT
+                const bg=ins.tom==='bom'?'rgba(52,199,89,0.06)':ins.tom==='ruim'?'rgba(255,59,48,0.05)':'rgba(0,0,0,0.025)'
+                return (
+                  <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',background:bg,borderRadius:11,padding:'10px 12px'}}>
+                    <span style={{fontSize:15,lineHeight:1.2,flexShrink:0}}>{ins.icone}</span>
+                    <div style={{minWidth:0}}>
+                      <p style={{fontSize:12.5,fontWeight:700,color:cor,margin:0,lineHeight:1.3}}>{ins.titulo}</p>
+                      <p style={{fontSize:11.5,color:TEXTMU,margin:'3px 0 0',lineHeight:1.4}}>{ins.texto}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filtro e ordenação */}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
