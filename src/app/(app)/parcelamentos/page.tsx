@@ -5,6 +5,7 @@ import { formatCurrency, CAT_ICONS, calcBillingMonth, maskCurrency, unmaskCurren
 import { toast } from 'sonner'
 import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
 import { format, parseISO, subMonths, addMonths } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 
 // A partir de quantas parcelas um parcelamento conta como "financiamento longo"
@@ -19,7 +20,7 @@ interface Tx {
   installment_num?:number; installment_number?:number
   status:string; purchase_date:string; category:string; holder:string
   card_name?:string; payment_method?:string; transaction_type:string
-  paid_date?:string
+  paid_date?:string; paid_amount?:number
 }
 
 export default function Parcelamentos() {
@@ -135,7 +136,55 @@ export default function Parcelamentos() {
 
     for (const g of map.values()) g.parcelas.sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date))
 
-    return Array.from(map.values())
+    // Enriquece cada grupo com o que a tela precisa mostrar. Ficava tudo
+    // recalculado dentro do render, em dois lugares diferentes.
+    const mesAgora = format(new Date(), 'yyyy-MM')
+    return Array.from(map.values()).map(g => {
+      const numDe = (p:Tx) => {
+        const m = p.description?.match(/\((\d+)\/(\d+)\)/)
+        return m ? parseInt(m[1]) : (p.installment_num || p.installment_number || 0)
+      }
+      const comNum = g.parcelas.map(p=>({p,n:numDe(p)})).filter(x=>x.n>0)
+      const menor = comNum.length>0 ? comNum.reduce((a,b)=>a.n<=b.n?a:b) : null
+      // Data da parcela 1, retrocalculada quando ela não existe no banco
+      const base1 = menor
+        ? addMonths(parseISO(menor.p.purchase_date), -(menor.n-1))
+        : parseISO(g.parcelas[0].purchase_date)
+
+      const linhaDe = new Map<number,Tx>()
+      comNum.forEach(x=>{ if(!linhaDe.has(x.n)) linhaDe.set(x.n,x.p) })
+
+      // Cada parcela, exista linha no banco ou não
+      const cronograma = Array.from({length:g.totalParcelas},(_,i)=>{
+        const num = i+1
+        const linha = linhaDe.get(num)
+        const data = linha ? parseISO(linha.purchase_date) : addMonths(base1, i)
+        const mes = format(data,'yyyy-MM')
+        // Sem linha, vale a regra de mês: mês passado conta como pago
+        const pago = linha ? linha.status==='Pago' : mes < mesAgora
+        const valor = linha ? (linha.paid_amount || linha.installment_value || linha.amount) : g.valorParcela
+        return { num, data, mes, pago, valor, temLinha: !!linha }
+      })
+
+      const pagas = cronograma.filter(c=>c.pago).length
+      const valorPago = cronograma.filter(c=>c.pago).reduce((sum,c)=>sum+c.valor,0)
+      const valorFalta = cronograma.filter(c=>!c.pago).reduce((sum,c)=>sum+g.valorParcela,0)
+      const mesQuitacao = cronograma[cronograma.length-1]?.data || base1
+      const proxima = cronograma.find(c=>!c.pago) || null
+
+      // Juros embutidos: o valor da COMPRA não é guardado em todas as linhas
+      // (a maioria grava a parcela em `amount`), então procuramos um `amount`
+      // que claramente represente o total da compra — bem acima de uma parcela
+      // e abaixo da soma de todas. Sem isso, não afirmamos nada sobre juros.
+      const candidatos = g.parcelas
+        .map(p=>p.amount||0)
+        .filter(v=>v > g.valorParcela*1.5 && v < g.valorTotal-0.01)
+      const valorCompra = candidatos.length>0 ? Math.max(...candidatos) : null
+      const juros = valorCompra ? g.valorTotal - valorCompra : 0
+      const pctJuros = valorCompra && valorCompra>0 ? (juros/valorCompra)*100 : 0
+
+      return { ...g, base1, cronograma, pagas, valorPago, valorFalta, mesQuitacao, proxima, valorCompra, juros, pctJuros }
+    })
   }, [txs])
 
   // Só faz sentido oferecer o toggle se existir algum financiamento longo
@@ -181,6 +230,24 @@ export default function Parcelamentos() {
     </div>
   )
 
+  // Quanto sai de parcelas em cada um dos próximos meses. Responde a pergunta
+  // que os totais não respondem: "quando isso alivia?"
+  const cronogramaMeses = (() => {
+    const MESES = 6
+    const inicio = new Date()
+    const linhas = Array.from({length:MESES},(_,i)=>{
+      const d = addMonths(inicio, i)
+      const mes = format(d,'yyyy-MM')
+      const valor = gruposNoEscopo.reduce((sum,g)=>
+        sum + g.cronograma.filter(c=>c.mes===mes&&!c.pago).reduce((ss:number,c)=>ss+g.valorParcela,0), 0)
+      return { mes, label: format(d,"MMM/yy",{locale:ptBR}), valor }
+    })
+    const maior = Math.max(...linhas.map(l=>l.valor), 1)
+    const primeiro = linhas[0]?.valor || 0
+    const ultimo = linhas[linhas.length-1]?.valor || 0
+    return { linhas, maior, alivio: primeiro - ultimo }
+  })()
+
   const totalPendente=gruposNoEscopo.reduce((s,g)=>s+g.parcelas.filter(p=>p.status!=='Pago').reduce((ss,p)=>ss+(p.installment_value||p.amount),0),0)
   const totalGeral=gruposNoEscopo.reduce((s,g)=>s+g.valorTotal,0)
 
@@ -200,6 +267,34 @@ export default function Parcelamentos() {
           <p style={{fontSize:18,fontWeight:800,color:TEXT,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalGeral)}</p>
         </div>
       </div>
+
+      {/* Cronograma: quanto sai de parcelas por mês */}
+      {cronogramaMeses.linhas.some(l=>l.valor>0)&&(
+        <div style={{background:'#fff',borderRadius:16,padding:'14px 16px',marginBottom:16,border:'1px solid rgba(0,0,0,0.05)'}}>
+          <p style={{fontSize:10,color:TEXTMU,margin:'0 0 12px',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em'}}>
+            Quanto sai de parcelas por mês
+          </p>
+          <div style={{display:'flex',flexDirection:'column',gap:7}}>
+            {cronogramaMeses.linhas.map(l=>(
+              <div key={l.mes} style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:11,color:TEXTMU,width:52,flexShrink:0,textTransform:'capitalize'}}>{l.label}</span>
+                <div style={{flex:1,height:16,background:'rgba(0,0,0,0.03)',borderRadius:5,overflow:'hidden'}}>
+                  <div style={{height:'100%',width:`${Math.max((l.valor/cronogramaMeses.maior)*100,l.valor>0?3:0)}%`,
+                    background:'linear-gradient(90deg,rgba(196,98,45,0.75),rgba(196,98,45,1))',borderRadius:5,transition:'width 0.4s'}}/>
+                </div>
+                <span style={{fontSize:11.5,fontWeight:700,color:l.valor>0?TEXT:TEXTMU,width:88,textAlign:'right',flexShrink:0,fontVariantNumeric:'tabular-nums'}}>
+                  {l.valor>0?formatCurrency(l.valor):'—'}
+                </span>
+              </div>
+            ))}
+          </div>
+          {cronogramaMeses.alivio>0.01&&(
+            <p style={{fontSize:11,color:GREEN,margin:'11px 0 0',fontWeight:600}}>
+              ↓ Alivia {formatCurrency(cronogramaMeses.alivio)}/mês até {cronogramaMeses.linhas[cronogramaMeses.linhas.length-1].label}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Filtro e ordenação */}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
@@ -255,31 +350,7 @@ export default function Parcelamentos() {
       ):(
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
           {grupos.map((g,gi)=>{
-            // Conta como paga também a parcela de mês já passado cuja linha ainda
-            // não existe no banco (dado legado) — senão o contador X/Y fica errado
-            const mesAgora=format(new Date(),'yyyy-MM')
-            const numsPagos=new Set<number>()
-            g.parcelas.forEach(p=>{
-              const m=p.description?.match(/\((\d+)\/(\d+)\)/)
-              const n=m?parseInt(m[1]):(p.installment_num||p.installment_number||0)
-              if(n>0&&p.status==='Pago')numsPagos.add(n)
-            })
-            const numsExistentes=new Set(g.parcelas.map(p=>{
-              const m=p.description?.match(/\((\d+)\/(\d+)\)/)
-              return m?parseInt(m[1]):(p.installment_num||p.installment_number||0)
-            }).filter(n=>n>0))
-            const menorExistente=numsExistentes.size>0?Math.min(...Array.from(numsExistentes)):1
-            const refParcela=g.parcelas.find(p=>{
-              const m=p.description?.match(/\((\d+)\/(\d+)\)/)
-              const n=m?parseInt(m[1]):(p.installment_num||p.installment_number||0)
-              return n===menorExistente
-            })||g.parcelas[0]
-            const base1=addMonths(parseISO(refParcela.purchase_date),-(menorExistente-1))
-            for(let n=1;n<=g.totalParcelas;n++){
-              if(numsExistentes.has(n))continue
-              if(format(addMonths(base1,n-1),'yyyy-MM')<mesAgora)numsPagos.add(n)
-            }
-            const pagas=numsPagos.size
+            const pagas=g.pagas
             const total=g.totalParcelas
             const pct=total>0?Math.round((pagas/total)*100):0
             const isOpen=expanded===g.base+g.holder
@@ -322,6 +393,36 @@ export default function Parcelamentos() {
                         </div>
                         <span style={{fontSize:11,fontWeight:700,color:finalizada?GREEN:RED,flexShrink:0}}>{pagas}/{total}</span>
                       </div>
+
+                      {/* Pago / falta / prazo — sem precisar abrir o item */}
+                      <div style={{display:'flex',gap:14,marginTop:10,flexWrap:'wrap'}}>
+                        <div>
+                          <p style={{fontSize:9.5,color:TEXTMU,margin:0,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.04em'}}>Já paguei</p>
+                          <p style={{fontSize:13,fontWeight:700,color:GREEN,margin:'1px 0 0',fontVariantNumeric:'tabular-nums'}}>{formatCurrency(g.valorPago)}</p>
+                        </div>
+                        {!finalizada&&(
+                          <div>
+                            <p style={{fontSize:9.5,color:TEXTMU,margin:0,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.04em'}}>Falta</p>
+                            <p style={{fontSize:13,fontWeight:700,color:RED,margin:'1px 0 0',fontVariantNumeric:'tabular-nums'}}>
+                              {formatCurrency(g.valorFalta)}
+                              <span style={{fontSize:10,fontWeight:600,color:TEXTMU}}> · {total-pagas}x</span>
+                            </p>
+                          </div>
+                        )}
+                        <div>
+                          <p style={{fontSize:9.5,color:TEXTMU,margin:0,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.04em'}}>{finalizada?'Quitado em':'Quita em'}</p>
+                          <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:'1px 0 0'}}>{format(g.mesQuitacao,'MM/yyyy')}</p>
+                        </div>
+                      </div>
+
+                      {/* Juros só quando dá pra afirmar com o dado que existe */}
+                      {g.valorCompra&&g.juros>0.01&&(
+                        <div style={{marginTop:8,background:'rgba(255,149,0,0.07)',borderRadius:9,padding:'6px 10px'}}>
+                          <p style={{fontSize:10.5,color:'#B37700',margin:0,fontWeight:600}}>
+                            ⚠️ Juros de {formatCurrency(g.juros)} ({g.pctJuros.toFixed(0)}%) — compra de {formatCurrency(g.valorCompra)} virando {formatCurrency(g.valorTotal)}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </button>

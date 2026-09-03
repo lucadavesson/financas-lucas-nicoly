@@ -45,6 +45,11 @@ export default function Parametros() {
   const [recurrents, setRecurrents] = useState<any[]>([])
   const [editingDueDay, setEditingDueDay] = useState<string|null>(null)
   const [dueDayRaw, setDueDayRaw] = useState('')
+  // Conta recorrente também é lançamento: dá pra editar tudo, não só o dia
+  const [editRec, setEditRec] = useState<any|null>(null)
+  const [editRecForm, setEditRecForm] = useState<any>({})
+  const [editRecValor, setEditRecValor] = useState('')
+  const [savingRec, setSavingRec] = useState(false)
   // Segurança
   const [faceIdEnabled, setFaceIdEnabled] = useState(false)
   const [userId, setUserId] = useState('')
@@ -273,6 +278,56 @@ export default function Parametros() {
       .eq('is_recurring',true).eq('holder',tx.holder).eq('description',tx.description)
     if(error){toast.error(`Não foi possível apagar: ${error.message}`);return}
     toast.success(`"${tx.description}" apagada (${n} lançamento${n>1?'s':''})`)
+    loadRecurrents()
+  }
+
+  function abrirEditorRec(tx:any){
+    setEditRecForm({
+      description:tx.description||'', category:tx.category||'', subcategory:tx.subcategory||'',
+      holder:tx.holder||'Lucas', payment_method:tx.payment_method||'pix',
+      card_name:tx.card_name||'', recurring_day:tx.recurring_day||'',
+    })
+    setEditRecValor(maskCurrency(Math.round(((tx.expected_amount||tx.amount)||0)*100).toString()))
+    setEditRec(tx)
+  }
+
+  async function salvarEditorRec(){
+    if(!editRec)return
+    const f=editRecForm
+    const nome=(f.description||'').trim()
+    if(!nome){toast.error('Informe o nome da conta');return}
+    const valor=unmaskCurrency(editRecValor)
+    if(valor<=0){toast.error('Informe um valor');return}
+    const noCartao=f.payment_method==='cartao_credito'
+    const dia=parseInt(f.recurring_day)||null
+    if(!noCartao&&(!dia||dia<1||dia>31)){toast.error('Informe o dia de vencimento (1-31)');return}
+
+    setSavingRec(true)
+    const s=createClient()
+    // Alterar a conta recorrente vale para TODAS as ocorrências dela — é a
+    // mesma conta repetida mês a mês, não lançamentos independentes. Só o valor
+    // já pago fica preservado: mexer nele reescreveria histórico de pagamento.
+    const payload:any={
+      description:nome, category:f.category||editRec.category, subcategory:f.subcategory||null,
+      holder:f.holder, payment_method:f.payment_method,
+      card_name:noCartao?(f.card_name||null):null,
+      recurring_day:noCartao?null:dia,
+      amount:valor, expected_amount:valor,
+    }
+    const {error}=await s.from('transactions').update(payload)
+      .eq('is_recurring',true).eq('holder',editRec.holder).eq('description',editRec.description)
+      .neq('status','Pago')
+    if(error){toast.error(`Não foi possível salvar: ${error.message}`);setSavingRec(false);return}
+
+    // As ocorrências já pagas mantêm o valor pago, mas acompanham o novo nome
+    // para não virarem uma conta órfã com o nome antigo.
+    if(nome!==editRec.description){
+      await s.from('transactions').update({description:nome})
+        .eq('is_recurring',true).eq('holder',editRec.holder).eq('description',editRec.description)
+    }
+
+    toast.success('Conta recorrente atualizada')
+    setEditRec(null); setSavingRec(false)
     loadRecurrents()
   }
 
@@ -533,6 +588,10 @@ export default function Parametros() {
               <p style={{fontSize:14,fontWeight:700,color:RED,margin:0}}>{formatCurrency(tx.expected_amount||tx.amount)}</p>
             </div>
             <div style={{display:'flex',gap:8,paddingLeft:30,flexWrap:'wrap'}}>
+              <button onClick={()=>abrirEditorRec(tx)}
+                style={{fontSize:11,fontWeight:700,color:TERRA,background:'rgba(196,98,45,0.1)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
+                ✏️ Editar
+              </button>
               <button onClick={()=>pararRecorrencia(tx)}
                 style={{fontSize:11,fontWeight:600,color:TEXTLT,background:'rgba(0,0,0,0.04)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
                 ⏸ Parar de gerar
@@ -565,6 +624,112 @@ export default function Parametros() {
         )})}
         {recurrents.length===0&&<p style={{fontSize:13,color:TEXTMU,textAlign:'center',padding:20}}>Nenhuma conta recorrente cadastrada. Crie um lançamento do tipo "Recorrente".</p>}
       </div>
+
+      {/* Editor completo da conta recorrente */}
+      {editRec&&(
+        <div style={{position:'fixed',inset:0,zIndex:80,display:'flex',alignItems:'flex-end'}} onClick={()=>setEditRec(null)}>
+          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(6px)'}}/>
+          <div onClick={e=>e.stopPropagation()} style={{position:'relative',width:'100%',maxWidth:390,margin:'0 auto',
+            background:'#fff',borderRadius:'24px 24px 0 0',maxHeight:'88vh',overflowY:'auto',
+            padding:'20px 18px calc(24px + env(safe-area-inset-bottom, 20px))'}}>
+            <h3 style={{fontSize:16,fontWeight:700,color:TEXT,margin:'0 0 4px'}}>Editar conta recorrente</h3>
+            <p style={{fontSize:12,color:TEXTMU,margin:'0 0 16px'}}>
+              A mudança vale para todos os meses desta conta. As parcelas já pagas mantêm o valor que foi pago.
+            </p>
+
+            <div style={{marginBottom:12}}>
+              <label style={sLbl}>Nome da conta</label>
+              <input type="text" value={editRecForm.description||''}
+                onChange={e=>setEditRecForm((f:any)=>({...f,description:e.target.value}))} style={sInp}/>
+            </div>
+
+            <div style={{marginBottom:12}}>
+              <label style={sLbl}>Valor mensal (R$)</label>
+              <input type="text" inputMode="numeric" value={editRecValor}
+                onChange={e=>setEditRecValor(maskCurrency(e.target.value))} placeholder="0,00" style={sInp}/>
+            </div>
+
+            <div style={{marginBottom:12}}>
+              <label style={sLbl}>Responsável</label>
+              <div style={{display:'flex',gap:8}}>
+                {['Lucas','Nicoly'].map(h=>(
+                  <button key={h} onClick={()=>setEditRecForm((f:any)=>({...f,holder:h}))}
+                    style={seg(editRecForm.holder===h)}>{h}</button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{marginBottom:12}}>
+              <label style={sLbl}>Categoria</label>
+              <select value={editRecForm.category||''} onChange={e=>setEditRecForm((f:any)=>({...f,category:e.target.value,subcategory:''}))}
+                style={{...sInp,appearance:'none' as const}}>
+                <option value="">Selecione...</option>
+                {mesclarCategorias('despesa',customCats).map(c=><option key={c} value={c}>{CAT_ICONS[c]||'📦'} {c}</option>)}
+              </select>
+            </div>
+
+            {(SUBCATS[editRecForm.category]||customSubsDB.filter(x=>x.category===editRecForm.category).length>0)&&(
+              <div style={{marginBottom:12}}>
+                <label style={sLbl}>Subcategoria</label>
+                <select value={editRecForm.subcategory||''} onChange={e=>setEditRecForm((f:any)=>({...f,subcategory:e.target.value}))}
+                  style={{...sInp,appearance:'none' as const}}>
+                  <option value="">Nenhuma</option>
+                  {[...(SUBCATS[editRecForm.category]||[]),...customSubsDB.filter(x=>x.category===editRecForm.category).map(x=>x.subcategory)]
+                    .map(sc=><option key={sc} value={sc}>{sc}</option>)}
+                </select>
+              </div>
+            )}
+
+            <div style={{marginBottom:12}}>
+              <label style={sLbl}>Como é cobrada</label>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                {[{v:'debito_automatico',l:'Débito automático'},{v:'boleto',l:'Boleto'},
+                  {v:'cartao_credito',l:'Cartão de crédito'},{v:'pix',l:'PIX'}].map(m=>(
+                  <button key={m.v} onClick={()=>setEditRecForm((f:any)=>({...f,payment_method:m.v}))}
+                    style={seg(editRecForm.payment_method===m.v)}>{m.l}</button>
+                ))}
+              </div>
+            </div>
+
+            {editRecForm.payment_method==='cartao_credito'?(
+              <>
+                <div style={{marginBottom:12}}>
+                  <label style={sLbl}>Cartão</label>
+                  <select value={editRecForm.card_name||''} onChange={e=>setEditRecForm((f:any)=>({...f,card_name:e.target.value}))}
+                    style={{...sInp,appearance:'none' as const}}>
+                    <option value="">Selecione...</option>
+                    {cards.filter(c=>!c.card_type||c.card_type==='credito').map(c=>(
+                      <option key={c.id} value={`${c.name} — ${c.holder}`}>{c.name} — {c.holder}</option>
+                    ))}
+                  </select>
+                </div>
+                <p style={{fontSize:11,color:TERRA,margin:'0 0 16px',background:'rgba(196,98,45,0.06)',padding:'8px 12px',borderRadius:10}}>
+                  💳 Entra na fatura do cartão — o vencimento é o da fatura, não precisa de dia próprio.
+                </p>
+              </>
+            ):(
+              <div style={{marginBottom:16}}>
+                <label style={sLbl}>Dia do vencimento</label>
+                <input type="number" min={1} max={31} value={editRecForm.recurring_day||''}
+                  onChange={e=>setEditRecForm((f:any)=>({...f,recurring_day:e.target.value}))}
+                  placeholder="Ex: 10" style={sInp}/>
+                <p style={{fontSize:11,color:TEXTMU,margin:'5px 0 0'}}>É esse dia que o app usa para avisar no Início.</p>
+              </div>
+            )}
+
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setEditRec(null)}
+                style={{flex:1,height:48,background:'#F5F5F7',color:TEXTLT,borderRadius:14,border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>
+                Cancelar
+              </button>
+              <button onClick={salvarEditorRec} disabled={savingRec}
+                style={{flex:1,height:48,background:TERRA,color:'#fff',borderRadius:14,border:'none',fontSize:14,fontWeight:700,cursor:savingRec?'default':'pointer',opacity:savingRec?0.6:1}}>
+                {savingRec?'Salvando...':'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 

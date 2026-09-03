@@ -210,7 +210,9 @@ export default function Lancamentos() {
       {/* Lista */}
       <div style={{ flex:1,overflowY:'auto',overscrollBehavior:'none',padding:'12px 14px 160px' }}>
         {/* Contagem de resultados */}
-        {!load&&(search||fH.length||fT.length)&&filtered.length>0&&(
+        {/* Comparar com >0: `fH.length` sozinho devolve 0, e o React imprime
+            esse zero na tela — era o "0" solto que aparecia acima das seções. */}
+        {!load&&(!!search||fH.length>0||fT.length>0)&&filtered.length>0&&(
           <p style={{fontSize:11,color:TEXTMU,margin:'0 0 10px',paddingLeft:4}}>{filtered.length} lançamento{filtered.length!==1?'s':''} encontrado{filtered.length!==1?'s':''}</p>
         )}
         {load?(
