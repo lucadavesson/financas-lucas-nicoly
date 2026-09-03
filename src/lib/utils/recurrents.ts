@@ -11,9 +11,13 @@ export async function generateRecurrents(targetMonth: Date) {
   const monthKey = format(targetMonth, 'yyyy-MM')
 
   // 1. Buscar todas as transações recorrentes
+  // recurring_active=false = conta encerrada: para de gerar daqui pra frente,
+  // mas o histórico continua com is_recurring=true para não mudar de
+  // classificação nos relatórios dos meses em que ela existiu de verdade.
   const { data: allRecurring } = await s.from('transactions').select('*')
     .eq('is_recurring', true)
     .eq('owner_id', user.id)
+    .or('recurring_active.is.null,recurring_active.eq.true')
     .order('purchase_date', { ascending: false })
 
   if (!allRecurring || allRecurring.length === 0) return { generated: 0 }

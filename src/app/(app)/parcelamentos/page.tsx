@@ -300,12 +300,16 @@ export default function Parcelamentos() {
 
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
         <div style={{background:'#fff',borderRadius:16,padding:'14px 16px',border:'1px solid rgba(0,0,0,0.05)'}}>
-          <p style={{fontSize:10,color:TEXTMU,margin:'0 0 3px',fontWeight:600,textTransform:'uppercase'}}>A pagar (parcelas)</p>
+          <p style={{fontSize:10,color:TEXTMU,margin:'0 0 3px',fontWeight:600,textTransform:'uppercase'}}>Ainda falta pagar</p>
           <p style={{fontSize:18,fontWeight:800,color:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalPendente)}</p>
+          <p style={{fontSize:10,color:TEXTMU,margin:'3px 0 0'}}>parcelas em aberto</p>
         </div>
+        {/* "Total comprometido" parecia dívida, mas é o valor CHEIO das compras,
+            incluindo o que já foi pago — daí a diferença grande entre os dois */}
         <div style={{background:'#fff',borderRadius:16,padding:'14px 16px',border:'1px solid rgba(0,0,0,0.05)'}}>
-          <p style={{fontSize:10,color:TEXTMU,margin:'0 0 3px',fontWeight:600,textTransform:'uppercase'}}>Total comprometido</p>
+          <p style={{fontSize:10,color:TEXTMU,margin:'0 0 3px',fontWeight:600,textTransform:'uppercase'}}>Valor total das compras</p>
           <p style={{fontSize:18,fontWeight:800,color:TEXT,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalGeral)}</p>
+          <p style={{fontSize:10,color:TEXTMU,margin:'3px 0 0'}}>já pagou {formatCurrency(Math.max(0,totalGeral-totalPendente))}</p>
         </div>
       </div>
 

@@ -258,7 +258,7 @@ export default function Parametros() {
     for(const t of despesas){
       const chave=`${(t.description||'').trim().toLowerCase()}|${t.holder}`
       if(porConta.has(chave)){porConta.get(chave)._ocorrencias++; continue}
-      porConta.set(chave,{...t,_ocorrencias:1})
+      porConta.set(chave,{...t,_ocorrencias:1,_encerrada:t.recurring_active===false})
     }
     setRecurrents(Array.from(porConta.values()).sort((a,b)=>
       (a.description||'').localeCompare(b.description||'')))
@@ -270,8 +270,9 @@ export default function Parametros() {
     const escolha=confirm(
       `Apagar a conta recorrente "${tx.description}"?\n\n` +
       `Existem ${n} lançamento${n>1?'s':''} desta conta.\n\n` +
-      `OK = apagar tudo (inclusive o histórico já lançado)\n` +
-      `Cancelar = não apagar nada`
+      `ATENÇÃO: isso apaga TAMBÉM o histórico dos meses anteriores — os valores somem dos relatórios passados.\n\n` +
+      `Se a conta apenas deixou de existir de agora em diante, use "Encerrar": para de gerar e mantém o histórico.\n\n` +
+      `OK = apagar tudo   ·   Cancelar = não apagar`
     )
     if(!escolha)return
     const {error}=await s.from('transactions').delete()
@@ -331,14 +332,20 @@ export default function Parametros() {
     loadRecurrents()
   }
 
-  async function pararRecorrencia(tx:any){
-    // Alternativa menos destrutiva: mantém o histórico, só para de gerar
-    if(!confirm(`Parar de gerar "${tx.description}" nos próximos meses?\n\nO histórico já lançado é mantido.`))return
+  async function encerrarRecorrencia(tx:any,encerrar:boolean){
+    // Encerrar não apaga nada e não desmarca is_recurring: os meses passados
+    // continuam existindo e continuam contando como conta recorrente nos
+    // relatórios. Só para de gerar os próximos.
+    if(encerrar&&!confirm(
+      `Encerrar "${tx.description}"?\n\n` +
+      `Ela não será mais gerada nos próximos meses.\n` +
+      `Todo o histórico dos meses anteriores é mantido intacto.`
+    ))return
     const {error}=await createClient().from('transactions')
-      .update({is_recurring:false})
+      .update({recurring_active:encerrar?false:true})
       .eq('is_recurring',true).eq('holder',tx.holder).eq('description',tx.description)
     if(error){toast.error(`Erro: ${error.message}`);return}
-    toast.success('Não será mais gerada automaticamente')
+    toast.success(encerrar?'Conta encerrada — histórico preservado':'Conta reativada')
     loadRecurrents()
   }
   async function saveDueDay(tx:any){
@@ -569,7 +576,7 @@ export default function Parametros() {
         {backBtn()}
         <h2 style={{fontSize:17,fontWeight:700,color:TEXT,flex:1}}>Contas Recorrentes</h2>
       </div>
-      <p style={{fontSize:12,color:TEXTMU,marginBottom:16,paddingLeft:4}}>Lançamentos marcados como recorrentes. Eles serão gerados automaticamente todo mês. Contas no cartão de crédito não precisam de dia de vencimento próprio — elas entram na fatura e o alerta é feito por lá.</p>
+      <p style={{fontSize:12,color:TEXTMU,marginBottom:16,paddingLeft:4}}>Lançamentos marcados como recorrentes. Eles serão gerados automaticamente todo mês. Contas no cartão de crédito não precisam de dia de vencimento próprio — elas entram na fatura e o alerta é feito por lá. Quando uma conta deixar de existir, use <strong>Encerrar</strong>: ela para de ser gerada e o histórico dos meses anteriores continua intacto. <strong>Apagar</strong> remove também esse histórico.</p>
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
         {recurrents.map(tx=>{
           const isCartaoRec = tx.payment_method==='cartao_credito'
@@ -584,6 +591,11 @@ export default function Parametros() {
                 <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
                   {tx.holder} · {isCartaoRec?'Fatura do cartão':`Vence dia ${tx.recurring_day||'?'}`} · {tx.payment_method}
                 </p>
+                {tx._encerrada&&(
+                  <span style={{display:'inline-block',marginTop:4,fontSize:10,fontWeight:700,color:TEXTMU,background:'rgba(0,0,0,0.05)',borderRadius:6,padding:'2px 7px'}}>
+                    Encerrada · histórico mantido
+                  </span>
+                )}
               </div>
               <p style={{fontSize:14,fontWeight:700,color:RED,margin:0}}>{formatCurrency(tx.expected_amount||tx.amount)}</p>
             </div>
@@ -592,9 +604,9 @@ export default function Parametros() {
                 style={{fontSize:11,fontWeight:700,color:TERRA,background:'rgba(196,98,45,0.1)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
                 ✏️ Editar
               </button>
-              <button onClick={()=>pararRecorrencia(tx)}
-                style={{fontSize:11,fontWeight:600,color:TEXTLT,background:'rgba(0,0,0,0.04)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
-                ⏸ Parar de gerar
+              <button onClick={()=>encerrarRecorrencia(tx,!tx._encerrada)}
+                style={{fontSize:11,fontWeight:600,color:tx._encerrada?GREEN:TEXTLT,background:tx._encerrada?'rgba(52,199,89,0.1)':'rgba(0,0,0,0.04)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
+                {tx._encerrada?'▶ Reativar':'⏹ Encerrar'}
               </button>
               <button onClick={()=>removeRecurrent(tx)}
                 style={{fontSize:11,fontWeight:600,color:RED,background:'rgba(255,59,48,0.08)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>

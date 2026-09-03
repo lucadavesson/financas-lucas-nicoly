@@ -11,3 +11,9 @@ alter table app_settings add column if not exists salary_nicoly numeric default 
 -- faz (só com owner_id e os campos de salário) era rejeitado e a linha nunca
 -- chegava a existir. Um default resolve sem precisar mexer no schema legado.
 alter table app_settings alter column key set default 'config';
+
+-- Encerramento de conta recorrente sem perder histórico.
+-- recurring_active = false para de gerar os próximos meses, mas o histórico
+-- continua com is_recurring = true e segue classificado como recorrente.
+-- Já aplicado no Supabase.
+alter table transactions add column if not exists recurring_active boolean default true;
