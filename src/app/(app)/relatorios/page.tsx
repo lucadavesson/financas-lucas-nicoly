@@ -70,11 +70,17 @@ export default function Relatorios() {
   const saldo=totalR-totalD
 
   // Segregar despesas
+  // Quem manda é a marcação do usuário: se ele cadastrou como conta recorrente,
+  // é recorrente. O "(2/100)" que aparece em contas como Condomínio é numeração
+  // dele, não um parcelamento. Antes isParcelada tinha prioridade, então essas
+  // contas eram somadas como parcela e a linha "Contas recorrentes" ficava R$ 0
+  // — contradizendo o quadro de compromissos logo acima, na mesma tela.
+  const isRecorrente=(t:any)=>!!t.is_recurring&&t.transaction_type!=='parcelada'
   const isParcelada=(t:any)=>{
+    if(isRecorrente(t))return false
     const m=t.description?.match(/\((\d+)\/(\d+)\)/)
-    return (m&&parseInt(m[2])>1)||(t.installment_total||t.total_installments||0)>1||t.transaction_type==='parcelada'
+    return t.transaction_type==='parcelada'||(m&&parseInt(m[2])>1)||(t.installment_total||t.total_installments||0)>1
   }
-  const isRecorrente=(t:any)=>t.is_recurring&&!isParcelada(t)
   const isCredito=(t:any)=>t.payment_method==='cartao_credito'&&!isParcelada(t)
 
   const parceladas=despesasTodas.filter(isParcelada)
@@ -117,7 +123,7 @@ export default function Relatorios() {
     // E tem número de parcela na descrição. Sem esse filtro ela entrava na barra
     // de parcelas e também na projeção de recorrentes, sendo contada duas vezes.
     const doTitular=(t:any)=>holder==='Todos'||t.holder===holder
-    txs.filter((t:any)=>doTitular(t)&&t.is_recurring&&!isParcelada(t)&&t.transaction_type!=='receita'&&t.type!=='Receita')
+    txs.filter((t:any)=>doTitular(t)&&isRecorrente(t)&&t.transaction_type!=='receita'&&t.type!=='Receita')
       .forEach((t:any)=>{
         const chave=`${(t.description||'').trim().toLowerCase()}|${t.holder}`
         if(!recorrentesTpl.has(chave))recorrentesTpl.set(chave,t.expected_amount||t.amount||0)
@@ -147,7 +153,7 @@ export default function Relatorios() {
       const longos=parceladasDoMes.filter(ehLongo)
         .reduce((sum:number,t:any)=>sum+(t.installment_value||t.amount||0),0)
 
-      const linhasRec=doMes.filter((t:any)=>t.is_recurring&&!isParcelada(t))
+      const linhasRec=doMes.filter(isRecorrente)
       const recorrentes=linhasRec.length>0
         ? linhasRec.reduce((sum:number,t:any)=>sum+(t.installment_value||t.amount||0),0)
         : totalRecorrenteProjetado
