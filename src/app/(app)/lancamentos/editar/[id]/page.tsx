@@ -56,8 +56,19 @@ export default function EditarLancamento(){
 
   async function save(e:React.FormEvent){
     e.preventDefault()
+    // A edição não validava nada: dava pra apagar a descrição, zerar o valor ou
+    // tirar a categoria e salvar, deixando o lançamento inconsistente.
+    if(!(form.description||'').trim()){toast.error('Informe a descrição');return}
+    const valorEditado=unmaskCurrency(valRaw)||parseFloat(form.amount)||0
+    if(valorEditado<=0){toast.error('Informe o valor');return}
+    if(!(form.category||'').trim()){toast.error('Escolha a categoria');return}
+    if(!form.purchase_date){toast.error('Informe a data');return}
     if(form.payment_method==='cartao_credito'&&!(form.card_name||'').trim()){
       toast.error('Escolha o cartão de crédito')
+      return
+    }
+    if(form.transaction_type==='recorrente'&&form.payment_method!=='cartao_credito'&&!form.recurring_day){
+      toast.error('Informe o dia de vencimento')
       return
     }
     setSaving(true)

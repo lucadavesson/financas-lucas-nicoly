@@ -213,11 +213,30 @@ export default function NovoLancamento() {
     const temValor = tipo === 'parcelada'
       ? (modoValor === 'total' ? amount > 0 : instValue > 0 && nParcelas > 0)
       : amount > 0
-    if (!desc || !temValor || (!cat && tipo !== 'recorrente')) {
-      toast.error(tipo === 'parcelada' && modoValor === 'parcela' && !nParcelas
-        ? 'Informe o nº de parcelas'
-        : 'Preencha todos os campos obrigatórios')
-      return
+
+    // Uma mensagem por campo: "preencha todos os campos obrigatórios" não diz
+    // qual está faltando, e dado incompleto entrando é o que gera os
+    // lançamentos órfãos que aparecem errado nas outras telas.
+    if (!desc.trim()) { toast.error('Informe a descrição'); return }
+    if (!temValor) { toast.error(tipo === 'parcelada' && modoValor === 'parcela' ? 'Informe o valor da parcela' : 'Informe o valor'); return }
+    if (!cat && tipo !== 'recorrente') { toast.error('Escolha a categoria'); return }
+    if (!date) { toast.error('Informe a data'); return }
+
+    if (tipo === 'parcelada') {
+      // Sem isso, parcelada sem nº de parcelas era salva como uma única linha
+      if (!nParcelas || nParcelas < 2) { toast.error('Informe o nº de parcelas (mínimo 2)'); return }
+      if (hasEntry && entryAmt <= 0) { toast.error('Informe o valor da entrada'); return }
+      if (hasEntry && METODO_CONTA[entryMethod] !== 'nenhum' && !entryCard) { toast.error('Escolha a conta ou o cartão da entrada'); return }
+    }
+
+    if (tipo === 'recorrente') {
+      if (!recTipo) { toast.error('Escolha o tipo de conta recorrente'); return }
+      if (recContaTipo === 'conta_debito' && !recCard) { toast.error('Escolha a conta de débito'); return }
+    }
+
+    // Débito, PIX e débito automático precisam saber de qual conta saiu
+    if (tipo === 'avista' && contaTipo === 'conta_debito' && !debitCard) {
+      toast.error('Escolha a conta'); return
     }
     // Sem cartão, a compra no crédito não entra em fatura nenhuma e vira um
     // lançamento órfão que não aparece na tela de Cartões.
@@ -363,6 +382,10 @@ export default function NovoLancamento() {
     }
   }
 
+  // Asterisco de campo obrigatório — melhor avisar antes de salvar do que
+  // deixar o usuário descobrir no toast de erro
+  const Obrig = () => <span style={{color:'#C4622D',fontWeight:700}}> *</span>
+
   // ── ESTILOS base ────────────────────────────────────
   const S = {
     page:  { minHeight:'100%', background:'#F5F5F7' },
@@ -448,7 +471,7 @@ export default function NovoLancamento() {
           depende de você estar informando o total ou o valor da parcela */}
       {tipo!=='parcelada'&&(
         <div>
-          <label style={S.lbl}>{tipo==='receita' ? 'Valor recebido (R$)' : 'Valor (R$)'}</label>
+          <label style={S.lbl}>{tipo==='receita' ? 'Valor recebido (R$)' : 'Valor (R$)'}<Obrig/></label>
           <input
             type="text" inputMode="numeric"
             value={amountRaw}
@@ -461,7 +484,7 @@ export default function NovoLancamento() {
 
       {/* Descrição */}
       <div>
-        <label style={S.lbl}>Descrição</label>
+        <label style={S.lbl}>Descrição<Obrig/></label>
         <input type="text" value={desc} onChange={e=>setDesc(e.target.value)}
           placeholder={tipo==='receita'?'Ex: Salário junho...':tipo==='parcelada'?'Ex: Sofá, iPhone...':tipo==='avista'?'Ex: Mercado, Farmácia...':'Ex: Netflix, Energia...'}
           style={S.inp} required/>
@@ -469,7 +492,7 @@ export default function NovoLancamento() {
 
       {/* Data */}
       <div>
-        <label style={S.lbl}>{tipo==='receita'?'Data do recebimento':'Data da compra'}</label>
+        <label style={S.lbl}>{tipo==='receita'?'Data do recebimento':'Data da compra'}<Obrig/></label>
         <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={S.inp}/>
       </div>
     </>
@@ -479,7 +502,7 @@ export default function NovoLancamento() {
   const CampoCat = (
     <>
       <div>
-        <label style={S.lbl}>Categoria</label>
+        <label style={S.lbl}>Categoria<Obrig/></label>
         <div style={{position:'relative'}}>
           <select value={cat} onChange={e=>{
             if(e.target.value==='__nova_cat__'){setShowAddCat(true)}
@@ -553,13 +576,16 @@ export default function NovoLancamento() {
       </div>
 
       <form onSubmit={handleSave} style={S.form}>
+        <p style={{fontSize:11,color:'#8E8E93',margin:0}}>
+          Campos com <span style={{color:'#C4622D',fontWeight:700}}>*</span> são obrigatórios
+        </p>
         {CamposComuns}
         {tipo !== 'recorrente' && CampoCat}
 
         {/* ── PARCELADA ── */}
         {tipo === 'parcelada' && (<>
           <div>
-            <label style={S.lbl}>Cartão de crédito</label>
+            <label style={S.lbl}>Cartão de crédito<Obrig/></label>
             <div style={{position:'relative'}}>
               <select value={card} onChange={e=>setCard(e.target.value)} style={S.sel}>
                 {CARDS_CREDITO.map(c=><option key={c} value={c}>{c}</option>)}
@@ -587,20 +613,20 @@ export default function NovoLancamento() {
 
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
             <div>
-              <label style={S.lbl}>Nº de parcelas</label>
+              <label style={S.lbl}>Nº de parcelas<Obrig/></label>
               <input type="number" value={installments} onChange={e=>setInst(e.target.value)}
                 placeholder="Ex: 12" style={S.inp} min="2"/>
             </div>
             {modoValor==='total'?(
               <div>
-                <label style={S.lbl}>Valor total da compra</label>
+                <label style={S.lbl}>Valor total da compra<Obrig/></label>
                 <input type="text" inputMode="numeric" value={amountRaw}
                   onChange={e=>setAmountRaw(formatMoneyInput(e.target.value))}
                   placeholder="R$ 0,00" style={S.inp}/>
               </div>
             ):(
               <div>
-                <label style={S.lbl}>Valor de cada parcela</label>
+                <label style={S.lbl}>Valor de cada parcela<Obrig/></label>
                 <input type="text" inputMode="numeric" value={instRaw}
                   onChange={e=>setInstRaw(formatMoneyInput(e.target.value))}
                   placeholder="R$ 0,00" style={S.inp}/>
@@ -754,7 +780,7 @@ export default function NovoLancamento() {
         {/* ── RECORRENTE ── */}
         {tipo === 'recorrente' && (<>
           <div>
-            <label style={S.lbl}>Tipo de conta recorrente</label>
+            <label style={S.lbl}>Tipo de conta recorrente<Obrig/></label>
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
               {[
                 {v:'contas_casa', emoji:'🏠', l:'Contas de casa',    d:'Energia, água, internet, condomínio...'},
