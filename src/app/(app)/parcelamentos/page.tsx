@@ -230,24 +230,6 @@ export default function Parcelamentos() {
     </div>
   )
 
-  // Quanto sai de parcelas em cada um dos próximos meses. Responde a pergunta
-  // que os totais não respondem: "quando isso alivia?"
-  const cronogramaMeses = (() => {
-    const MESES = 6
-    const inicio = new Date()
-    const linhas = Array.from({length:MESES},(_,i)=>{
-      const d = addMonths(inicio, i)
-      const mes = format(d,'yyyy-MM')
-      const valor = gruposNoEscopo.reduce((sum,g)=>
-        sum + g.cronograma.filter(c=>c.mes===mes&&!c.pago).reduce((ss:number,c)=>ss+g.valorParcela,0), 0)
-      return { mes, label: format(d,"MMM/yy",{locale:ptBR}), valor }
-    })
-    const maior = Math.max(...linhas.map(l=>l.valor), 1)
-    const primeiro = linhas[0]?.valor || 0
-    const ultimo = linhas[linhas.length-1]?.valor || 0
-    return { linhas, maior, alivio: primeiro - ultimo }
-  })()
-
   const totalPendente=gruposNoEscopo.reduce((s,g)=>s+g.parcelas.filter(p=>p.status!=='Pago').reduce((ss,p)=>ss+(p.installment_value||p.amount),0),0)
   const totalGeral=gruposNoEscopo.reduce((s,g)=>s+g.valorTotal,0)
 
@@ -267,34 +249,6 @@ export default function Parcelamentos() {
           <p style={{fontSize:18,fontWeight:800,color:TEXT,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalGeral)}</p>
         </div>
       </div>
-
-      {/* Cronograma: quanto sai de parcelas por mês */}
-      {cronogramaMeses.linhas.some(l=>l.valor>0)&&(
-        <div style={{background:'#fff',borderRadius:16,padding:'14px 16px',marginBottom:16,border:'1px solid rgba(0,0,0,0.05)'}}>
-          <p style={{fontSize:10,color:TEXTMU,margin:'0 0 12px',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em'}}>
-            Quanto sai de parcelas por mês
-          </p>
-          <div style={{display:'flex',flexDirection:'column',gap:7}}>
-            {cronogramaMeses.linhas.map(l=>(
-              <div key={l.mes} style={{display:'flex',alignItems:'center',gap:8}}>
-                <span style={{fontSize:11,color:TEXTMU,width:52,flexShrink:0,textTransform:'capitalize'}}>{l.label}</span>
-                <div style={{flex:1,height:16,background:'rgba(0,0,0,0.03)',borderRadius:5,overflow:'hidden'}}>
-                  <div style={{height:'100%',width:`${Math.max((l.valor/cronogramaMeses.maior)*100,l.valor>0?3:0)}%`,
-                    background:'linear-gradient(90deg,rgba(196,98,45,0.75),rgba(196,98,45,1))',borderRadius:5,transition:'width 0.4s'}}/>
-                </div>
-                <span style={{fontSize:11.5,fontWeight:700,color:l.valor>0?TEXT:TEXTMU,width:88,textAlign:'right',flexShrink:0,fontVariantNumeric:'tabular-nums'}}>
-                  {l.valor>0?formatCurrency(l.valor):'—'}
-                </span>
-              </div>
-            ))}
-          </div>
-          {cronogramaMeses.alivio>0.01&&(
-            <p style={{fontSize:11,color:GREEN,margin:'11px 0 0',fontWeight:600}}>
-              ↓ Alivia {formatCurrency(cronogramaMeses.alivio)}/mês até {cronogramaMeses.linhas[cronogramaMeses.linhas.length-1].label}
-            </p>
-          )}
-        </div>
-      )}
 
       {/* Filtro e ordenação */}
       <div style={{display:'flex',gap:8,marginBottom:16}}>

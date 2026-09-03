@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS } from '@/lib/utils'
-import { format, startOfMonth, endOfMonth, subMonths, parseISO } from 'date-fns'
+import { format, startOfMonth, endOfMonth, subMonths, addMonths, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Eye, EyeOff, X } from 'lucide-react'
 import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
@@ -47,7 +47,8 @@ export default function Relatorios() {
     setLoading(true)
     await autoCorrigirStatusVencido()
     const start=format(startOfMonth(subMonths(date,5)),'yyyy-MM-dd')
-    const end=format(endOfMonth(date),'yyyy-MM-dd')
+    // Precisa alcançar os próximos meses para montar o quadro de compromissos
+    const end=format(endOfMonth(addMonths(date,6)),'yyyy-MM-dd')
     const {data}=await createClient().from('transactions').select('*').gte('purchase_date',start).lte('purchase_date',end)
     setTxs(data||[]);setLoading(false)
   }
@@ -98,6 +99,44 @@ export default function Relatorios() {
     atual:format(m,'yyyy-MM')===format(date,'yyyy-MM'),
   }))
   const maxComp=Math.max(...comp.flatMap(c=>[c.r,c.d]),1)
+
+  // ── Compromissos já contratados dos próximos meses ────────
+  // Parcelas existem como linha no banco até o fim do parcelamento, mas as
+  // contas recorrentes só são geradas no mês corrente. Para os meses à frente
+  // elas são projetadas a partir dos templates — é uma conta que se repete por
+  // definição, então some do quadro se não projetar.
+  const compromissos=(()=>{
+    const MESES=6
+    const recorrentesTpl=new Map<string,number>()
+    txs.filter((t:any)=>t.is_recurring&&t.transaction_type!=='receita'&&t.type!=='Receita')
+      .forEach((t:any)=>{
+        const chave=`${(t.description||'').trim().toLowerCase()}|${t.holder}`
+        if(!recorrentesTpl.has(chave))recorrentesTpl.set(chave,t.expected_amount||t.amount||0)
+      })
+    const totalRecorrenteProjetado=Array.from(recorrentesTpl.values()).reduce((a,b)=>a+b,0)
+
+    const linhas=Array.from({length:MESES},(_,i)=>{
+      const d=addMonths(new Date(),i)
+      const mesKey=format(d,'yyyy-MM')
+      const doMes=txs.filter((t:any)=>
+        (t.purchase_date||'').slice(0,7)===mesKey &&
+        t.status!=='Cancelado' &&
+        t.transaction_type!=='receita' && t.type!=='Receita')
+
+      const parcelas=doMes.filter(isParcelada)
+        .reduce((sum:number,t:any)=>sum+(t.installment_value||t.amount||0),0)
+
+      const linhasRec=doMes.filter((t:any)=>t.is_recurring&&!isParcelada(t))
+      const recorrentes=linhasRec.length>0
+        ? linhasRec.reduce((sum:number,t:any)=>sum+(t.installment_value||t.amount||0),0)
+        : totalRecorrenteProjetado
+      const projetado=linhasRec.length===0
+
+      return { mesKey, label:format(d,"MMM/yy",{locale:ptBR}), parcelas, recorrentes, total:parcelas+recorrentes, projetado }
+    })
+    const maior=Math.max(...linhas.map(l=>l.total),1)
+    return { linhas, maior }
+  })()
 
   const mesLabel=format(date,'MMMM yyyy',{locale:ptBR})
   const isNow=format(date,'yyyy-MM')===format(new Date(),'yyyy-MM')
@@ -260,10 +299,54 @@ export default function Relatorios() {
         <p style={{fontSize:20,fontWeight:800,color:saldo>=0?GREEN:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{saldo>=0?'+':''}{v(saldo)}</p>
       </div>
 
+      {/* Compromissos já contratados dos próximos meses */}
+      {compromissos.linhas.some(l=>l.total>0)&&(
+        <div style={{background:CARD,borderRadius:18,padding:'16px 18px',marginBottom:12,border:'1px solid rgba(0,0,0,0.04)'}}>
+          <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:'0 0 4px'}}>📅 O que já está contratado</p>
+          <p style={{fontSize:11,color:TEXTMU,margin:'0 0 12px',lineHeight:1.45}}>
+            Gastos que já existem e vão acontecer nos próximos meses, sem contar compras novas:
+            parcelas em andamento e contas que se repetem.
+          </p>
+
+          {/* Legenda */}
+          <div style={{display:'flex',gap:14,marginBottom:12}}>
+            <div style={{display:'flex',alignItems:'center',gap:5}}>
+              <span style={{width:9,height:9,borderRadius:3,background:TERRA,display:'inline-block'}}/>
+              <span style={{fontSize:11,color:TEXTMU}}>Parcelas</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:5}}>
+              <span style={{width:9,height:9,borderRadius:3,background:'#9B59B6',display:'inline-block'}}/>
+              <span style={{fontSize:11,color:TEXTMU}}>Recorrentes</span>
+            </div>
+          </div>
+
+          <div style={{display:'flex',flexDirection:'column',gap:9}}>
+            {compromissos.linhas.map(l=>(
+              <div key={l.mesKey}>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{fontSize:11,color:TEXTMU,width:50,flexShrink:0,textTransform:'capitalize'}}>{l.label}</span>
+                  <div style={{flex:1,height:16,background:'rgba(0,0,0,0.03)',borderRadius:5,overflow:'hidden',display:'flex'}}>
+                    {l.parcelas>0&&<div style={{width:`${(l.parcelas/compromissos.maior)*100}%`,background:TERRA}}/>}
+                    {l.recorrentes>0&&<div style={{width:`${(l.recorrentes/compromissos.maior)*100}%`,background:'#9B59B6'}}/>}
+                  </div>
+                  <span style={{fontSize:11.5,fontWeight:700,color:TEXT,width:86,textAlign:'right',flexShrink:0,fontVariantNumeric:'tabular-nums'}}>
+                    {v(l.total)}
+                  </span>
+                </div>
+                <div style={{display:'flex',gap:10,paddingLeft:58,marginTop:3}}>
+                  {l.parcelas>0&&<span style={{fontSize:10,color:TERRA}}>Parcelas {v(l.parcelas)}</span>}
+                  {l.recorrentes>0&&<span style={{fontSize:10,color:'#9B59B6'}}>Recorrentes {v(l.recorrentes)}{l.projetado?' (previsto)':''}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Insights — leitura pronta do mês, em vez de só números crus.
           Colapsável como as demais seções, e aberto por padrão. */}
       {insights.length>0&&(
-        <Section title="O que os números dizem" icon="💡" count={insights.length} defaultOpen>
+        <Section title="O que os números dizem" icon="💡" count={insights.length}>
           <p style={{fontSize:11,color:TEXTMU,margin:'12px 0 14px'}}>Comparado com {format(subMonths(date,1),"MMMM 'de' yyyy",{locale:ptBR})}</p>
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
             {insights.map((ins,i)=>{

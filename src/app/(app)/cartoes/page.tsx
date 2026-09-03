@@ -128,12 +128,32 @@ export default function Cartoes() {
     })
 
     setTxs(txsDoMes)
-    const savedOrder=localStorage.getItem('ln_card_order')
-    if(savedOrder){
-      try{setCardOrder(JSON.parse(savedOrder))}catch{setCardOrder(c.map(x=>x.id))}
-    }else{setCardOrder(c.map(x=>x.id))}
+
+    // Ordem salva + cartões novos no fim + ids que não existem mais removidos.
+    // Antes, um cartão criado depois da ordenação não entrava na lista e ficava
+    // fora da ordem.
+    const idsAtuais=c.map(x=>x.id)
+    let ordem:string[]=idsAtuais
+    try{
+      const salvo=localStorage.getItem('ln_card_order')
+      if(salvo){
+        const lista=JSON.parse(salvo) as string[]
+        const validos=lista.filter(id=>idsAtuais.includes(id))
+        ordem=[...validos,...idsAtuais.filter(id=>!validos.includes(id))]
+      }
+    }catch{ /* localStorage indisponível: segue na ordem padrão */ }
+    setCardOrder(ordem)
     setLoading(false)
   }
+
+  // Persistir FORA do updater de estado. Antes o localStorage.setItem estava
+  // dentro do setCardOrder(prev=>...), e o React pode executar esse updater mais
+  // de uma vez — a troca era aplicada duas vezes e a ordem voltava ao que era,
+  // que é o motivo de a ordenação "não colar" ao reabrir o app.
+  useEffect(()=>{
+    if(cardOrder.length===0)return
+    try{localStorage.setItem('ln_card_order',JSON.stringify(cardOrder))}catch{}
+  },[cardOrder])
 
   function txsDoCartao(card:Card):Tx[]{
     const nome=`${card.name} — ${card.holder}`
@@ -146,13 +166,14 @@ export default function Cartoes() {
   }
 
   function moveCard(id:string,dir:-1|1){
+    // Updater puro: só calcula a nova ordem. Quem grava é o useEffect acima.
     setCardOrder(prev=>{
       const arr=[...prev]
       const i=arr.indexOf(id)
+      if(i===-1)return prev
       const ni=i+dir
-      if(ni<0||ni>=arr.length)return arr
+      if(ni<0||ni>=arr.length)return prev
       ;[arr[i],arr[ni]]=[arr[ni],arr[i]]
-      localStorage.setItem('ln_card_order',JSON.stringify(arr))
       return arr
     })
   }
@@ -180,8 +201,11 @@ export default function Cartoes() {
     return itens.filter(t=>t.status!=='Pago'&&t.status!=='Cancelado').length===0
   }
   const faturasPagas=credito.filter(faturaEstaQuitada).length
-  const totalAPagarFaturas=credito.filter(c=>!faturaEstaQuitada(c))
+  const faturaTotal=totalUsado
+  const faturaPaga=credito.filter(faturaEstaQuitada)
     .reduce((s,c)=>s+txsDoCartao(c).reduce((ss,t)=>ss+(t.installment_value||t.amount),0),0)
+  const totalAPagarFaturas=faturaTotal-faturaPaga
+  const creditoTotal=credito.reduce((s,c)=>s+(c.credit_limit||0),0)
 
   if(loading) return (
     <div style={{background:BG,minHeight:'100%',display:'flex',justifyContent:'center',alignItems:'center',paddingTop:80}}>
@@ -212,23 +236,46 @@ export default function Cartoes() {
         <p style={{fontSize:11,fontWeight:700,color:TEXTMU,margin:'0 0 12px',textTransform:'uppercase',letterSpacing:'0.09em'}}>
           Visão Geral ({mes})
         </p>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-          <div style={{background:'rgba(34,199,89,0.06)',borderRadius:16,padding:'12px 14px',border:'1px solid rgba(34,199,89,0.15)'}}>
-            <p style={{fontSize:10,color:'#1B8A3A',margin:'0 0 3px',fontWeight:600}}>Crédito Disponível</p>
-            <p style={{fontSize:17,fontWeight:800,color:GREEN,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalDisp)}</p>
+        {/* Duas leituras diferentes, separadas de propósito: o que você DEVE
+            neste mês, e quanto de limite os cartões ainda têm. O verde grande
+            em "crédito disponível" passava a ideia de dinheiro sobrando. */}
+        <div style={{marginBottom:14}}>
+          <p style={{fontSize:10.5,fontWeight:700,color:TEXTLT,margin:'0 0 8px'}}>💳 Fatura deste mês</p>
+          <div style={{background:'rgba(0,0,0,0.02)',borderRadius:14,padding:'4px 12px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0'}}>
+              <span style={{fontSize:12,color:TEXTMU}}>Total</span>
+              <span style={{fontSize:14,fontWeight:700,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(faturaTotal)}</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:'1px solid rgba(0,0,0,0.05)'}}>
+              <span style={{fontSize:12,color:TEXTMU}}>Paga <span style={{fontSize:10.5}}>({faturasPagas} de {credito.length} faturas)</span></span>
+              <span style={{fontSize:14,fontWeight:700,color:GREEN,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(faturaPaga)}</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:'1px solid rgba(0,0,0,0.05)'}}>
+              <span style={{fontSize:12,color:TEXTMU}}>Pendente</span>
+              <span style={{fontSize:15,fontWeight:800,color:'#FF3B30',fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalAPagarFaturas)}</span>
+            </div>
           </div>
-          <div style={{background:'rgba(255,59,48,0.05)',borderRadius:16,padding:'12px 14px',border:'1px solid rgba(255,59,48,0.12)'}}>
-            <p style={{fontSize:10,color:'#C4622D',margin:'0 0 3px',fontWeight:600}}>Crédito Utilizado</p>
-            <p style={{fontSize:17,fontWeight:800,color:'#FF3B30',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalUsado)}</p>
+        </div>
+
+        <div>
+          <p style={{fontSize:10.5,fontWeight:700,color:TEXTLT,margin:'0 0 8px'}}>🏦 Limite dos cartões</p>
+          <div style={{background:'rgba(0,0,0,0.02)',borderRadius:14,padding:'4px 12px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0'}}>
+              <span style={{fontSize:12,color:TEXTMU}}>Total</span>
+              <span style={{fontSize:14,fontWeight:700,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(creditoTotal)}</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:'1px solid rgba(0,0,0,0.05)'}}>
+              <span style={{fontSize:12,color:TEXTMU}}>Utilizado</span>
+              <span style={{fontSize:14,fontWeight:700,color:'#C4622D',fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalUsado)}</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:'1px solid rgba(0,0,0,0.05)'}}>
+              <span style={{fontSize:12,color:TEXTMU}}>Disponível</span>
+              <span style={{fontSize:14,fontWeight:700,color:TEXTLT,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalDisp)}</span>
+            </div>
           </div>
-          <div style={{background:'rgba(34,199,89,0.04)',borderRadius:16,padding:'10px 14px',border:'1px solid rgba(34,199,89,0.1)'}}>
-            <p style={{fontSize:10,color:'#48484A',margin:'0 0 3px',fontWeight:600}}>Faturas pagas</p>
-            <p style={{fontSize:15,fontWeight:700,color:GREEN,margin:0}}>{faturasPagas} de {credito.length}</p>
-          </div>
-          <div style={{background:'rgba(255,59,48,0.03)',borderRadius:16,padding:'10px 14px',border:'1px solid rgba(255,59,48,0.08)'}}>
-            <p style={{fontSize:10,color:'#48484A',margin:'0 0 3px',fontWeight:600}}>A pagar em faturas</p>
-            <p style={{fontSize:15,fontWeight:700,color:'#FF3B30',margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalAPagarFaturas)}</p>
-          </div>
+          <p style={{fontSize:10.5,color:TEXTMU,margin:'8px 0 0',lineHeight:1.4}}>
+            Limite é quanto os cartões ainda deixam você gastar — não é dinheiro disponível na conta.
+          </p>
         </div>
       </div>
 
