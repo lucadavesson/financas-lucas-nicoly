@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter, usePathname } from 'next/navigation'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Settings, LogOut, ChevronDown, Target, Layers, RefreshCw } from 'lucide-react'
+import { Settings, LogOut, ChevronDown, Target, Layers } from 'lucide-react'
 import Link from 'next/link'
 
 export default function TopBar() {
@@ -66,7 +66,6 @@ export default function TopBar() {
       </div>
 
       <div style={{ display:'flex', gap:4, alignItems:'center' }}>
-                <button onClick={()=>{window.location.reload()}} style={{width:34,height:34,borderRadius:10,background:'transparent',display:'flex',alignItems:'center',justifyContent:'center',border:'none',cursor:'pointer'}}><RefreshCw size={16} color='#8E8E93'/></button>
         {iconBtn('/parcelamentos', Layers)}
         {iconBtn('/metas', Target)}
         {iconBtn('/parametros', Settings)}

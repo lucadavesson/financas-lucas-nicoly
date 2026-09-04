@@ -6,6 +6,7 @@ import { CreditCard, Target, PiggyBank, Tag, ChevronRight, ChevronLeft, Plus, Pe
 import { toast } from 'sonner'
 import { formatCurrency, CATS_DESPESA, SUBCATS, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
 import { loadCustomCategorias, mesclarCategorias, criarCategoria, renomearCategoria, excluirCategoria, contarUsoCategoria, ehCategoriaFixa, type CustomCategoria } from '@/lib/utils/categorias'
+import { useBackGuard } from '@/lib/hooks/useBackGuard'
 
 const BG='#F5F5F7', CARD='#FFFFFF', TEXT='#1C1C1E', TEXTLT='#48484A', TEXTMU='#8E8E93'
 const TERRA='#C4622D', GREEN='#34C759', RED='#FF3B30', ACCENT='#007AFF'
@@ -41,6 +42,14 @@ export default function Parametros() {
   const [salaryDay, setSalaryDay] = useState('1')
   const [salaryAmountL, setSalaryAmountL] = useState('')
   const [salaryAmountN, setSalaryAmountN] = useState('')
+  // O salário é um lançamento recorrente como qualquer outro — a tela mostra
+  // como card e a edição acontece num modal, igual às contas recorrentes.
+  const [editandoDia, setEditandoDia] = useState(false)
+  const [diaRaw, setDiaRaw] = useState('')
+  const [editSal, setEditSal] = useState<'Lucas'|'Nicoly'|null>(null)
+  const [editSalValor, setEditSalValor] = useState('')
+  const [erroSal, setErroSal] = useState('')
+  const [savingSal, setSavingSal] = useState(false)
   // Recorrentes
   const [recurrents, setRecurrents] = useState<any[]>([])
   const [editingDueDay, setEditingDueDay] = useState<string|null>(null)
@@ -72,10 +81,20 @@ export default function Parametros() {
     if(sec==='cartoes') loadCards()
     if(sec==='limites') loadLimits()
     if(sec==='salario') loadSalary()
-    if(sec==='recorrentes') loadRecurrents()
+    // O editor de conta recorrente tem um seletor de cartão. Sem carregar os
+    // cartões aqui, o select abria vazio quando a cobrança era no crédito.
+    if(sec==='recorrentes'){ loadRecurrents(); loadCards(); loadCustomSubs() }
     if(sec==='seguranca') loadSecurity()
     if(sec==='categorias') loadCustomSubs()
   },[sec])
+
+  // Arrastar para voltar fecha a camada aberta (seção interna, modal) em vez
+  // de sair de Configurações inteira — que é o que acontecia antes, já que as
+  // seções são estado e não entravam no histórico do navegador.
+  useBackGuard(sec!=='main', ()=>setSec('main'))
+  useBackGuard(!!editRec,   ()=>setEditRec(null))
+  useBackGuard(!!editSal,   ()=>setEditSal(null))
+  useBackGuard(showC,       ()=>setShowC(false))
 
   // ── Categorias/Subcategorias ──
   async function loadCustomSubs(){
@@ -196,38 +215,46 @@ export default function Parametros() {
       setSalaryAmountN(data.salary_nicoly?maskCurrency(Math.round(data.salary_nicoly*100).toString()):'')
     }
   }
-  async function saveSalary(){
-    const s=createClient();const {data:{user}}=await s.auth.getUser();if(!user)return
-    const day=parseInt(salaryDay)||1
-    const valL=unmaskCurrency(salaryAmountL)
-    const valN=unmaskCurrency(salaryAmountN)
+  /**
+   * Grava a configuração e reflete nos lançamentos. O salário é uma receita
+   * recorrente: mudar o valor aqui precisa valer para os meses que ainda não
+   * caíram, senão a tela de Início continuaria projetando o valor antigo.
+   */
+  async function persistirSalario(day:number,valL:number,valN:number):Promise<{ok:boolean;erro?:string}>{
+    const s=createClient();const {data:{user}}=await s.auth.getUser()
+    if(!user)return {ok:false,erro:'Sessão expirada'}
     const payload={salary_day:day,salary_lucas:valL,salary_nicoly:valN}
     const {data:existing}=await s.from('app_settings').select('id').limit(1).maybeSingle()
+    // Antes o erro era engolido: a tabela não tinha as colunas de salário, o
+    // insert falhava calado e a tela abria vazia toda vez.
     const {error:saveErr}=existing
       ? await s.from('app_settings').update(payload).eq('id',existing.id)
       : await s.from('app_settings').insert({...payload,owner_id:user.id})
-    // Antes o erro era engolido: a tabela não tinha as colunas de salário, o
-    // insert falhava calado e a tela abria vazia toda vez.
-    if(saveErr){toast.error(`Não foi possível salvar: ${saveErr.message}`);return}
+    if(saveErr)return {ok:false,erro:saveErr.message}
 
-    // Criar receita recorrente do mês ATUAL (se não existe)
     const now=new Date()
     const mesKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
     const lastDay=new Date(now.getFullYear(),now.getMonth()+1,0).getDate()
     const actualDay=Math.min(day,lastDay)
     const salaryDate=`${mesKey}-${String(actualDay).padStart(2,'0')}`
-    const hojeStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
-    const mesStart=`${mesKey}-01`
-    const mesEnd=`${mesKey}-${String(lastDay).padStart(2,'0')}`
+    const hojeStr=`${mesKey}-${String(now.getDate()).padStart(2,'0')}`
 
-    // Buscar receitas existentes deste mês
-    const {data:existingTxs}=await s.from('transactions').select('id,description,holder')
-      .gte('purchase_date',mesStart).lte('purchase_date',mesEnd).eq('owner_id',user.id)
-
-    const criar=async(nome:string,holder:string,valor:number)=>{
+    const aplicar=async(nome:string,holder:string,valor:number)=>{
+      // Valor novo só no que ainda não foi recebido. Reescrever um mês já pago
+      // falsearia o histórico — o que entrou na conta foi o valor de então.
+      if(valor>0){
+        await s.from('transactions')
+          .update({amount:valor,expected_amount:valor,recurring_day:day})
+          .eq('is_recurring',true).eq('holder',holder).eq('description',nome).neq('status','Pago')
+      }
+      await s.from('transactions').update({recurring_day:day})
+        .eq('is_recurring',true).eq('holder',holder).eq('description',nome).eq('status','Pago')
       if(valor<=0)return
-      const existe=(existingTxs||[]).some(t=>t.description===nome&&t.holder===holder)
-      if(existe)return
+      const {data:doMes}=await s.from('transactions').select('id')
+        .eq('is_recurring',true).eq('holder',holder).eq('description',nome)
+        .gte('purchase_date',`${mesKey}-01`)
+        .lte('purchase_date',`${mesKey}-${String(lastDay).padStart(2,'0')}`)
+      if(doMes&&doMes.length>0)return
       await s.from('transactions').insert({
         owner_id:user.id,owner_name:holder,holder,
         type:'Receita',transaction_type:'receita',nature:'Fixo',
@@ -237,10 +264,36 @@ export default function Parametros() {
         is_recurring:true,recurring_day:day,expected_amount:valor,
       })
     }
-    await criar('Salário Lucas','Lucas',valL)
-    await criar('Salário Nicoly','Nicoly',valN)
+    await aplicar('Salário Lucas','Lucas',valL)
+    await aplicar('Salário Nicoly','Nicoly',valN)
+    return {ok:true}
+  }
 
-    toast.success('Ciclo salarial salvo! Receita criada para este mês.')
+  function abrirEditorSal(titular:'Lucas'|'Nicoly'){
+    setEditSalValor(titular==='Lucas'?salaryAmountL:salaryAmountN)
+    setErroSal(''); setEditSal(titular)
+  }
+
+  async function salvarSalarioDe(titular:'Lucas'|'Nicoly'){
+    const valor=unmaskCurrency(editSalValor)
+    if(valor<=0){setErroSal('Informe o valor do salário');return}
+    setErroSal(''); setSavingSal(true)
+    const valL=titular==='Lucas'?valor:unmaskCurrency(salaryAmountL)
+    const valN=titular==='Nicoly'?valor:unmaskCurrency(salaryAmountN)
+    const r=await persistirSalario(parseInt(salaryDay)||1,valL,valN)
+    setSavingSal(false)
+    if(!r.ok){toast.error(`Não foi possível salvar: ${r.erro}`);return}
+    toast.success(`Salário ${titular==='Lucas'?'do Lucas':'da Nicoly'} atualizado`)
+    setEditSal(null); loadSalary()
+  }
+
+  async function salvarDiaSalario(){
+    const dia=parseInt(diaRaw)
+    if(!dia||dia<1||dia>31){toast.error('Informe um dia válido (1 a 31)');return}
+    const r=await persistirSalario(dia,unmaskCurrency(salaryAmountL),unmaskCurrency(salaryAmountN))
+    if(!r.ok){toast.error(`Não foi possível salvar: ${r.erro}`);return}
+    toast.success('Dia do recebimento salvo')
+    setEditandoDia(false); setDiaRaw(''); loadSalary()
   }
 
   // ── Recorrentes ──
@@ -561,32 +614,115 @@ export default function Parametros() {
         {backBtn()}
         <h2 style={{fontSize:17,fontWeight:700,color:TEXT,flex:1}}>Ciclo Salarial</h2>
       </div>
-      <p style={{fontSize:12,color:TEXTMU,marginBottom:20,paddingLeft:4}}>Configure o dia do salário e os valores para cada titular.</p>
-      <div style={{...sCard,padding:'20px 16px',display:'flex',flexDirection:'column',gap:16}}>
-        <div>
-          <label style={sLbl}>Dia do salário</label>
-          <input type="number" min="1" max="31" value={salaryDay} onChange={e=>setSalaryDay(e.target.value)} style={sInp} placeholder="Ex: 5"/>
-        </div>
-        <div>
-          <label style={sLbl}>Salário do Lucas (R$)</label>
-          <div style={{position:'relative'}}>
-            <span style={{position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',fontSize:13,color:TEXTMU,fontWeight:600}}>R$</span>
-            <input type="text" inputMode="numeric" value={salaryAmountL}
-              onChange={e=>setSalaryAmountL(maskCurrency(e.target.value))}
-              style={{...sInp,paddingLeft:40}} placeholder="0,00"/>
+      <p style={{fontSize:12,color:TEXTMU,marginBottom:16,paddingLeft:4}}>
+        O salário é uma <strong>receita recorrente</strong>: entra como lançamento todo mês, igual às contas.
+        Alterar o valor aqui vale para os meses que ainda não caíram — os já recebidos mantêm o valor que entrou.
+      </p>
+
+      {/* Dia do recebimento — vale para os dois, então fica fora dos cards */}
+      <div style={{...sCard,padding:'14px 16px',marginBottom:10}}>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <span style={{fontSize:18}}>📅</span>
+          <div style={{flex:1,minWidth:0}}>
+            <p style={{fontSize:13,fontWeight:600,color:TEXT,margin:0}}>Dia do recebimento</p>
+            <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>Vale para os dois salários</p>
           </div>
+          <p style={{fontSize:14,fontWeight:700,color:TEXT,margin:0}}>Dia {salaryDay}</p>
         </div>
-        <div>
-          <label style={sLbl}>Salário da Nicoly (R$)</label>
-          <div style={{position:'relative'}}>
-            <span style={{position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',fontSize:13,color:TEXTMU,fontWeight:600}}>R$</span>
-            <input type="text" inputMode="numeric" value={salaryAmountN}
-              onChange={e=>setSalaryAmountN(maskCurrency(e.target.value))}
-              style={{...sInp,paddingLeft:40}} placeholder="0,00"/>
+        {editandoDia?(
+          <div style={{display:'flex',gap:8,alignItems:'center',paddingLeft:30,marginTop:10}}>
+            <input type="number" min={1} max={31} value={diaRaw} onChange={e=>setDiaRaw(e.target.value)} autoFocus
+              placeholder="Dia"
+              style={{width:70,height:34,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:8,padding:'0 10px',fontSize:13,color:TEXT,outline:'none'}}/>
+            <button onClick={salvarDiaSalario} style={{height:34,padding:'0 12px',background:TERRA,color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>Salvar</button>
+            <button onClick={()=>{setEditandoDia(false);setDiaRaw('')}} style={{height:34,padding:'0 12px',background:'rgba(0,0,0,0.04)',color:TEXTMU,border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>Cancelar</button>
           </div>
-        </div>
-        <button onClick={saveSalary} style={sBtn(TERRA,'#fff')}>Salvar configuração</button>
+        ):(
+          <div style={{paddingLeft:30,marginTop:8}}>
+            <button onClick={()=>{setEditandoDia(true);setDiaRaw(salaryDay)}}
+              style={{fontSize:11,fontWeight:700,color:TERRA,background:'rgba(196,98,45,0.08)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
+              ✏️ Editar dia do recebimento
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Um card por titular, no mesmo formato das contas recorrentes */}
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {([
+          {titular:'Lucas'  as const, raw:salaryAmountL},
+          {titular:'Nicoly' as const, raw:salaryAmountN},
+        ]).map(({titular,raw})=>{
+          const valor=unmaskCurrency(raw)
+          const semValor=valor<=0
+          return (
+            <div key={titular} style={{...sCard,padding:'14px 16px',display:'flex',flexDirection:'column',gap:8,
+              border:semValor?'1px solid rgba(255,149,0,0.35)':undefined}}>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <span style={{fontSize:18}}>💰</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontSize:13,fontWeight:600,color:TEXT,margin:0}}>Salário {titular}</p>
+                  <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
+                    {titular} · Recebe dia {salaryDay} · Receita mensal
+                  </p>
+                </div>
+                <p style={{fontSize:14,fontWeight:700,color:semValor?TEXTMU:GREEN,margin:0}}>
+                  {semValor?'—':formatCurrency(valor)}
+                </p>
+              </div>
+              <div style={{paddingLeft:30}}>
+                <button onClick={()=>abrirEditorSal(titular)}
+                  style={{fontSize:11,fontWeight:700,color:semValor?'#B37700':TERRA,
+                    background:semValor?'rgba(255,149,0,0.1)':'rgba(196,98,45,0.1)',
+                    border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
+                  {semValor?'⚠️ Definir salário':'✏️ Editar'}
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Editor do salário */}
+      {editSal&&(
+        <div style={{position:'fixed',inset:0,zIndex:80,display:'flex',alignItems:'flex-end'}} onClick={()=>setEditSal(null)}>
+          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(6px)'}}/>
+          <div onClick={e=>e.stopPropagation()} style={{position:'relative',width:'100%',maxWidth:390,margin:'0 auto',
+            background:'#fff',borderRadius:'24px 24px 0 0',maxHeight:'90vh',
+            display:'flex',flexDirection:'column',overflow:'hidden'}}>
+            <div style={{padding:'20px 18px 0'}}>
+              <h3 style={{fontSize:16,fontWeight:700,color:TEXT,margin:'0 0 4px'}}>Salário {editSal}</h3>
+              <p style={{fontSize:12,color:TEXTMU,margin:'0 0 16px'}}>
+                Recebido todo dia {salaryDay}. O novo valor vale para os meses que ainda não caíram.
+              </p>
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'0 18px 8px',WebkitOverflowScrolling:'touch' as any}}>
+              <div style={{marginBottom:12}}>
+                <label style={sLbl}>Valor mensal (R$)</label>
+                <div style={{position:'relative'}}>
+                  <span style={{position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',fontSize:13,color:TEXTMU,fontWeight:600}}>R$</span>
+                  <input type="text" inputMode="numeric" value={editSalValor} autoFocus
+                    onChange={e=>setEditSalValor(maskCurrency(e.target.value))}
+                    placeholder="0,00"
+                    style={{...sInp,paddingLeft:40,...(erroSal?{border:`1px solid ${RED}`}:{})}}/>
+                </div>
+                {erroSal&&<p style={{fontSize:11,color:RED,fontWeight:600,margin:'5px 0 0'}}>{erroSal}</p>}
+              </div>
+            </div>
+            <div style={{display:'flex',gap:8,padding:'12px 18px calc(16px + env(safe-area-inset-bottom, 12px))',
+              borderTop:'1px solid rgba(0,0,0,0.07)',background:'#fff',flexShrink:0}}>
+              <button onClick={()=>setEditSal(null)}
+                style={{flex:1,height:48,background:'#F5F5F7',color:TEXTLT,borderRadius:14,border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>
+                Cancelar
+              </button>
+              <button onClick={()=>salvarSalarioDe(editSal)} disabled={savingSal}
+                style={{flex:1,height:48,background:TERRA,color:'#fff',borderRadius:14,border:'none',fontSize:14,fontWeight:700,cursor:savingSal?'default':'pointer',opacity:savingSal?0.6:1}}>
+                {savingSal?'Salvando...':'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -746,6 +882,10 @@ export default function Parametros() {
                       <option key={c.id} value={`${c.name} — ${c.holder}`}>{c.name} — {c.holder}</option>
                     ))}
                   </select>
+                  <ErroCampo campo="card_name"/>
+                  {cards.filter(c=>!c.card_type||c.card_type==='credito').length===0&&(
+                    <p style={{fontSize:11,color:TEXTMU,margin:'5px 0 0'}}>Nenhum cartão de crédito cadastrado ainda — cadastre em Configurações &gt; Cartões.</p>
+                  )}
                 </div>
                 <p style={{fontSize:11,color:TERRA,margin:'0 0 16px',background:'rgba(196,98,45,0.06)',padding:'8px 12px',borderRadius:10}}>
                   💳 Entra na fatura do cartão — o vencimento é o da fatura, não precisa de dia próprio.
