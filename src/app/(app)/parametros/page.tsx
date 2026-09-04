@@ -50,6 +50,7 @@ export default function Parametros() {
   const [editRecForm, setEditRecForm] = useState<any>({})
   const [editRecValor, setEditRecValor] = useState('')
   const [savingRec, setSavingRec] = useState(false)
+  const [erroRec, setErroRec] = useState<Record<string,string>>({})
   // Segurança
   const [faceIdEnabled, setFaceIdEnabled] = useState(false)
   const [userId, setUserId] = useState('')
@@ -289,6 +290,7 @@ export default function Parametros() {
       card_name:tx.card_name||'', recurring_day:tx.recurring_day||'',
     })
     setEditRecValor(maskCurrency(Math.round(((tx.expected_amount||tx.amount)||0)*100).toString()))
+    setErroRec({})
     setEditRec(tx)
   }
 
@@ -296,36 +298,51 @@ export default function Parametros() {
     if(!editRec)return
     const f=editRecForm
     const nome=(f.description||'').trim()
-    if(!nome){toast.error('Informe o nome da conta');return}
     const valor=unmaskCurrency(editRecValor)
-    if(valor<=0){toast.error('Informe um valor');return}
     const noCartao=f.payment_method==='cartao_credito'
     const dia=parseInt(f.recurring_day)||null
-    if(!noCartao&&(!dia||dia<1||dia>31)){toast.error('Informe o dia de vencimento (1-31)');return}
+
+    // Erro no próprio campo: só o toast passava batido, e o usuário achava que
+    // o botão de salvar não estava funcionando.
+    const erros:Record<string,string>={}
+    if(!nome)erros.description='Informe o nome da conta'
+    if(valor<=0)erros.valor='Informe o valor mensal'
+    if(!(f.category||'').trim())erros.category='Escolha a categoria'
+    if(noCartao&&!(f.card_name||'').trim())erros.card_name='Escolha o cartão'
+    if(!noCartao&&(!dia||dia<1||dia>31))erros.recurring_day='Informe o dia do vencimento (1 a 31)'
+    setErroRec(erros)
+    if(Object.keys(erros).length>0){
+      toast.error('Faltam campos obrigatórios')
+      return
+    }
 
     setSavingRec(true)
     const s=createClient()
     // Alterar a conta recorrente vale para TODAS as ocorrências dela — é a
     // mesma conta repetida mês a mês, não lançamentos independentes. Só o valor
     // já pago fica preservado: mexer nele reescreveria histórico de pagamento.
-    const payload:any={
+    // Campos de cadastro valem para TODAS as ocorrências, pagas ou não.
+    const cadastro:any={
       description:nome, category:f.category||editRec.category, subcategory:f.subcategory||null,
       holder:f.holder, payment_method:f.payment_method,
       card_name:noCartao?(f.card_name||null):null,
       recurring_day:noCartao?null:dia,
-      amount:valor, expected_amount:valor,
     }
-    const {error}=await s.from('transactions').update(payload)
+    // O valor só muda no que ainda não foi pago — reescrever o valor de uma
+    // parcela paga seria falsear histórico de pagamento.
+    const comValor:any={...cadastro, amount:valor, expected_amount:valor}
+
+    // Antes o update era um só, com .neq('status','Pago'): se todas as
+    // ocorrências estivessem pagas, ele não atingia linha nenhuma e a edição
+    // simplesmente não salvava, sem erro e sem aviso.
+    const r1=await s.from('transactions').update(comValor)
       .eq('is_recurring',true).eq('holder',editRec.holder).eq('description',editRec.description)
       .neq('status','Pago')
-    if(error){toast.error(`Não foi possível salvar: ${error.message}`);setSavingRec(false);return}
-
-    // As ocorrências já pagas mantêm o valor pago, mas acompanham o novo nome
-    // para não virarem uma conta órfã com o nome antigo.
-    if(nome!==editRec.description){
-      await s.from('transactions').update({description:nome})
-        .eq('is_recurring',true).eq('holder',editRec.holder).eq('description',editRec.description)
-    }
+    const r2=await s.from('transactions').update(cadastro)
+      .eq('is_recurring',true).eq('holder',editRec.holder).eq('description',editRec.description)
+      .eq('status','Pago')
+    const erro=r1.error||r2.error
+    if(erro){toast.error(`Não foi possível salvar: ${erro.message}`);setSavingRec(false);return}
 
     toast.success('Conta recorrente atualizada')
     setEditRec(null); setSavingRec(false)
@@ -398,6 +415,12 @@ export default function Parametros() {
     sessionStorage.clear()
     router.push('/login')
   }
+
+  // Mensagem de erro logo abaixo do campo
+  const ErroCampo=({campo}:{campo:string})=> erroRec[campo]
+    ? <p style={{fontSize:11,color:RED,fontWeight:600,margin:'5px 0 0'}}>{erroRec[campo]}</p>
+    : null
+  const bordaErro=(campo:string)=> erroRec[campo] ? {border:`1px solid ${RED}`} : {}
 
   // ── Styles ──
   const sCard={background:CARD,borderRadius:20,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}
@@ -641,24 +664,32 @@ export default function Parametros() {
       {editRec&&(
         <div style={{position:'fixed',inset:0,zIndex:80,display:'flex',alignItems:'flex-end'}} onClick={()=>setEditRec(null)}>
           <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(6px)'}}/>
+          {/* Rodapé fixo: com tudo num único bloco rolável, os botões ficavam
+              fora da área visível e pareciam "cortados" — dava a impressão de
+              que salvar não funcionava, quando o toque nem chegava no botão. */}
           <div onClick={e=>e.stopPropagation()} style={{position:'relative',width:'100%',maxWidth:390,margin:'0 auto',
-            background:'#fff',borderRadius:'24px 24px 0 0',maxHeight:'88vh',overflowY:'auto',
-            padding:'20px 18px calc(24px + env(safe-area-inset-bottom, 20px))'}}>
-            <h3 style={{fontSize:16,fontWeight:700,color:TEXT,margin:'0 0 4px'}}>Editar conta recorrente</h3>
-            <p style={{fontSize:12,color:TEXTMU,margin:'0 0 16px'}}>
-              A mudança vale para todos os meses desta conta. As parcelas já pagas mantêm o valor que foi pago.
-            </p>
+            background:'#fff',borderRadius:'24px 24px 0 0',maxHeight:'90vh',
+            display:'flex',flexDirection:'column',overflow:'hidden'}}>
+            <div style={{padding:'20px 18px 0'}}>
+              <h3 style={{fontSize:16,fontWeight:700,color:TEXT,margin:'0 0 4px'}}>Editar conta recorrente</h3>
+              <p style={{fontSize:12,color:TEXTMU,margin:'0 0 16px'}}>
+                A mudança vale para todos os meses desta conta. As parcelas já pagas mantêm o valor que foi pago.
+              </p>
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'0 18px 8px',WebkitOverflowScrolling:'touch' as any}}>
 
             <div style={{marginBottom:12}}>
               <label style={sLbl}>Nome da conta</label>
               <input type="text" value={editRecForm.description||''}
-                onChange={e=>setEditRecForm((f:any)=>({...f,description:e.target.value}))} style={sInp}/>
+                onChange={e=>setEditRecForm((f:any)=>({...f,description:e.target.value}))} style={{...sInp,...bordaErro('description')}}/>
+              <ErroCampo campo="description"/>
             </div>
 
             <div style={{marginBottom:12}}>
               <label style={sLbl}>Valor mensal (R$)</label>
               <input type="text" inputMode="numeric" value={editRecValor}
-                onChange={e=>setEditRecValor(maskCurrency(e.target.value))} placeholder="0,00" style={sInp}/>
+                onChange={e=>setEditRecValor(maskCurrency(e.target.value))} placeholder="0,00" style={{...sInp,...bordaErro('valor')}}/>
+              <ErroCampo campo="valor"/>
             </div>
 
             <div style={{marginBottom:12}}>
@@ -674,10 +705,11 @@ export default function Parametros() {
             <div style={{marginBottom:12}}>
               <label style={sLbl}>Categoria</label>
               <select value={editRecForm.category||''} onChange={e=>setEditRecForm((f:any)=>({...f,category:e.target.value,subcategory:''}))}
-                style={{...sInp,appearance:'none' as const}}>
+                style={{...sInp,appearance:'none' as const,...bordaErro('category')}}>
                 <option value="">Selecione...</option>
                 {mesclarCategorias('despesa',customCats).map(c=><option key={c} value={c}>{CAT_ICONS[c]||'📦'} {c}</option>)}
               </select>
+              <ErroCampo campo="category"/>
             </div>
 
             {(SUBCATS[editRecForm.category]||customSubsDB.filter(x=>x.category===editRecForm.category).length>0)&&(
@@ -708,7 +740,7 @@ export default function Parametros() {
                 <div style={{marginBottom:12}}>
                   <label style={sLbl}>Cartão</label>
                   <select value={editRecForm.card_name||''} onChange={e=>setEditRecForm((f:any)=>({...f,card_name:e.target.value}))}
-                    style={{...sInp,appearance:'none' as const}}>
+                    style={{...sInp,appearance:'none' as const,...bordaErro('card_name')}}>
                     <option value="">Selecione...</option>
                     {cards.filter(c=>!c.card_type||c.card_type==='credito').map(c=>(
                       <option key={c.id} value={`${c.name} — ${c.holder}`}>{c.name} — {c.holder}</option>
@@ -724,12 +756,16 @@ export default function Parametros() {
                 <label style={sLbl}>Dia do vencimento</label>
                 <input type="number" min={1} max={31} value={editRecForm.recurring_day||''}
                   onChange={e=>setEditRecForm((f:any)=>({...f,recurring_day:e.target.value}))}
-                  placeholder="Ex: 10" style={sInp}/>
+                  placeholder="Ex: 10" style={{...sInp,...bordaErro('recurring_day')}}/>
+                <ErroCampo campo="recurring_day"/>
                 <p style={{fontSize:11,color:TEXTMU,margin:'5px 0 0'}}>É esse dia que o app usa para avisar no Início.</p>
               </div>
             )}
 
-            <div style={{display:'flex',gap:8}}>
+            </div>
+
+            <div style={{display:'flex',gap:8,padding:'12px 18px calc(16px + env(safe-area-inset-bottom, 12px))',
+              borderTop:'1px solid rgba(0,0,0,0.07)',background:'#fff',flexShrink:0}}>
               <button onClick={()=>setEditRec(null)}
                 style={{flex:1,height:48,background:'#F5F5F7',color:TEXTLT,borderRadius:14,border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>
                 Cancelar
