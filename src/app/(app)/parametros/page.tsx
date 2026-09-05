@@ -8,6 +8,11 @@ import { formatCurrency, CATS_DESPESA, SUBCATS, CAT_ICONS, maskCurrency, unmaskC
 import { loadCustomCategorias, mesclarCategorias, criarCategoria, renomearCategoria, excluirCategoria, contarUsoCategoria, ehCategoriaFixa, type CustomCategoria } from '@/lib/utils/categorias'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
+import {
+  carregarRecorrentes, prazoDaConta, aplicarAjusteRecorrente, aplicarAjusteSalario,
+  definirPrazo, mesAtual, somaMeses, rotuloMes, chaveConta, MESES_FUTURO_MAX,
+  type ContaRec,
+} from '@/lib/utils/recurrents'
 
 const BG='#F5F5F7', CARD='#FFFFFF', TEXT='#1C1C1E', TEXTLT='#48484A', TEXTMU='#8E8E93'
 const TERRA='#C4622D', GREEN='#34C759', RED='#FF3B30', ACCENT='#007AFF'
@@ -61,6 +66,15 @@ export default function Parametros() {
   const [editRecValor, setEditRecValor] = useState('')
   const [savingRec, setSavingRec] = useState(false)
   const [erroRec, setErroRec] = useState<Record<string,string>>({})
+  // Prazo da conta: sem prazo (gera para sempre), por N meses, ou até um mês.
+  const [editRecPrazo, setEditRecPrazo] = useState<'sem'|'meses'|'ate'>('sem')
+  const [editRecMeses, setEditRecMeses] = useState('')
+  const [editRecAte, setEditRecAte] = useState('')
+  // A partir de que mês o novo valor/dia passa a valer. Sem isso, reajustar
+  // hoje reescrevia meses passados em aberto — o erro que queríamos matar.
+  const [editRecVigencia, setEditRecVigencia] = useState('')
+  const [editSalVigencia, setEditSalVigencia] = useState('')
+  const [diaVigencia, setDiaVigencia] = useState('')
   // Segurança
   const [faceIdEnabled, setFaceIdEnabled] = useState(false)
   const [userId, setUserId] = useState('')
@@ -217,106 +231,83 @@ export default function Parametros() {
     }
   }
   /**
-   * Grava a configuração e reflete nos lançamentos. O salário é uma receita
-   * recorrente: mudar o valor aqui precisa valer para os meses que ainda não
-   * caíram, senão a tela de Início continuaria projetando o valor antigo.
+   * Grava a configuração do salário e reflete nos lançamentos, respeitando a
+   * vigência escolhida.
+   *
+   * O que mudou: antes o novo valor era escrito em TODA ocorrência não paga —
+   * inclusive meses passados que ainda estavam em aberto — e o dia novo era
+   * gravado até nas linhas já pagas, sem mover data nenhuma. Resultado: um
+   * reajuste de hoje reescrevia o passado e a data mostrada continuava a antiga.
+   * Agora vale de um mês em diante, e a data das ocorrências afetadas acompanha
+   * o dia novo.
    */
-  async function persistirSalario(day:number,valL:number,valN:number):Promise<{ok:boolean;erro?:string}>{
+  async function persistirSalario(day:number,valL:number,valN:number,aPartirDe:string):Promise<{ok:boolean;erro?:string;atualizadas:number}>{
     const s=createClient();const {data:{user}}=await s.auth.getUser()
-    if(!user)return {ok:false,erro:'Sessão expirada'}
+    if(!user)return {ok:false,erro:'Sessão expirada',atualizadas:0}
     const payload={salary_day:day,salary_lucas:valL,salary_nicoly:valN}
     const {data:existing}=await s.from('app_settings').select('id').limit(1).maybeSingle()
-    // Antes o erro era engolido: a tabela não tinha as colunas de salário, o
-    // insert falhava calado e a tela abria vazia toda vez.
     const {error:saveErr}=existing
       ? await s.from('app_settings').update(payload).eq('id',existing.id)
       : await s.from('app_settings').insert({...payload,owner_id:user.id})
-    if(saveErr)return {ok:false,erro:saveErr.message}
+    if(saveErr)return {ok:false,erro:saveErr.message,atualizadas:0}
 
-    const now=new Date()
-    const mesKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
-    const lastDay=new Date(now.getFullYear(),now.getMonth()+1,0).getDate()
-    const actualDay=Math.min(day,lastDay)
-    const salaryDate=`${mesKey}-${String(actualDay).padStart(2,'0')}`
-    const hojeStr=`${mesKey}-${String(now.getDate()).padStart(2,'0')}`
-
-    const aplicar=async(nome:string,holder:string,valor:number)=>{
-      // Valor novo só no que ainda não foi recebido. Reescrever um mês já pago
-      // falsearia o histórico — o que entrou na conta foi o valor de então.
-      if(valor>0){
-        await s.from('transactions')
-          .update({amount:valor,expected_amount:valor,recurring_day:day})
-          .eq('is_recurring',true).eq('holder',holder).eq('description',nome).neq('status','Pago')
-      }
-      await s.from('transactions').update({recurring_day:day})
-        .eq('is_recurring',true).eq('holder',holder).eq('description',nome).eq('status','Pago')
-      if(valor<=0)return
-      const {data:doMes}=await s.from('transactions').select('id')
-        .eq('is_recurring',true).eq('holder',holder).eq('description',nome)
-        .gte('purchase_date',`${mesKey}-01`)
-        .lte('purchase_date',`${mesKey}-${String(lastDay).padStart(2,'0')}`)
-      if(doMes&&doMes.length>0)return
-      await s.from('transactions').insert({
-        owner_id:user.id,owner_name:holder,holder,
-        type:'Receita',transaction_type:'receita',nature:'Fixo',
-        description:nome,amount:valor,category:'Salário',
-        purchase_date:salaryDate,
-        status:salaryDate<=hojeStr?'Pago':'Previsto',
-        is_recurring:true,recurring_day:day,expected_amount:valor,
-      })
+    let atualizadas=0
+    for(const [titular,valor] of [['Lucas',valL],['Nicoly',valN]] as ['Lucas'|'Nicoly',number][]){
+      if(valor<=0)continue
+      const r=await aplicarAjusteSalario({titular,valor,dia:day,aPartirDe})
+      if(!r.ok)return {ok:false,erro:r.erro,atualizadas}
+      atualizadas+=r.atualizadas
     }
-    await aplicar('Salário Lucas','Lucas',valL)
-    await aplicar('Salário Nicoly','Nicoly',valN)
-    return {ok:true}
+    return {ok:true,atualizadas}
   }
 
   function abrirEditorSal(titular:'Lucas'|'Nicoly'){
     setEditSalValor(titular==='Lucas'?salaryAmountL:salaryAmountN)
+    setEditSalVigencia(mesAtual())
     setErroSal(''); setEditSal(titular)
   }
 
   async function salvarSalarioDe(titular:'Lucas'|'Nicoly'){
     const valor=unmaskCurrency(editSalValor)
     if(valor<=0){setErroSal('Informe o valor do salário');return}
+    const vigencia=editSalVigencia||mesAtual()
     setErroSal(''); setSavingSal(true)
     const valL=titular==='Lucas'?valor:unmaskCurrency(salaryAmountL)
     const valN=titular==='Nicoly'?valor:unmaskCurrency(salaryAmountN)
-    const r=await persistirSalario(parseInt(salaryDay)||1,valL,valN)
+    const r=await persistirSalario(parseInt(salaryDay)||1,valL,valN,vigencia)
     setSavingSal(false)
     if(!r.ok){toast.error(`Não foi possível salvar: ${r.erro}`);return}
-    toast.success(`Salário ${titular==='Lucas'?'do Lucas':'da Nicoly'} atualizado`)
+    toast.success(`Salário ${titular==='Lucas'?'do Lucas':'da Nicoly'} vale a partir de ${rotuloMes(vigencia)}`)
     setEditSal(null); loadSalary()
   }
 
   async function salvarDiaSalario(){
     const dia=parseInt(diaRaw)
     if(!dia||dia<1||dia>31){toast.error('Informe um dia válido (1 a 31)');return}
-    const r=await persistirSalario(dia,unmaskCurrency(salaryAmountL),unmaskCurrency(salaryAmountN))
+    const vigencia=diaVigencia||mesAtual()
+    const r=await persistirSalario(dia,unmaskCurrency(salaryAmountL),unmaskCurrency(salaryAmountN),vigencia)
     if(!r.ok){toast.error(`Não foi possível salvar: ${r.erro}`);return}
-    toast.success('Dia do recebimento salvo')
+    toast.success(`Recebimento no dia ${dia} a partir de ${rotuloMes(vigencia)}`)
     setEditandoDia(false); setDiaRaw(''); loadSalary()
   }
 
   // ── Recorrentes ──
   async function loadRecurrents(){
-    // Só DESPESAS recorrentes. Receita (salário) é configurada em Ciclo Salarial
-    // e não tem "dia de vencimento" — aparecer aqui pedindo vencimento confundia.
-    const {data}=await createClient().from('transactions').select('*')
-      .eq('is_recurring',true).neq('type','Receita').order('purchase_date',{ascending:false})
-    const despesas=(data||[]).filter((t:any)=>t.transaction_type!=='receita')
-
-    // Cada mês gera uma nova linha da mesma conta recorrente. A lista mostrava
-    // todas, então "Aluguel da Garagem" aparecia repetido uma vez por mês.
-    // Aqui mostramos UM card por conta (o mais recente), guardando quantas
-    // ocorrências existem para poder apagar todas de uma vez.
-    const porConta=new Map<string,any>()
-    for(const t of despesas){
-      const chave=`${(t.description||'').trim().toLowerCase()}|${t.holder}`
-      if(porConta.has(chave)){porConta.get(chave)._ocorrencias++; continue}
-      porConta.set(chave,{...t,_ocorrencias:1,_encerrada:t.recurring_active===false})
-    }
-    setRecurrents(Array.from(porConta.values()).sort((a,b)=>
-      (a.description||'').localeCompare(b.description||'')))
+    // Agrupamento e leitura de prazo vêm do motor (mesUtils), para esta tela e
+    // a geração automática usarem exatamente a mesma noção de "conta".
+    const contas = await carregarRecorrentes()
+    const hoje = mesAtual()
+    const cards = contas.map(conta => {
+      const prazo = prazoDaConta(conta, hoje)
+      return {
+        ...conta.template,
+        _conta: conta,
+        _prazo: prazo,
+        _ocorrencias: conta.ocorrencias,
+        _encerrada: prazo.tipo === 'encerrada',
+      }
+    })
+    setRecurrents(cards.sort((a,b)=>(a.description||'').localeCompare(b.description||'')))
   }
 
   async function removeRecurrent(tx:any){
@@ -344,88 +335,122 @@ export default function Parametros() {
       card_name:tx.card_name||'', recurring_day:tx.recurring_day||'',
     })
     setEditRecValor(maskCurrency(Math.round(((tx.expected_amount||tx.amount)||0)*100).toString()))
+    const prazo = tx._prazo
+    if(prazo && prazo.tipo!=='sem_prazo'){ setEditRecPrazo('ate'); setEditRecAte(prazo.ultimoMes) }
+    else { setEditRecPrazo('sem'); setEditRecAte('') }
+    setEditRecMeses('')
+    setEditRecVigencia(mesAtual())
     setErroRec({})
     setEditRec(tx)
   }
 
+  /** Mês final que o prazo escolhido representa. null = sem prazo. */
+  function mesFinalEscolhido():string|null{
+    if(editRecPrazo==='sem') return null
+    if(editRecPrazo==='meses'){
+      const n=parseInt(editRecMeses)
+      if(!n||n<1) return null
+      return somaMeses(mesAtual(), n-1)
+    }
+    return editRecAte||null
+  }
+
   async function salvarEditorRec(){
     if(!editRec)return
+    const conta:ContaRec=editRec._conta
     const f=editRecForm
     const nome=(f.description||'').trim()
     const valor=unmaskCurrency(editRecValor)
     const noCartao=f.payment_method==='cartao_credito'
     const dia=parseInt(f.recurring_day)||null
+    const vigencia=editRecVigencia||mesAtual()
 
-    // Erro no próprio campo: só o toast passava batido, e o usuário achava que
-    // o botão de salvar não estava funcionando.
     const erros:Record<string,string>={}
     if(!nome)erros.description='Informe o nome da conta'
     if(valor<=0)erros.valor='Informe o valor mensal'
     if(!(f.category||'').trim())erros.category='Escolha a categoria'
     if(noCartao&&!(f.card_name||'').trim())erros.card_name='Escolha o cartão'
     if(!noCartao&&(!dia||dia<1||dia>31))erros.recurring_day='Informe o dia do vencimento (1 a 31)'
+    if(editRecPrazo==='meses'&&(!parseInt(editRecMeses)||parseInt(editRecMeses)<1))erros.prazo='Informe quantos meses'
+    if(editRecPrazo==='ate'&&!editRecAte)erros.prazo='Escolha o mês final'
+    const fim=mesFinalEscolhido()
+    if(fim&&fim<mesAtual())erros.prazo='O mês final já passou'
+    if(fim&&fim<vigencia)erros.prazo='O prazo termina antes do início da vigência'
     setErroRec(erros)
-    if(Object.keys(erros).length>0){
-      toast.error('Faltam campos obrigatórios')
-      return
-    }
+    if(Object.keys(erros).length>0){ toast.error('Faltam campos obrigatórios'); return }
 
     setSavingRec(true)
-    const s=createClient()
-    // Alterar a conta recorrente vale para TODAS as ocorrências dela — é a
-    // mesma conta repetida mês a mês, não lançamentos independentes. Só o valor
-    // já pago fica preservado: mexer nele reescreveria histórico de pagamento.
-    // Campos de cadastro valem para TODAS as ocorrências, pagas ou não.
+
+    // Cadastro (nome, categoria, forma de cobrança) vale para TODAS as
+    // ocorrências: é a identidade da conta, e dividir isso partiria a conta em
+    // duas. Só valor e dia respeitam a vigência.
     const cadastro:any={
       description:nome, category:f.category||editRec.category, subcategory:f.subcategory||null,
       holder:f.holder, payment_method:f.payment_method,
       card_name:noCartao?(f.card_name||null):null,
-      recurring_day:noCartao?null:dia,
     }
-    // O valor só muda no que ainda não foi pago — reescrever o valor de uma
-    // parcela paga seria falsear histórico de pagamento.
-    const comValor:any={...cadastro, amount:valor, expected_amount:valor}
 
-    // Antes o update era um só, com .neq('status','Pago'): se todas as
-    // ocorrências estivessem pagas, ele não atingia linha nenhuma e a edição
-    // simplesmente não salvava, sem erro e sem aviso.
-    const r1=await s.from('transactions').update(comValor)
-      .eq('is_recurring',true).eq('holder',editRec.holder).eq('description',editRec.description)
-      .neq('status','Pago')
-    const r2=await s.from('transactions').update(cadastro)
-      .eq('is_recurring',true).eq('holder',editRec.holder).eq('description',editRec.description)
-      .eq('status','Pago')
-    const erro=r1.error||r2.error
-    if(erro){toast.error(`Não foi possível salvar: ${erro.message}`);setSavingRec(false);return}
+    const r=await aplicarAjusteRecorrente({
+      conta, aPartirDe:vigencia, cadastro,
+      valor, dia:noCartao?null:dia,
+    })
+    if(!r.ok){ toast.error(`Não foi possível salvar: ${r.erro}`); setSavingRec(false); return }
 
-    toast.success('Conta recorrente atualizada')
+    // Recarrega a conta antes de mexer no prazo: o nome pode ter mudado e
+    // ocorrências podem ter acabado de ser criadas pela vigência futura.
+    const frescas=await carregarRecorrentes()
+    const atual=frescas.find(x=>x.chave===chaveConta(nome,f.holder))
+    let extra=''
+    if(atual){
+      const prazoAtual=prazoDaConta(atual)
+      const jaEra=prazoAtual.tipo==='sem_prazo'?null:prazoAtual.ultimoMes
+      if(fim!==jaEra){
+        const rp=await definirPrazo(atual,fim)
+        if(!rp.ok){ toast.error(`Valor salvo, mas o prazo falhou: ${rp.erro}`); setSavingRec(false); loadRecurrents(); return }
+        if(rp.criadas>0) extra=` · ${rp.criadas} ${rp.criadas>1?'meses criados':'mês criado'}`
+        else if(rp.removidas>0) extra=` · ${rp.removidas} ${rp.removidas>1?'meses futuros removidos':'mês futuro removido'}`
+      }
+    }
+
+    toast.success(
+      r.atualizadas>0
+        ? `Atualizada a partir de ${rotuloMes(vigencia)}${extra}`
+        : `Conta atualizada${extra}`
+    )
     setEditRec(null); setSavingRec(false)
     loadRecurrents()
   }
 
   async function encerrarRecorrencia(tx:any,encerrar:boolean){
-    // Encerrar não apaga nada e não desmarca is_recurring: os meses passados
-    // continuam existindo e continuam contando como conta recorrente nos
-    // relatórios. Só para de gerar os próximos.
+    // Encerrar = definir o prazo como "até este mês": para de gerar, apaga os
+    // meses futuros ainda não pagos que já tinham sido criados, e mantém todo
+    // o histórico. Reativar volta a conta para "sem prazo".
+    const conta:ContaRec=tx._conta
     if(encerrar&&!confirm(
       `Encerrar "${tx.description}"?\n\n` +
-      `Ela não será mais gerada nos próximos meses.\n` +
-      `Todo o histórico dos meses anteriores é mantido intacto.`
+      `Ela deixa de ser gerada a partir do mês que vem e os meses futuros já\n` +
+      `criados que ainda não foram pagos são removidos.\n\n` +
+      `Todo o histórico até ${rotuloMes(mesAtual())} é mantido intacto.`
     ))return
-    const {error}=await createClient().from('transactions')
-      .update({recurring_active:encerrar?false:true})
-      .eq('is_recurring',true).eq('holder',tx.holder).eq('description',tx.description)
-    if(error){toast.error(`Erro: ${error.message}`);return}
-    toast.success(encerrar?'Conta encerrada — histórico preservado':'Conta reativada')
+    const r=await definirPrazo(conta, encerrar?mesAtual():null)
+    if(!r.ok){ toast.error(`Erro: ${r.erro}`); return }
+    toast.success(encerrar
+      ? `Encerrada em ${rotuloMes(mesAtual())} — histórico preservado`
+      : 'Conta reativada — volta a ser gerada todo mês')
     loadRecurrents()
   }
+
   async function saveDueDay(tx:any){
     const dia=parseInt(dueDayRaw)
     if(!dia||dia<1||dia>31){toast.error('Informe um dia válido (1-31)');return}
-    // Atualiza todas as ocorrências dessa recorrente (mesma descrição+titular), não só o template mais recente
-    const {error}=await createClient().from('transactions').update({recurring_day:dia}).eq('description',tx.description).eq('holder',tx.holder).eq('is_recurring',true)
-    if(error){toast.error(`Erro ao salvar: ${error.message}`);return}
-    toast.success('Dia de vencimento salvo!')
+    // Atalho do card: vale deste mês em diante, igual ao editor completo. Antes
+    // só gravava recurring_day e não movia a data das ocorrências, então a
+    // Configuração dizia "vence dia 2" e o Lançamento continuava em 31/08.
+    const r=await aplicarAjusteRecorrente({
+      conta:tx._conta, aPartirDe:mesAtual(), cadastro:{}, dia,
+    })
+    if(!r.ok){toast.error(`Erro ao salvar: ${r.erro}`);return}
+    toast.success(`Vencimento no dia ${dia} a partir de ${rotuloMes(mesAtual())}`)
     setEditingDueDay(null); setDueDayRaw('')
     loadRecurrents()
   }
@@ -619,7 +644,8 @@ export default function Parametros() {
       </div>
       <p style={{fontSize:12,color:TEXTMU,marginBottom:16,paddingLeft:4}}>
         O salário é uma <strong>receita recorrente</strong>: entra como lançamento todo mês, igual às contas.
-        Alterar o valor aqui vale para os meses que ainda não caíram — os já recebidos mantêm o valor que entrou.
+        Teve aumento? Mudou a data de pagamento? Você escolhe <strong>a partir de qual mês</strong> o ajuste
+        vale — os meses anteriores ficam com o valor e a data reais de quando o dinheiro entrou.
       </p>
 
       {/* Dia do recebimento — vale para os dois, então fica fora dos cards */}
@@ -633,16 +659,25 @@ export default function Parametros() {
           <p style={{fontSize:14,fontWeight:700,color:TEXT,margin:0}}>Dia {salaryDay}</p>
         </div>
         {editandoDia?(
-          <div style={{display:'flex',gap:8,alignItems:'center',paddingLeft:30,marginTop:10}}>
-            <input type="number" min={1} max={31} value={diaRaw} onChange={e=>setDiaRaw(e.target.value)} autoFocus
-              placeholder="Dia"
-              style={{width:70,height:34,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:8,padding:'0 10px',fontSize:13,color:TEXT,outline:'none'}}/>
-            <button onClick={salvarDiaSalario} style={{height:34,padding:'0 12px',background:TERRA,color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>Salvar</button>
-            <button onClick={()=>{setEditandoDia(false);setDiaRaw('')}} style={{height:34,padding:'0 12px',background:'rgba(0,0,0,0.04)',color:TEXTMU,border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>Cancelar</button>
+          <div style={{paddingLeft:30,marginTop:10}}>
+            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
+              <input type="number" min={1} max={31} value={diaRaw} onChange={e=>setDiaRaw(e.target.value)} autoFocus
+                placeholder="Dia"
+                style={{width:70,height:34,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:8,padding:'0 10px',fontSize:13,color:TEXT,outline:'none'}}/>
+              <button onClick={salvarDiaSalario} style={{height:34,padding:'0 12px',background:TERRA,color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>Salvar</button>
+              <button onClick={()=>{setEditandoDia(false);setDiaRaw('')}} style={{height:34,padding:'0 12px',background:'rgba(0,0,0,0.04)',color:TEXTMU,border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>Cancelar</button>
+            </div>
+            <label style={{...sLbl,marginBottom:4}}>Vale a partir de</label>
+            <input type="month" value={diaVigencia||mesAtual()} onChange={e=>setDiaVigencia(e.target.value)}
+              style={{...sInp,height:38,fontSize:13}}/>
+            <p style={{fontSize:11,color:TEXTMU,margin:'5px 0 0'}}>
+              Mudou a data de pagamento? Os meses anteriores a {rotuloMes(diaVigencia||mesAtual())} continuam
+              com a data em que o dinheiro caiu de verdade.
+            </p>
           </div>
         ):(
           <div style={{paddingLeft:30,marginTop:8}}>
-            <button onClick={()=>{setEditandoDia(true);setDiaRaw(salaryDay)}}
+            <button onClick={()=>{setEditandoDia(true);setDiaRaw(salaryDay);setDiaVigencia(mesAtual())}}
               style={{fontSize:11,fontWeight:700,color:TERRA,background:'rgba(196,98,45,0.08)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
               ✏️ Editar dia do recebimento
             </button>
@@ -697,7 +732,8 @@ export default function Parametros() {
             <div style={{padding:'20px 18px 0'}}>
               <h3 style={{fontSize:16,fontWeight:700,color:TEXT,margin:'0 0 4px'}}>Salário {editSal}</h3>
               <p style={{fontSize:12,color:TEXTMU,margin:'0 0 16px'}}>
-                Recebido todo dia {salaryDay}. O novo valor vale para os meses que ainda não caíram.
+                Recebido todo dia {salaryDay}. Escolha a partir de que mês o novo valor vale —
+                o que já entrou não é reescrito.
               </p>
             </div>
             <div style={{flex:1,overflowY:'auto',padding:'0 18px 8px',WebkitOverflowScrolling:'touch' as any}}>
@@ -711,6 +747,18 @@ export default function Parametros() {
                     style={{...sInp,paddingLeft:40,...(erroSal?{border:`1px solid ${RED}`}:{})}}/>
                 </div>
                 {erroSal&&<p style={{fontSize:11,color:RED,fontWeight:600,margin:'5px 0 0'}}>{erroSal}</p>}
+              </div>
+
+              <div style={{marginBottom:16,background:'rgba(196,98,45,0.06)',borderRadius:12,padding:'12px 14px'}}>
+                <label style={{...sLbl,marginBottom:6}}>Esse valor vale a partir de</label>
+                <input type="month" value={editSalVigencia||mesAtual()}
+                  onChange={e=>setEditSalVigencia(e.target.value)}
+                  style={{...sInp,background:'#fff'}}/>
+                <p style={{fontSize:11,color:TEXTLT,margin:'7px 0 0',lineHeight:1.45}}>
+                  Antes de <strong>{rotuloMes(editSalVigencia||mesAtual())}</strong> nada muda: cada mês
+                  guarda o salário que realmente entrou. Aumento a partir de um mês futuro? É só escolher
+                  o mês e o app já projeta certo.
+                </p>
               </div>
             </div>
             <div style={{display:'flex',gap:8,padding:'12px 18px calc(16px + env(safe-area-inset-bottom, 12px))',
@@ -740,7 +788,7 @@ export default function Parametros() {
         {backBtn()}
         <h2 style={{fontSize:17,fontWeight:700,color:TEXT,flex:1}}>Contas Recorrentes</h2>
       </div>
-      <p style={{fontSize:12,color:TEXTMU,marginBottom:16,paddingLeft:4}}>Lançamentos marcados como recorrentes. Eles serão gerados automaticamente todo mês. Contas no cartão de crédito não precisam de dia de vencimento próprio — elas entram na fatura e o alerta é feito por lá. Quando uma conta deixar de existir, use <strong>Encerrar</strong>: ela para de ser gerada e o histórico dos meses anteriores continua intacto. <strong>Apagar</strong> remove também esse histórico.</p>
+      <p style={{fontSize:12,color:TEXTMU,marginBottom:16,paddingLeft:4}}>Lançamentos marcados como recorrentes. Eles serão gerados automaticamente todo mês. Contas no cartão de crédito não precisam de dia de vencimento próprio — elas entram na fatura e o alerta é feito por lá. Cada conta pode ser <strong>sem prazo</strong> (repete para sempre) ou <strong>com prazo</strong> (por X meses, ou até um mês específico) — e só aparece nos meses da janela dela. Ao mudar valor ou dia você escolhe <strong>a partir de qual mês</strong> vale, e os meses anteriores ficam intocados. <strong>Encerrar</strong> para de gerar e mantém o histórico; <strong>Apagar</strong> remove o histórico também.</p>
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
         {recurrents.map(tx=>{
           const isCartaoRec = tx.payment_method==='cartao_credito'
@@ -755,11 +803,16 @@ export default function Parametros() {
                 <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
                   {tx.holder} · {isCartaoRec?'Fatura do cartão':`Vence dia ${tx.recurring_day||'?'}`} · {tx.payment_method}
                 </p>
-                {tx._encerrada&&(
-                  <span style={{display:'inline-block',marginTop:4,fontSize:10,fontWeight:700,color:TEXTMU,background:'rgba(0,0,0,0.05)',borderRadius:6,padding:'2px 7px'}}>
-                    Encerrada · histórico mantido
-                  </span>
-                )}
+                {(()=>{
+                  // O prazo é a informação que faltava: dá para ver de bate-pronto
+                  // se a conta é para sempre, se tem data para acabar, ou se já acabou.
+                  const pz=tx._prazo
+                  if(!pz) return null
+                  const estilo=(cor:string,fundo:string)=>({display:'inline-block',marginTop:4,fontSize:10,fontWeight:700,color:cor,background:fundo,borderRadius:6,padding:'2px 7px'})
+                  if(pz.tipo==='sem_prazo') return <span style={estilo(TEXTMU,'rgba(0,0,0,0.05)')}>Todo mês · sem prazo</span>
+                  if(pz.tipo==='com_prazo') return <span style={estilo('#B37700','rgba(255,170,0,0.12)')}>Até {rotuloMes(pz.ultimoMes)} · {pz.restantes} {pz.restantes===1?'mês restante':'meses restantes'}</span>
+                  return <span style={estilo(TEXTMU,'rgba(0,0,0,0.05)')}>Encerrada em {rotuloMes(pz.ultimoMes)} · histórico mantido</span>
+                })()}
               </div>
               <p style={{fontSize:14,fontWeight:700,color:RED,margin:0}}>{formatCurrency(tx.expected_amount||tx.amount)}</p>
             </div>
@@ -815,7 +868,8 @@ export default function Parametros() {
             <div style={{padding:'20px 18px 0'}}>
               <h3 style={{fontSize:16,fontWeight:700,color:TEXT,margin:'0 0 4px'}}>Editar conta recorrente</h3>
               <p style={{fontSize:12,color:TEXTMU,margin:'0 0 16px'}}>
-                A mudança vale para todos os meses desta conta. As parcelas já pagas mantêm o valor que foi pago.
+                Nome, categoria e forma de cobrança valem para todos os meses. Valor e dia valem
+                a partir do mês que você escolher lá embaixo — o passado não é reescrito.
               </p>
             </div>
             <div style={{flex:1,overflowY:'auto',padding:'0 18px 8px',WebkitOverflowScrolling:'touch' as any}}>
@@ -907,6 +961,60 @@ export default function Parametros() {
                 <p style={{fontSize:11,color:TEXTMU,margin:'5px 0 0'}}>É esse dia que o app usa para avisar no Início.</p>
               </div>
             )}
+
+            {/* ── Prazo da conta ───────────────────────────────── */}
+            <div style={{marginBottom:12,borderTop:'1px solid rgba(0,0,0,0.07)',paddingTop:14}}>
+              <label style={sLbl}>Por quanto tempo essa conta existe</label>
+              <div style={{display:'flex',gap:6,marginBottom:8}}>
+                {[{v:'sem',l:'Sem prazo'},{v:'meses',l:'Por X meses'},{v:'ate',l:'Até mês'}].map(o=>(
+                  <button key={o.v} onClick={()=>setEditRecPrazo(o.v as any)}
+                    style={{...seg(editRecPrazo===o.v),flex:1,fontSize:12}}>{o.l}</button>
+                ))}
+              </div>
+
+              {editRecPrazo==='sem'&&(
+                <p style={{fontSize:11,color:TEXTMU,margin:0}}>
+                  Repete todo mês, sem data para acabar. Aparece em qualquer mês que você abrir.
+                </p>
+              )}
+
+              {editRecPrazo==='meses'&&(
+                <>
+                  <input type="number" min={1} max={MESES_FUTURO_MAX*5} value={editRecMeses}
+                    onChange={e=>setEditRecMeses(e.target.value)}
+                    placeholder="Ex: 12" style={{...sInp,...bordaErro('prazo')}}/>
+                  <p style={{fontSize:11,color:TEXTMU,margin:'5px 0 0'}}>
+                    Contando a partir de {rotuloMes(mesAtual())}.
+                    {mesFinalEscolhido()&&<> Termina em <strong>{rotuloMes(mesFinalEscolhido()!)}</strong>.</>}
+                  </p>
+                </>
+              )}
+
+              {editRecPrazo==='ate'&&(
+                <>
+                  <input type="month" value={editRecAte} min={mesAtual()}
+                    onChange={e=>setEditRecAte(e.target.value)}
+                    style={{...sInp,...bordaErro('prazo')}}/>
+                  <p style={{fontSize:11,color:TEXTMU,margin:'5px 0 0'}}>
+                    Último mês em que ela aparece. Depois disso, some das telas — sem apagar o histórico.
+                  </p>
+                </>
+              )}
+              <ErroCampo campo="prazo"/>
+            </div>
+
+            {/* ── Vigência do ajuste ───────────────────────────── */}
+            <div style={{marginBottom:16,background:'rgba(196,98,45,0.06)',borderRadius:12,padding:'12px 14px'}}>
+              <label style={{...sLbl,marginBottom:6}}>O novo valor e dia valem a partir de</label>
+              <input type="month" value={editRecVigencia}
+                onChange={e=>setEditRecVigencia(e.target.value)}
+                style={{...sInp,background:'#fff'}}/>
+              <p style={{fontSize:11,color:TEXTLT,margin:'7px 0 0',lineHeight:1.45}}>
+                Os meses anteriores a <strong>{rotuloMes(editRecVigencia||mesAtual())}</strong> ficam
+                exatamente como estão — inclusive os que ainda não foram pagos. Para agendar um reajuste
+                (ex.: sobe em janeiro), é só escolher o mês futuro.
+              </p>
+            </div>
 
             </div>
 

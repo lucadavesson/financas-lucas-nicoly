@@ -10,6 +10,9 @@ import { format, parseISO, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Simulador from './simulador'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
+import {
+  carregarRecorrentes, definirPrazo, mesAtual, mesDe, somaMeses, rotuloMes, chaveConta,
+} from '@/lib/utils/recurrents'
 
 type TipoLanc = 'escolha' | 'parcelada' | 'avista' | 'recorrente' | 'receita'
 
@@ -130,6 +133,10 @@ export default function NovoLancamento() {
   const [recDay, setRecDay]     = useState('')
   const [recMethod, setRecMethod] = useState('debito_automatico')
   const [recCard, setRecCard]   = useState('')
+  // Prazo: conta recorrente pode ser para sempre, por X meses ou até um mês.
+  const [recPrazo, setRecPrazo] = useState<'sem'|'meses'|'ate'>('sem')
+  const [recPrazoMeses, setRecPrazoMeses] = useState('')
+  const [recPrazoAte, setRecPrazoAte] = useState('')
 
   // Receita
   const [recIsRec, setRecIsRec]   = useState(false)
@@ -257,6 +264,12 @@ export default function NovoLancamento() {
       toast.error('Escolha o cartão de crédito')
       return
     }
+    if (tipo === 'recorrente' && recPrazo === 'meses' && (!parseInt(recPrazoMeses) || parseInt(recPrazoMeses) < 1)) {
+      toast.error('Informe por quantos meses a conta vai existir'); return
+    }
+    if (tipo === 'recorrente' && recPrazo === 'ate' && !recPrazoAte) {
+      toast.error('Escolha até que mês a conta vai existir'); return
+    }
     if (tipo === 'recorrente' && recMethod !== 'cartao_credito' && !recDay) {
       toast.error('Informe o dia de vencimento (para o app te avisar quando estiver perto)')
       return
@@ -351,11 +364,32 @@ export default function NovoLancamento() {
           subcategory:recItem||subcat||null,
           purchase_date:date, notes:notes||null,
           payment_method:recMethod, card_name:recContaTipo!=='nenhum'?recCard:null,
-          billing_month:bm, is_recurring:true,
+          billing_month:bm, is_recurring:true, recurring_active:true,
           recurring_day:recDay?parseInt(recDay):null,
           status:'Pendente',
         })
         if (error) throw error
+
+        // Conta com prazo: em vez de guardar a data-fim numa coluna, as
+        // ocorrências do prazo passam a existir de verdade e a conta para de
+        // gerar. Assim ela aparece exatamente nos meses dela — nem antes, nem
+        // depois — e toda tela lê a mesma coisa.
+        if (recPrazo !== 'sem') {
+          const inicio = mesDe(date)
+          const ateMes = recPrazo === 'meses'
+            ? somaMeses(inicio, Math.max(1, parseInt(recPrazoMeses)) - 1)
+            : recPrazoAte
+          if (ateMes && ateMes >= inicio) {
+            const contas = await carregarRecorrentes()
+            const criada = contas.find(x => x.chave === chaveConta(finalDesc, holder))
+            if (criada) {
+              const rp = await definirPrazo(criada, ateMes)
+              if (rp.ok && rp.criadas > 0) {
+                toast.success(`${rp.criadas + 1} meses criados — até ${rotuloMes(ateMes)}`, { position:'top-center' })
+              }
+            }
+          }
+        }
 
       } else if (tipo === 'receita') {
         const { error } = await supabase.from('transactions').insert({
@@ -856,6 +890,50 @@ export default function NovoLancamento() {
                 ? 'Se for no cartão de crédito, o vencimento é o da fatura — pode deixar em branco.'
                 : 'É esse dia que o app usa para te avisar no Início quando estiver perto de vencer.'}
             </p>
+          </div>
+
+          {/* ── Por quanto tempo ─────────────────────────────── */}
+          <div>
+            <label style={S.lbl}>Por quanto tempo essa conta existe<Obrig/></label>
+            <div style={{display:'flex',gap:6,marginBottom:8}}>
+              {[{v:'sem',l:'Sem prazo'},{v:'meses',l:'Por X meses'},{v:'ate',l:'Até mês'}].map(o=>(
+                <button key={o.v} type="button" onClick={()=>setRecPrazo(o.v as any)}
+                  style={{...S.seg(recPrazo===o.v,'#C4622D'),flex:1}}>{o.l}</button>
+              ))}
+            </div>
+
+            {recPrazo==='sem'&&(
+              <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
+                Repete todo mês, sem data para acabar — água, luz, internet, assinatura.
+                Aparece em qualquer mês que você abrir.
+              </p>
+            )}
+
+            {recPrazo==='meses'&&(
+              <>
+                <input type="number" min="1" max="120" value={recPrazoMeses}
+                  onChange={e=>setRecPrazoMeses(e.target.value)}
+                  placeholder="Ex: 12" style={S.inp}/>
+                <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
+                  Contando a partir de {rotuloMes(mesDe(date))}.
+                  {parseInt(recPrazoMeses)>0&&(
+                    <> Termina em <strong>{rotuloMes(somaMeses(mesDe(date), parseInt(recPrazoMeses)-1))}</strong>,
+                    e os {recPrazoMeses} meses já ficam criados.</>
+                  )}
+                </p>
+              </>
+            )}
+
+            {recPrazo==='ate'&&(
+              <>
+                <input type="month" value={recPrazoAte} min={mesDe(date)}
+                  onChange={e=>setRecPrazoAte(e.target.value)} style={S.inp}/>
+                <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
+                  Último mês em que ela aparece. Depois disso ela some das telas sozinha —
+                  bom para contrato de aluguel, financiamento e assinatura anual.
+                </p>
+              </>
+            )}
           </div>
 
           <div>

@@ -7,6 +7,7 @@ import { ptBR } from 'date-fns/locale'
 import { Check, ChevronDown, ChevronUp, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
+import { generateRecurrents } from '@/lib/utils/recurrents'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
 import Link from 'next/link'
@@ -83,6 +84,9 @@ export default function Pagamentos() {
   async function load() {
     setLoad(true)
     await autoCorrigirStatusVencido()
+    // Mesma razão de Lançamentos: a conta a pagar do mês precisa existir antes
+    // de a tela perguntar o que há para pagar.
+    await generateRecurrents(curMonth)
     const s = createClient()
     const [{ data: txData }, { data: cardData }] = await Promise.all([
       s.from('transactions').select('*')

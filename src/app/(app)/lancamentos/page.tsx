@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, SlidersHorizontal, X
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
+import { generateRecurrents } from '@/lib/utils/recurrents'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
 
@@ -67,6 +68,10 @@ export default function Lancamentos() {
   async function loadData() {
     setLoad(true)
     await autoCorrigirStatusVencido()
+    // As contas fixas do mês precisam existir ANTES de listar, senão esta tela
+    // mostra um mês sem recorrentes e o Início mostra com — as duas telas têm
+    // que contar a mesma história.
+    await generateRecurrents(date)
     const {data}=await createClient().from('transactions').select('*')
       .gte('purchase_date',format(startOfMonth(date),'yyyy-MM-dd'))
       .lte('purchase_date',format(endOfMonth(date),'yyyy-MM-dd'))

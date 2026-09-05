@@ -120,8 +120,11 @@ export default function Dashboard() {
     limitsData?.forEach((r:any)=>{lm[r.category]=r.limit_amount})
     setCatLimits(lm)
     setLoad(false)
-    // Gerar recorrentes do mês se necessário (background, não bloqueia)
-    if (format(curMonth,'yyyy-MM')===format(new Date(),'yyyy-MM')) {
+    // Gerar recorrentes do mês se necessário (background, não bloqueia).
+    // Antes só rodava no mês corrente, então navegar para outubro mostrava um
+    // mês sem nenhuma conta fixa. Agora vale para qualquer mês visitado — o
+    // próprio generateRecurrents recusa mês passado e mês longe demais.
+    {
       generateRecurrents(curMonth).then(r => {
         if (r.generated > 0) {
           toast.success(`${r.generated} conta${r.generated>1?'s':''} recorrente${r.generated>1?'s':''} gerada${r.generated>1?'s':''}`)
