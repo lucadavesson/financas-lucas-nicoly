@@ -50,7 +50,11 @@ export default function EditarLancamento(){
       // campo editável e volta a aparecer como selo ao lado, só leitura.
       const mDesc=(data.description||'').match(/\((\d+)\/(\d+)\)$/)
       const nomeBase=mDesc?data.description.slice(0,mDesc.index).trim():data.description
-      setForm({...data,description:data.transaction_type==='parcelada'?nomeBase:data.description})
+      // Antes isso só valia para transaction_type==='parcelada' — mas há
+      // lançamentos antigos com "(N/T)" na descrição salvos como 'avista'
+      // por engano (já vimos isso acontecer neste app). Se o nome TEM essa
+      // referência, ela sai do campo de qualquer forma; o tipo não importa.
+      setForm({...data,description:mDesc?nomeBase:data.description})
       setValRaw(maskCurrency(Math.round((data.amount||0)*100).toString()))
       if(data.installment_value){setInstValRaw(maskCurrency(Math.round(data.installment_value*100).toString()))}
       if(data.paid_amount){setPaidAmountRaw(maskCurrency(Math.round(data.paid_amount*100).toString()))}
@@ -175,7 +179,11 @@ export default function EditarLancamento(){
   const mDescOriginal=(tx?.description||'').match(/\((\d+)\/(\d+)\)$/)
   const numParcela=mDescOriginal?parseInt(mDescOriginal[1]):(tx?.installment_num||tx?.installment_number||null)
   const totalParcelasOriginal=mDescOriginal?parseInt(mDescOriginal[2]):(tx?.installment_total||tx?.total_installments||null)
-  const ehParcelaDeGrupo=form.transaction_type==='parcelada'&&!!numParcela
+  // Não trava mais em transaction_type==='parcelada': o que importa é a
+  // descrição TER a referência "(N/T)" — inclusive em linhas antigas
+  // salvas com o tipo errado, que também mostravam a data de um jeito
+  // enganoso.
+  const ehParcelaDeGrupo=!!numParcela&&!!totalParcelasOriginal&&totalParcelasOriginal>1
   // "Nº de parcelas" é editável no formulário — o selo acompanha o valor atual
   const totalParcelasAtual=parseInt(form.installment_total)||totalParcelasOriginal||numParcela||1
 
