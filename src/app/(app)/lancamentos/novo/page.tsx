@@ -444,6 +444,11 @@ export default function NovoLancamento() {
           </button>
         ))}
       </div>
+      {/* O simulador precisa existir AQUI também: esta tela tem o botão
+          "Simular", mas o modal só era renderizado no formulário principal.
+          Clicar aqui ligava o estado e nada aparecia — o modal só surgia
+          depois, quando o usuário escolhia um tipo e caía no formulário. */}
+      {showSim&&<Simulador onClose={()=>setShowSim(false)}/>}
     </div>
   )
 

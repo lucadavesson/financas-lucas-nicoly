@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { formatCurrency, maskCurrency, unmaskCurrency } from '@/lib/utils'
 import { X, Trash2, ChevronDown, ChevronUp, Save } from 'lucide-react'
 import { toast } from 'sonner'
+import { useBackGuard } from '@/lib/hooks/useBackGuard'
 
 const TEXT='#1C1C1E',TEXTLT='#48484A',TEXTMU='#8E8E93',TERRA='#C4622D',GREEN='#34C759',RED='#FF3B30'
 const inp:React.CSSProperties={width:'100%',height:44,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.06)',borderRadius:12,padding:'0 14px',fontSize:14,color:TEXT,outline:'none',boxSizing:'border-box'}
@@ -31,6 +32,9 @@ export default function Simulador({ onClose }: { onClose: () => void }) {
     const data = localStorage.getItem('ln_simulations')
     if (data) setSaved(JSON.parse(data))
   }, [])
+
+  // Arrastar para voltar fecha o simulador em vez de sair da tela inteira
+  useBackGuard(true, onClose)
 
   // Cálculos
   const total = unmaskCurrency(totalRaw)
@@ -69,8 +73,12 @@ export default function Simulador({ onClose }: { onClose: () => void }) {
     restante: totalPago - entrada - parcelaCalc * (i + 1),
   }))
 
+  // O botão fica desabilitado enquanto falta dado, com o motivo escrito ao
+  // lado — melhor do que deixar clicar e devolver um toast que passa batido.
+  const podeSalvar = !!name.trim() && total > 0 && nParc > 0
+
   function salvar() {
-    if (!name || total <= 0) { toast.error('Preencha o nome e valor'); return }
+    if (!podeSalvar) { toast.error('Preencha o nome, o valor total e o nº de parcelas'); return }
     const sim: Sim = {
       id: Date.now().toString(),
       name, totalValue: total, downPayment: entrada,
@@ -83,6 +91,9 @@ export default function Simulador({ onClose }: { onClose: () => void }) {
     localStorage.setItem('ln_simulations', JSON.stringify(updated))
     toast.success('Simulação salva!')
     setName(''); setTotalRaw(''); setEntradaRaw(''); setParcelas('48'); setParcelaRaw(''); setJuros('')
+    // Leva para a lista: com o formulário limpo, quem salvava ficava sem
+    // nenhum sinal de onde a simulação foi parar.
+    setView('saved')
   }
 
   function excluir(id: string) {
@@ -96,7 +107,10 @@ export default function Simulador({ onClose }: { onClose: () => void }) {
   return (
     <div style={{ position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end' }} onClick={onClose}>
       <div style={{ position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(6px)' }}/>
-      <div style={{ position:'relative',width:'100%',maxWidth:390,margin:'0 auto',background:'#fff',borderRadius:'24px 24px 0 0',maxHeight:'85vh',display:'flex',flexDirection:'column' }} onClick={e=>e.stopPropagation()}>
+      {/* Cabeçalho fixo / corpo rolável / rodapé fixo. Antes era um bloco só:
+          o botão de salvar ficava no fim do conteúdo, abaixo da área visível
+          do iPhone, e o toque nunca chegava nele. */}
+      <div style={{ position:'relative',width:'100%',maxWidth:390,margin:'0 auto',background:'#fff',borderRadius:'24px 24px 0 0',maxHeight:'90vh',display:'flex',flexDirection:'column',overflow:'hidden' }} onClick={e=>e.stopPropagation()}>
 
         {/* Header */}
         <div style={{ padding:'16px 18px 12px',borderBottom:'0.5px solid rgba(0,0,0,0.06)',flexShrink:0 }}>
@@ -111,7 +125,7 @@ export default function Simulador({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Content */}
-        <div style={{ overflowY:'auto',WebkitOverflowScrolling:'touch',flex:1,padding:'14px 18px 30px' }}>
+        <div style={{ overflowY:'auto',WebkitOverflowScrolling:'touch',flex:1,minHeight:0,padding:'14px 18px 8px' }}>
 
           {view==='form'&&!detail&&(
             <div style={{ display:'flex',flexDirection:'column',gap:12 }}>
@@ -196,11 +210,6 @@ export default function Simulador({ onClose }: { onClose: () => void }) {
                     </div>
                     {nParc>12&&<p style={{ fontSize:10,color:TEXTMU,margin:'6px 0 0',textAlign:'center' }}>... e mais {nParc-12} meses</p>}
                   </div>
-
-                  {/* Botão salvar */}
-                  <button onClick={salvar} style={{ width:'100%',height:44,background:TERRA,color:'#fff',borderRadius:12,border:'none',fontSize:14,fontWeight:700,cursor:'pointer',marginTop:14,display:'flex',alignItems:'center',justifyContent:'center',gap:6 }}>
-                    <Save size={16}/> Salvar simulação
-                  </button>
                 </div>
               )}
             </div>
@@ -293,13 +302,32 @@ export default function Simulador({ onClose }: { onClose: () => void }) {
                 })}
                 {detail.installments>12&&<p style={{ fontSize:10,color:TEXTMU,margin:'6px 0 0',textAlign:'center' }}>... e mais {detail.installments-12} meses</p>}
               </div>
-
-              <button onClick={()=>excluir(detail.id)} style={{ width:'100%',height:42,background:'rgba(255,59,48,0.06)',color:RED,borderRadius:12,border:'none',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6 }}>
-                <Trash2 size={14}/> Excluir simulação
-              </button>
             </div>
           )}
         </div>
+
+        {/* Rodapé fixo — a ação principal de cada visão fica sempre à vista */}
+        {(detail || view==='form') && (
+          <div style={{ flexShrink:0,borderTop:'1px solid rgba(0,0,0,0.07)',background:'#fff',
+            padding:'12px 18px calc(16px + env(safe-area-inset-bottom, 12px))' }}>
+            {detail ? (
+              <button onClick={()=>excluir(detail.id)} style={{ width:'100%',height:46,background:'rgba(255,59,48,0.06)',color:RED,borderRadius:14,border:'none',fontSize:14,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6 }}>
+                <Trash2 size={15}/> Excluir simulação
+              </button>
+            ) : (
+              <>
+                <button onClick={salvar} disabled={!podeSalvar} style={{ width:'100%',height:48,background:podeSalvar?TERRA:'#E5E5EA',color:podeSalvar?'#fff':TEXTMU,borderRadius:14,border:'none',fontSize:15,fontWeight:700,cursor:podeSalvar?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center',gap:6 }}>
+                  <Save size={16}/> Salvar simulação
+                </button>
+                {!podeSalvar&&(
+                  <p style={{ fontSize:11,color:TEXTMU,margin:'8px 0 0',textAlign:'center' }}>
+                    Preencha o nome, o valor total e o nº de parcelas para salvar.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
