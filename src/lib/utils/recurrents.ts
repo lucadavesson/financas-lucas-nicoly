@@ -14,9 +14,12 @@ export async function generateRecurrents(targetMonth: Date) {
   // recurring_active=false = conta encerrada: para de gerar daqui pra frente,
   // mas o histórico continua com is_recurring=true para não mudar de
   // classificação nos relatórios dos meses em que ela existiu de verdade.
+  // Contas recorrentes são compartilhadas do casal — não filtrar por
+  // owner_id, senão uma conta criada por um dos dois nunca é gerada quando
+  // é o outro quem abre o Início (mesmo padrão já usado em statusEngine.ts
+  // e na tela Configurações > Contas Recorrentes).
   const { data: allRecurring } = await s.from('transactions').select('*')
     .eq('is_recurring', true)
-    .eq('owner_id', user.id)
     .or('recurring_active.is.null,recurring_active.eq.true')
     .order('purchase_date', { ascending: false })
 
@@ -31,10 +34,12 @@ export async function generateRecurrents(targetMonth: Date) {
   const templates = Array.from(templateMap.values())
 
   // 3. Buscar transações já existentes no mês alvo
+  // Mesma lógica: não filtrar por owner_id, para não gerar uma conta
+  // duplicada (ou deixar de detectar a existente) quando ela foi criada
+  // pelo outro titular do casal.
   const { data: existing } = await s.from('transactions').select('id,description,holder')
     .gte('purchase_date', monthStart)
     .lte('purchase_date', monthEnd)
-    .eq('owner_id', user.id)
 
   const existingKeys = new Set(
     (existing || []).map(t => `${t.description}|${t.holder}`)
