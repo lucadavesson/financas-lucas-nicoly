@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { formatCurrency, CATS_DESPESA, SUBCATS, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
 import { loadCustomCategorias, mesclarCategorias, criarCategoria, renomearCategoria, excluirCategoria, contarUsoCategoria, ehCategoriaFixa, type CustomCategoria } from '@/lib/utils/categorias'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
+import ModalPortal from '@/components/ui/ModalPortal'
 
 const BG='#F5F5F7', CARD='#FFFFFF', TEXT='#1C1C1E', TEXTLT='#48484A', TEXTMU='#8E8E93'
 const TERRA='#C4622D', GREEN='#34C759', RED='#FF3B30', ACCENT='#007AFF'
@@ -513,6 +514,7 @@ export default function Parametros() {
         {cards.length===0&&<p style={{fontSize:13,color:TEXTMU,textAlign:'center',padding:20}}>Nenhum cartão cadastrado</p>}
       </div>
       {showC&&(
+        <ModalPortal>
         <div style={{position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end'}} onClick={()=>setShowC(false)}>
           <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.5)',backdropFilter:'blur(6px)'}}/>
           <div style={{position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:CARD,borderRadius:'28px 28px 0 0',maxHeight:'90vh',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
@@ -565,6 +567,7 @@ export default function Parametros() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )
@@ -685,6 +688,7 @@ export default function Parametros() {
 
       {/* Editor do salário */}
       {editSal&&(
+        <ModalPortal>
         <div style={{position:'fixed',inset:0,zIndex:80,display:'flex',alignItems:'flex-end'}} onClick={()=>setEditSal(null)}>
           <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(6px)'}}/>
           <div onClick={e=>e.stopPropagation()} style={{position:'relative',width:'100%',maxWidth:390,margin:'0 auto',
@@ -722,6 +726,7 @@ export default function Parametros() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )
@@ -798,6 +803,7 @@ export default function Parametros() {
 
       {/* Editor completo da conta recorrente */}
       {editRec&&(
+        <ModalPortal>
         <div style={{position:'fixed',inset:0,zIndex:80,display:'flex',alignItems:'flex-end'}} onClick={()=>setEditRec(null)}>
           <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(6px)'}}/>
           {/* Rodapé fixo: com tudo num único bloco rolável, os botões ficavam
@@ -917,6 +923,7 @@ export default function Parametros() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )

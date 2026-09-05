@@ -4,6 +4,7 @@ import { formatCurrency, maskCurrency, unmaskCurrency } from '@/lib/utils'
 import { X, Trash2, ChevronDown, ChevronUp, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
+import ModalPortal from '@/components/ui/ModalPortal'
 
 const TEXT='#1C1C1E',TEXTLT='#48484A',TEXTMU='#8E8E93',TERRA='#C4622D',GREEN='#34C759',RED='#FF3B30'
 const inp:React.CSSProperties={width:'100%',height:44,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.06)',borderRadius:12,padding:'0 14px',fontSize:14,color:TEXT,outline:'none',boxSizing:'border-box'}
@@ -105,6 +106,7 @@ export default function Simulador({ onClose }: { onClose: () => void }) {
   }
 
   return (
+    <ModalPortal>
     <div style={{ position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end' }} onClick={onClose}>
       <div style={{ position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(6px)' }}/>
       {/* Cabeçalho fixo / corpo rolável / rodapé fixo. Antes era um bloco só:
@@ -330,5 +332,6 @@ export default function Simulador({ onClose }: { onClose: () => void }) {
         )}
       </div>
     </div>
+    </ModalPortal>
   )
 }

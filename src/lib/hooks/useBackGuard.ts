@@ -50,16 +50,23 @@ export function useBackGuard(ativo: boolean, aoVoltar: () => void) {
       // usuário anda para frente no histórico.
       try { history.pushState({ ...(history.state || {}), lnCamada: id }, '') } catch { /* histórico cheio */ }
     } else {
-      // Fechou por dentro (botão Cancelar/Voltar): consome a entrada que
-      // criamos, senão sobraria um passo fantasma no histórico.
+      // Fechou por dentro (botão Cancelar/X): consome a entrada que criamos,
+      // senão sobraria um passo fantasma no histórico.
+      //
+      // BUG que isso corrige: aqui só dá pra marcar que esta camada não está
+      // mais ativa — não dá pra tirá-la da pilha na mão. Se tirasse, o
+      // history.back() logo abaixo dispara um popstate, e o ouvinte único lá
+      // em cima faz pilha.pop() pra saber QUEM fechar. Sem a nossa entrada no
+      // topo, ele pegava a de baixo — foi por isso que o X do cartão fechava
+      // a seção "Cartões" inteira: o pop() acertava a entrada errada (a da
+      // seção, não a do modal). Deixando a entrada na pilha, o pop() do
+      // popstate acerta a nossa — que está no topo, já que só se fecha por
+      // dentro o que está por cima — e o aoVoltar() que ele chama de novo não
+      // tem efeito, porque o idRef já foi zerado aqui embaixo.
       const id = idRef.current
       if (id === null) return
       idRef.current = null
-      const i = pilha.findIndex(c => c.id === id)
-      if (i >= 0) {
-        pilha.splice(i, 1)
-        try { history.back() } catch { /* nada a desfazer */ }
-      }
+      try { history.back() } catch { /* nada a desfazer */ }
     }
   }, [ativo])
 
