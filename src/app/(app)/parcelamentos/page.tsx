@@ -7,6 +7,8 @@ import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
 import { format, parseISO, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+import { useBackGuard } from '@/lib/hooks/useBackGuard'
+import ModalPortal from '@/components/ui/ModalPortal'
 
 // A partir de quantas parcelas um parcelamento conta como "financiamento longo"
 // (imóvel, consórcio). 24 = 2 anos.
@@ -526,7 +528,7 @@ export default function Parcelamentos() {
                               <p style={{fontSize:12,fontWeight:500,color:TEXT,margin:0}}>Parcela {num}/{total}</p>
                               <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>
                                 {format(dataParcela,'dd/MM/yyyy')}
-                                {statusFinal&&parcela?.paid_date?` · Pago ${format(parseISO(parcela.paid_date),'dd/MM')}`:''}
+                                {statusFinal&&parcela?.paid_date?` · Pago ${format(parseISO(parcela.paid_date),'dd/MM/yyyy')}`:''}
                                 {isFutura?' · Futuro':''}
                                 {semLinha?' · prevista':''}
                               </p>
@@ -599,6 +601,7 @@ function ModalAntecipar({grupo,cards,onClose,onConfirm}:{grupo:any;cards:any[];o
   const pendentes=grupo.parcelas.filter((p:Tx)=>p.status!=='Pago').sort((a:Tx,b:Tx)=>a.purchase_date.localeCompare(b.purchase_date))
   const [n,setN]=useState(pendentes.length) // default: quitar tudo
   const [valorPagoRaw,setValorPagoRaw]=useState('')
+  useBackGuard(true, onClose)
 
   const alvo=pendentes.slice(0,n)
   const valorOriginal=alvo.reduce((s:number,p:Tx)=>s+(p.installment_value||p.amount),0)
@@ -607,11 +610,19 @@ function ModalAntecipar({grupo,cards,onClose,onConfirm}:{grupo:any;cards:any[];o
   const temDesconto=valorPago>0&&delta>0.01&&delta<valorOriginal
 
   return (
+    <ModalPortal>
     <div style={{position:'fixed',inset:0,zIndex:70,display:'flex',alignItems:'flex-end'}} onClick={onClose}>
       <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(6px)'}}/>
-      <div style={{position:'relative',width:'100%',maxWidth:390,margin:'0 auto',background:'#fff',borderRadius:'24px 24px 0 0',maxHeight:'85vh',overflowY:'auto',WebkitOverflowScrolling:'touch' as any,padding:'20px 18px calc(24px + env(safe-area-inset-bottom, 20px))'}} onClick={e=>e.stopPropagation()}>
+      {/* Cabeçalho fixo / corpo rolável / rodapé fixo — mesmo ajuste feito no
+          simulador e nos editores de Configurações: sem essa separação, o
+          botão Confirmar só aparecia rolando o modal inteiro até o fim, e o
+          bug do iOS com fixed dentro da <main> podia cortar esse fim de vez. */}
+      <div style={{position:'relative',width:'100%',maxWidth:390,margin:'0 auto',background:'#fff',borderRadius:'24px 24px 0 0',maxHeight:'85vh',display:'flex',flexDirection:'column',overflow:'hidden'}} onClick={e=>e.stopPropagation()}>
+      <div style={{padding:'20px 18px 0',flexShrink:0}}>
         <h3 style={{fontSize:16,fontWeight:700,color:TEXT,margin:'0 0 4px'}}>Antecipar ou quitar</h3>
         <p style={{fontSize:13,color:TEXTMU,margin:'0 0 16px'}}>{grupo.base}</p>
+      </div>
+      <div style={{flex:1,minHeight:0,overflowY:'auto',WebkitOverflowScrolling:'touch' as any,padding:'0 18px 8px'}}>
 
         <div style={{marginBottom:14}}>
           <label style={{fontSize:11,fontWeight:600,color:TEXTMU,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:6}}>Quantas parcelas quer antecipar?</label>
@@ -654,15 +665,17 @@ function ModalAntecipar({grupo,cards,onClose,onConfirm}:{grupo:any;cards:any[];o
             💳 Essas parcelas serão somadas à fatura atual do cartão
           </p>
         )}
+      </div>
 
-        <div style={{display:'flex',gap:8}}>
+      <div style={{display:'flex',gap:8,flexShrink:0,padding:'12px 18px calc(16px + env(safe-area-inset-bottom, 12px))',borderTop:'1px solid rgba(0,0,0,0.07)',background:'#fff'}}>
           <button onClick={onClose} style={{flex:1,height:46,background:'#F5F5F7',color:'#48484A',borderRadius:12,border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancelar</button>
           <button onClick={async()=>{if(salvando)return;setSalvando(true);await onConfirm(n,valorPago||valorOriginal)}} disabled={n<1||salvando}
             style={{flex:1,height:46,background:TERRA,color:'#fff',borderRadius:12,border:'none',fontSize:14,fontWeight:700,cursor:salvando?'default':'pointer',opacity:salvando?0.6:1}}>
             {salvando?'Salvando...':'✓ Confirmar'}
           </button>
-        </div>
+      </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

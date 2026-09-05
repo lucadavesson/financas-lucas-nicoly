@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, maskCurrency, unmaskCurrency } from '@/lib/utils'
 import { Plus, Pencil, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useBackGuard } from '@/lib/hooks/useBackGuard'
+import ModalPortal from '@/components/ui/ModalPortal'
 
 const BG     = '#F5F5F7'
 const PEBBLE = '#FFFFFF'
@@ -23,6 +25,7 @@ export default function Metas() {
   const [editId,  setEditId]  = useState<string|null>(null)
   const [saving,  setSaving]  = useState(false)
   const [form, setForm] = useState({name:'',holder:'Casal',target_amount:'',current_amount:'0',monthly_target:'',deadline:'',icon:'target',color:'#1D9E75'})
+  useBackGuard(show, ()=>setShow(false))
 
   useEffect(()=>{ load() },[])
 
@@ -157,15 +160,20 @@ export default function Metas() {
 
       {/* Bottom sheet form */}
       {show&&(
+        <ModalPortal>
         <div style={{position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end'}} onClick={()=>setShow(false)}>
           <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(10px)'}}/>
-          <div style={{position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'#FFFFFF',borderRadius:'28px 28px 0 0',maxHeight:'92vh',display:'flex',flexDirection:'column',boxShadow:'0 -8px 40px rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
+          {/* Cabeçalho fixo / corpo rolável / rodapé fixo — sem essa separação
+              o botão de salvar só aparecia rolando o formulário inteiro, e o
+              bug do iOS com fixed dentro da <main> podia cortar esse fim de
+              vez, igual já vimos no editor de recorrente e no simulador. */}
+          <div style={{position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'#FFFFFF',borderRadius:'28px 28px 0 0',maxHeight:'92vh',display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 -8px 40px rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
             <div style={{padding:'18px 20px 12px',borderBottom:'0.5px solid rgba(0,0,0,0.04)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <h3 style={{fontSize:16,fontWeight:700,color:TEXT,margin:0}}>{editId?'Editar meta':'Nova meta'}</h3>
               <button onClick={()=>setShow(false)} style={{background:'none',border:'none',cursor:'pointer'}}><X size={20} color={TEXTMU}/></button>
             </div>
-            <div style={{overflowY:'auto',overscrollBehavior:'none',flex:1}}>
-              <form onSubmit={save} style={{padding:'16px 20px 60px',display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{overflowY:'auto',overscrollBehavior:'none',flex:1,minHeight:0}}>
+              <form id="form-meta" onSubmit={save} style={{padding:'16px 20px 12px',display:'flex',flexDirection:'column',gap:14}}>
 
                 {/* Tipo */}
                 <div>
@@ -201,22 +209,24 @@ export default function Metas() {
                   </div>
                 </div>
 
-                <div style={{display:'flex',gap:8,paddingTop:4}}>
-                  {editId&&(
-                    <button type="button" onClick={async()=>{await createClient().from('goals').update({status:'cancelada'}).eq('id',editId);toast.success('Removida');setShow(false);load()}}
-                      style={{height:50,padding:'0 18px',background:'rgba(196,98,45,0.15)',color:TERRA,fontWeight:600,fontSize:13,borderRadius:24,border:'none',cursor:'pointer'}}>
-                      Apagar
-                    </button>
-                  )}
-                  <button type="submit" disabled={saving}
-                    style={{flex:1,height:50,background:TERRA,color:'#fff',borderRadius:24,border:'none',fontSize:15,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,boxShadow:'0 4px 16px rgba(196,98,45,0.35)'}}>
-                    {saving?<><Loader2 size={18} style={{animation:'spin 0.8s linear infinite'}}/>Salvando...</>:editId?'Salvar':'Criar meta'}
-                  </button>
-                </div>
               </form>
+            </div>
+
+            <div style={{display:'flex',gap:8,flexShrink:0,padding:'12px 20px calc(16px + env(safe-area-inset-bottom, 12px))',borderTop:'1px solid rgba(0,0,0,0.06)',background:'#fff'}}>
+              {editId&&(
+                <button type="button" onClick={async()=>{await createClient().from('goals').update({status:'cancelada'}).eq('id',editId);toast.success('Removida');setShow(false);load()}}
+                  style={{height:50,padding:'0 18px',background:'rgba(196,98,45,0.15)',color:TERRA,fontWeight:600,fontSize:13,borderRadius:24,border:'none',cursor:'pointer'}}>
+                  Apagar
+                </button>
+              )}
+              <button type="submit" form="form-meta" disabled={saving}
+                style={{flex:1,height:50,background:TERRA,color:'#fff',borderRadius:24,border:'none',fontSize:15,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,boxShadow:'0 4px 16px rgba(196,98,45,0.35)'}}>
+                {saving?<><Loader2 size={18} style={{animation:'spin 0.8s linear infinite'}}/>Salvando...</>:editId?'Salvar':'Criar meta'}
+              </button>
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )

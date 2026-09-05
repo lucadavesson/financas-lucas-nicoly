@@ -8,6 +8,8 @@ import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, SlidersHorizontal, X
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
+import { useBackGuard } from '@/lib/hooks/useBackGuard'
+import ModalPortal from '@/components/ui/ModalPortal'
 
 
 type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;type?:string;payment_method?:string;card_name?:string;is_recurring?:boolean }
@@ -76,6 +78,8 @@ export default function Lancamentos() {
   const [payConfirm, setPayConfirm] = useState<Tx|null>(null)
   const [payDate, setPayDate]       = useState(format(new Date(),'yyyy-MM-dd'))
   const [payValue, setPayValue]     = useState('')
+  useBackGuard(!!sel, ()=>setSel(null))
+  useBackGuard(!!payConfirm, ()=>setPayConfirm(null))
 
   function openPay(tx: Tx) {
     setPayDate(format(new Date(),'yyyy-MM-dd'))
@@ -263,7 +267,7 @@ export default function Lancamentos() {
                           </div>
                           <div style={{flex:1,minWidth:0}}>
                             <p style={{fontSize:13,fontWeight:500,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',margin:0}}>{tx.description}</p>
-                            <p style={{fontSize:10,color:TEXTMU,margin:'2px 0 0'}}>{tx.category} · {tx.holder} · {format(parseISO(tx.purchase_date),'dd/MM')}{tx.card_name?` · ${tx.card_name}`:''}</p>
+                            <p style={{fontSize:10,color:TEXTMU,margin:'2px 0 0'}}>{tx.category} · {tx.holder} · {format(parseISO(tx.purchase_date),'dd/MM/yyyy')}{tx.card_name?` · ${tx.card_name}`:''}</p>
                           </div>
                           <div style={{textAlign:'right',flexShrink:0}}>
                             <p style={{fontSize:13,fontWeight:700,color:tx.transaction_type==='receita'||tx.type==='Receita'?GREEN:RED,fontVariantNumeric:'tabular-nums',margin:0}}>
@@ -284,6 +288,7 @@ export default function Lancamentos() {
 
       {/* Bottom sheet */}
       {sel&&(
+        <ModalPortal>
         <div style={{ position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end' }} onClick={()=>setSel(null)}>
           <div style={{ position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(8px)' }}/>
           <div style={{ position:'relative',width:'100%',maxWidth:480,margin:'0 auto',background:'#FFFFFF',borderRadius:'32px 32px 0 0',padding:'20px 20px calc(28px + env(safe-area-inset-bottom, 20px))',boxShadow:'0 -8px 32px rgba(255,255,255,0.1)' }} onClick={e=>e.stopPropagation()}>
@@ -319,9 +324,11 @@ export default function Lancamentos() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
       {/* Modal confirmar pagamento */}
       {payConfirm&&(
+        <ModalPortal>
         <div style={{position:'fixed',inset:0,zIndex:70,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setPayConfirm(null)}>
           <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.3)',backdropFilter:'blur(4px)'}}/>
           <div style={{position:'relative',width:'88%',maxWidth:340,background:'#fff',borderRadius:20,padding:'24px 16px',boxShadow:'0 8px 40px rgba(0,0,0,0.15)'}} onClick={e=>e.stopPropagation()}>
@@ -346,6 +353,7 @@ export default function Lancamentos() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
     </div>

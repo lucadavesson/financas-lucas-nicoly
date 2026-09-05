@@ -7,6 +7,8 @@ import { ptBR } from 'date-fns/locale'
 import { Check, ChevronDown, ChevronUp, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
+import { useBackGuard } from '@/lib/hooks/useBackGuard'
+import ModalPortal from '@/components/ui/ModalPortal'
 import Link from 'next/link'
 
 const BG     = '#F5F5F7'
@@ -120,6 +122,7 @@ export default function Pagamentos() {
   const [payConfirm, setPayConfirm] = useState<Tx|null>(null)
   const [payDate, setPayDate]       = useState(format(new Date(),'yyyy-MM-dd'))
   const [payValue, setPayValue]     = useState('')
+  useBackGuard(!!payConfirm, ()=>setPayConfirm(null))
 
   function toggleAvulsa(tx: Tx) {
     if (tx.status === 'Pago') {
@@ -332,7 +335,7 @@ export default function Pagamentos() {
                             </div>
                             <div style={{flex:1,minWidth:0}}>
                               <p style={{fontSize:13,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.description}</p>
-                              <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>{tx.category} · {format(parseISO(tx.purchase_date),'dd/MM')}</p>
+                              <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>{tx.category} · {format(parseISO(tx.purchase_date),'dd/MM/yyyy')}</p>
                             </div>
                             <p style={{fontSize:13,fontWeight:700,color:TEXTLT,fontVariantNumeric:'tabular-nums',margin:0,flexShrink:0}}>
                               {formatCurrency(tx.installment_value||tx.amount)}
@@ -367,7 +370,7 @@ export default function Pagamentos() {
                       </div>
                       <div style={{flex:1,minWidth:0}}>
                         <p style={{fontSize:13,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.description}</p>
-                        <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>{tx.holder} · {format(parseISO(tx.purchase_date),'dd/MM')} · {tx.payment_method?.replace('_',' ')}</p>
+                        <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>{tx.holder} · {format(parseISO(tx.purchase_date),'dd/MM/yyyy')} · {tx.payment_method?.replace('_',' ')}</p>
                       </div>
                       <div style={{textAlign:'right',flexShrink:0}}>
                         <p style={{fontSize:13,fontWeight:700,color:TERRA,fontVariantNumeric:'tabular-nums',margin:'0 0 3px'}}>{formatCurrency(tx.installment_value||tx.amount)}</p>
@@ -399,7 +402,7 @@ export default function Pagamentos() {
                           </div>
                           <div style={{flex:1,minWidth:0}}>
                             <p style={{fontSize:13,color:TEXTMU,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textDecoration:'line-through'}}>{tx.description}</p>
-                            <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0',opacity:0.6}}>{tx.holder} · {format(parseISO(tx.purchase_date),'dd/MM')}</p>
+                            <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0',opacity:0.6}}>{tx.holder} · {format(parseISO(tx.purchase_date),'dd/MM/yyyy')}</p>
                           </div>
                           <p style={{fontSize:13,fontWeight:600,color:TEXTMU,fontVariantNumeric:'tabular-nums',margin:0,textDecoration:'line-through',flexShrink:0}}>{formatCurrency(tx.installment_value||tx.amount)}</p>
                         </button>
@@ -423,6 +426,7 @@ export default function Pagamentos() {
       )}
       {/* Modal confirmar pagamento */}
       {payConfirm&&(
+        <ModalPortal>
         <div style={{position:'fixed',inset:0,zIndex:70,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setPayConfirm(null)}>
           <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.3)',backdropFilter:'blur(4px)'}}/>
           <div style={{position:'relative',width:'88%',maxWidth:340,background:'#fff',borderRadius:20,padding:'24px 16px',boxShadow:'0 8px 40px rgba(0,0,0,0.15)'}} onClick={e=>e.stopPropagation()}>
@@ -447,6 +451,7 @@ export default function Pagamentos() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )

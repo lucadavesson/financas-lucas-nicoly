@@ -3,6 +3,8 @@ import { generateRecurrents } from '@/lib/utils/recurrents'
 import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
 import { getCicloFechado, cicloEhRecente } from '@/lib/utils/faturaEngine'
 import { useState, useEffect } from 'react'
+import { useBackGuard } from '@/lib/hooks/useBackGuard'
+import ModalPortal from '@/components/ui/ModalPortal'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns'
@@ -142,6 +144,8 @@ export default function Dashboard() {
   const [payModal, setPayModal] = useState<{id:string;desc:string;amount:number}|null>(null)
   const [payDate, setPayDate]   = useState(format(new Date(),'yyyy-MM-dd'))
   const [payValue, setPayValue] = useState('')
+  useBackGuard(!!payModal, ()=>setPayModal(null))
+  useBackGuard(!!confirmandoFatura, ()=>setConfirmandoFatura(null))
 
   function openPayModal(id:string, desc:string, amount:number) {
     setPayDate(format(new Date(),'yyyy-MM-dd'))
@@ -604,6 +608,7 @@ export default function Dashboard() {
         const desconto=valorOriginal-valorPago
         const temDesconto=valorPago>0&&desconto>0&&desconto<valorOriginal
         return (
+        <ModalPortal>
         <div style={{position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setPayModal(null)}>
           <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.3)',backdropFilter:'blur(4px)'}}/>
           <div style={{position:'relative',width:'88%',maxWidth:340,background:'#fff',borderRadius:20,padding:'24px 16px',boxShadow:'0 8px 40px rgba(0,0,0,0.15)'}} onClick={e=>e.stopPropagation()}>
@@ -636,6 +641,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+        </ModalPortal>
         )})()}
 
       {/* Modal confirmar fechamento de fatura */}
@@ -645,6 +651,7 @@ export default function Dashboard() {
         const diff=valorReal-valorCalculado
         const temDiferenca=Math.abs(diff)>0.01
         return (
+        <ModalPortal>
         <div style={{position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setConfirmandoFatura(null)}>
           <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.3)',backdropFilter:'blur(4px)'}}/>
           <div style={{position:'relative',width:'88%',maxWidth:340,background:'#fff',borderRadius:20,padding:'24px 16px',boxShadow:'0 8px 40px rgba(0,0,0,0.15)'}} onClick={e=>e.stopPropagation()}>
@@ -674,6 +681,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+        </ModalPortal>
         )})()}
 
       {/* Últimas transações */}
@@ -695,7 +703,7 @@ export default function Dashboard() {
                 </div>
                 <div style={{flex:1,minWidth:0}}>
                   <p style={{fontSize:13,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.description}</p>
-                  <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{tx.holder} · {tx.category} · {format(parseISO(tx.purchase_date),'dd/MM')}</p>
+                  <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{tx.holder} · {tx.category} · {format(parseISO(tx.purchase_date),'dd/MM/yyyy')}</p>
                 </div>
                 <p style={{fontSize:13,fontWeight:700,color:isReceita(tx)?GREEN:RED,margin:0,fontVariantNumeric:'tabular-nums',flexShrink:0}}>
                   {isReceita(tx)?'+':'-'}{v(tx.installment_value||tx.amount)}

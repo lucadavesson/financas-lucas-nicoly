@@ -34,8 +34,12 @@ export default function Simulador({ onClose }: { onClose: () => void }) {
     if (data) setSaved(JSON.parse(data))
   }, [])
 
-  // Arrastar para voltar fecha o simulador em vez de sair da tela inteira
+  // Arrastar para voltar fecha só a camada de cima: primeiro o detalhe de uma
+  // simulação salva, depois (se não tiver detalhe aberto) o simulador inteiro.
+  // Sem o segundo nível, abrir o detalhe e arrastar pra voltar fechava tudo de
+  // uma vez, pulando o passo de "voltar pra lista".
   useBackGuard(true, onClose)
+  useBackGuard(!!detail, ()=>setDetail(null))
 
   // Cálculos
   const total = unmaskCurrency(totalRaw)

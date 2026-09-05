@@ -1,5 +1,5 @@
 'use client'
-import { format } from 'date-fns'
+import { format, parseISO, addMonths } from 'date-fns'
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -44,7 +44,14 @@ export default function EditarLancamento(){
       s.from('cards').select('*').eq('is_active',true).order('holder').order('name'),
     ])
     if(data){
-      setTx(data);setForm(data);setValRaw(maskCurrency(Math.round((data.amount||0)*100).toString()))
+      setTx(data)
+      // O nome que vai pro campo "Descrição" não pode incluir o "(7/12)" —
+      // isso é a referência da parcela, não o nome da compra. Ela some do
+      // campo editável e volta a aparecer como selo ao lado, só leitura.
+      const mDesc=(data.description||'').match(/\((\d+)\/(\d+)\)$/)
+      const nomeBase=mDesc?data.description.slice(0,mDesc.index).trim():data.description
+      setForm({...data,description:data.transaction_type==='parcelada'?nomeBase:data.description})
+      setValRaw(maskCurrency(Math.round((data.amount||0)*100).toString()))
       if(data.installment_value){setInstValRaw(maskCurrency(Math.round(data.installment_value*100).toString()))}
       if(data.paid_amount){setPaidAmountRaw(maskCurrency(Math.round(data.paid_amount*100).toString()))}
     }
@@ -73,12 +80,20 @@ export default function EditarLancamento(){
     }
     setSaving(true)
     const amount=unmaskCurrency(valRaw)||parseFloat(form.amount)||0
+    // O campo só guarda o nome base ("Moto"); o "(7/12)" volta a ser
+    // costurado aqui na hora de salvar, com o número FIXO desta parcela e o
+    // total ATUAL do campo "Nº de parcelas" (que pode ter sido corrigido).
+    // Sem isso o resto do app perde a referência: é esse sufixo que agrupa
+    // as parcelas em Parcelamentos, Cartões e Relatórios.
+    const descricaoFinal=ehParcelaDeGrupo
+      ? `${(form.description||'').trim()} (${numParcela}/${totalParcelasAtual})`
+      : (form.description||'').trim()
     const {error}=await createClient().from('transactions').update({
       holder:form.holder,
       owner_name:(form.holder==='Prata'?'Lucas':form.holder)||'Lucas',
       transaction_type:form.transaction_type,
       type:form.type||(form.transaction_type==='receita'?'Receita':'Despesa'),
-      description:form.description,
+      description:descricaoFinal,
       amount,
       category:form.category,
       subcategory:form.subcategory||null,
@@ -153,6 +168,27 @@ export default function EditarLancamento(){
   // status próprio: quem paga é a fatura inteira, no vencimento do cartão.
   const naFatura=form.payment_method==='cartao_credito'
 
+  // Qual parcela esta linha é, do grupo original — sempre a partir do
+  // description ORIGINAL (tx), não do form, porque essa posição é estrutural
+  // e não muda por edição. Sem isso "(7/12)" ficava preso dentro do campo de
+  // nome, como se fizesse parte dele.
+  const mDescOriginal=(tx?.description||'').match(/\((\d+)\/(\d+)\)$/)
+  const numParcela=mDescOriginal?parseInt(mDescOriginal[1]):(tx?.installment_num||tx?.installment_number||null)
+  const totalParcelasOriginal=mDescOriginal?parseInt(mDescOriginal[2]):(tx?.installment_total||tx?.total_installments||null)
+  const ehParcelaDeGrupo=form.transaction_type==='parcelada'&&!!numParcela
+  // "Nº de parcelas" é editável no formulário — o selo acompanha o valor atual
+  const totalParcelasAtual=parseInt(form.installment_total)||totalParcelasOriginal||numParcela||1
+
+  // A cada linha de uma compra parcelada, "purchase_date" é a data DESSA
+  // parcela (mês a mês), não a data em que a compra foi feita — foi essa
+  // confusão que fazia a "Moto" parecer comprada em agosto ao editar a
+  // parcela 7 e em setembro ao editar a 8. Aqui a gente reconstrói a data
+  // real da compra (parcela 1) subtraindo os meses correspondentes, só para
+  // mostrar como referência — não altera o que fica salvo.
+  const dataCompraOriginal=(ehParcelaDeGrupo&&numParcela&&form.purchase_date)
+    ? addMonths(parseISO(form.purchase_date),-(numParcela-1))
+    : null
+
   return(
     <div style={{background:BG,minHeight:'100%'}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -221,8 +257,20 @@ export default function EditarLancamento(){
 
         {/* Descrição */}
         <div>
-          <label style={lbl}>Descrição</label>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+            <label style={{...lbl,marginBottom:0}}>Descrição</label>
+            {ehParcelaDeGrupo&&(
+              <span style={{fontSize:11,fontWeight:700,color:TERRA,background:'rgba(196,98,45,0.1)',borderRadius:8,padding:'2px 8px'}}>
+                Parcela {numParcela} de {totalParcelasAtual}
+              </span>
+            )}
+          </div>
           <input type="text" value={form.description||''} onChange={e=>sf('description',e.target.value)} required style={inp}/>
+          {ehParcelaDeGrupo&&(
+            <p style={{fontSize:11,color:TEXTMU,margin:'5px 0 0'}}>
+              O "{numParcela}/{totalParcelasAtual}" é adicionado automaticamente ao salvar — não precisa digitar aqui.
+            </p>
+          )}
         </div>
 
         {/* Valor */}
@@ -238,8 +286,14 @@ export default function EditarLancamento(){
 
         {/* Data */}
         <div>
-          <label style={lbl}>Data da compra</label>
+          <label style={lbl}>{ehParcelaDeGrupo?'Data desta parcela':'Data da compra'}</label>
           <input type="date" value={form.purchase_date||''} onChange={e=>sf('purchase_date',e.target.value)} required style={{...inp,WebkitAppearance:'none' as any,maxWidth:'100%'}}/>
+          {ehParcelaDeGrupo&&(
+            <p style={{fontSize:11,color:TEXTMU,margin:'6px 0 0'}}>
+              Essa é a data em que a parcela {numParcela} cai, não a data da compra em si.
+              {dataCompraOriginal&&<> A compra foi feita em <strong>{format(dataCompraOriginal,'dd/MM/yyyy')}</strong>.</>}
+            </p>
+          )}
         </div>
 
         {/* Campos de parcelamento (quando tipo=parcelada) */}

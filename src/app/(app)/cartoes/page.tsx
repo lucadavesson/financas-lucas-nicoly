@@ -412,7 +412,7 @@ export default function Cartoes() {
                                 return (<>
                                   <p style={{fontSize:13,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nome}</p>
                                   <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
-                                    {tx.category} · {format(parseISO(tx.purchase_date),'dd/MM')}
+                                    {tx.category} · {format(parseISO(tx.purchase_date),'dd/MM/yyyy')}
                                     {parcInfo&&<span style={{color:'#C4622D',fontWeight:600}}> · {parcInfo}</span>}
                                   </p>
                                 </>)

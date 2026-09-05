@@ -9,6 +9,7 @@ import { ChevronLeft, Loader2, Plus, X, ChevronDown } from 'lucide-react'
 import { format, parseISO, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Simulador from './simulador'
+import { useBackGuard } from '@/lib/hooks/useBackGuard'
 
 type TipoLanc = 'escolha' | 'parcelada' | 'avista' | 'recorrente' | 'receita'
 
@@ -51,6 +52,10 @@ export default function NovoLancamento() {
   const [tipo, setTipo]     = useState<TipoLanc>('escolha')
   const [loading, setLoading] = useState(false)
   const [showSim, setShowSim] = useState(false)
+  // Sem isso, arrastar pra voltar no formulário (parcelada/à vista/receita/
+  // recorrente) pulava a escolha do tipo e saía direto de "Novo lançamento" —
+  // mesma classe de bug do gesto de voltar corrigida no resto do app.
+  useBackGuard(tipo!=='escolha', ()=>changeTipo('escolha'))
 
   // Campos comuns — resetam ao trocar tipo
   const [holder, setHolder] = useState('Lucas')
