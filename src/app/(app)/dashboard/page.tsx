@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
+import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency, dataParaExibir } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronRight, ChevronDown, ChevronUp, ArrowUpRight, ArrowDownRight, Wallet, TrendingUp } from 'lucide-react'
@@ -703,7 +703,7 @@ export default function Dashboard() {
                 </div>
                 <div style={{flex:1,minWidth:0}}>
                   <p style={{fontSize:13,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.description}</p>
-                  <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{tx.holder} · {tx.category} · {format(parseISO(tx.purchase_date),'dd/MM/yyyy')}</p>
+                  <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{tx.holder} · {tx.category} · {format(dataParaExibir(tx.description,tx.purchase_date),'dd/MM/yyyy')}</p>
                 </div>
                 <p style={{fontSize:13,fontWeight:700,color:isReceita(tx)?GREEN:RED,margin:0,fontVariantNumeric:'tabular-nums',flexShrink:0}}>
                   {isReceita(tx)?'+':'-'}{v(tx.installment_value||tx.amount)}

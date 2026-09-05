@@ -1,11 +1,36 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, addMonths } from 'date-fns'
 
 export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)) }
 
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+}
+
+/**
+ * Numa compra parcelada, cada parcela é uma linha própria cujo purchase_date
+ * é a data DE REFERÊNCIA daquela parcela (mês a mês) — não a data em que a
+ * compra foi feita. Mostrar esse campo cru em qualquer lista dava a entender
+ * que "a Moto" tinha sido comprada em agosto, depois em setembro, conforme a
+ * parcela exibida. Esta função reconstrói a data real da compra (a mesma
+ * conta usada no editor de lançamento e já usada em Parcelamentos), para que
+ * TODA tela que mostra uma parcela mostre a mesma data — a original, fixa —
+ * em vez da data rolante de cada linha.
+ *
+ * Retorna null quando a descrição não tem o padrão "(N/T)" (não é parcela).
+ */
+export function dataCompraOriginal(description: string, purchaseDate: string): Date | null {
+  const m = (description || '').match(/\((\d+)\/(\d+)\)$/)
+  if (!m || !purchaseDate) return null
+  const num = parseInt(m[1])
+  if (!num) return null
+  return addMonths(parseISO(purchaseDate), -(num - 1))
+}
+
+/** Data a mostrar numa linha de lançamento: a da compra original se for parcela, senão a própria. */
+export function dataParaExibir(description: string, purchaseDate: string): Date {
+  return dataCompraOriginal(description, purchaseDate) || parseISO(purchaseDate)
 }
 
 export function calcBillingMonth(purchaseDate: Date, closingDay: number): Date {

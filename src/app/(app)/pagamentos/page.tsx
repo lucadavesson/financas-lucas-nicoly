@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
+import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency, dataParaExibir } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, parseISO, addDays, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Check, ChevronDown, ChevronUp, CreditCard } from 'lucide-react'
@@ -335,7 +335,7 @@ export default function Pagamentos() {
                             </div>
                             <div style={{flex:1,minWidth:0}}>
                               <p style={{fontSize:13,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.description}</p>
-                              <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>{tx.category} · {format(parseISO(tx.purchase_date),'dd/MM/yyyy')}</p>
+                              <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>{tx.category} · {format(dataParaExibir(tx.description,tx.purchase_date),'dd/MM/yyyy')}</p>
                             </div>
                             <p style={{fontSize:13,fontWeight:700,color:TEXTLT,fontVariantNumeric:'tabular-nums',margin:0,flexShrink:0}}>
                               {formatCurrency(tx.installment_value||tx.amount)}
@@ -370,7 +370,7 @@ export default function Pagamentos() {
                       </div>
                       <div style={{flex:1,minWidth:0}}>
                         <p style={{fontSize:13,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.description}</p>
-                        <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>{tx.holder} · {format(parseISO(tx.purchase_date),'dd/MM/yyyy')} · {tx.payment_method?.replace('_',' ')}</p>
+                        <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>{tx.holder} · {format(dataParaExibir(tx.description,tx.purchase_date),'dd/MM/yyyy')} · {tx.payment_method?.replace('_',' ')}</p>
                       </div>
                       <div style={{textAlign:'right',flexShrink:0}}>
                         <p style={{fontSize:13,fontWeight:700,color:TERRA,fontVariantNumeric:'tabular-nums',margin:'0 0 3px'}}>{formatCurrency(tx.installment_value||tx.amount)}</p>
@@ -402,7 +402,7 @@ export default function Pagamentos() {
                           </div>
                           <div style={{flex:1,minWidth:0}}>
                             <p style={{fontSize:13,color:TEXTMU,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textDecoration:'line-through'}}>{tx.description}</p>
-                            <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0',opacity:0.6}}>{tx.holder} · {format(parseISO(tx.purchase_date),'dd/MM/yyyy')}</p>
+                            <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0',opacity:0.6}}>{tx.holder} · {format(dataParaExibir(tx.description,tx.purchase_date),'dd/MM/yyyy')}</p>
                           </div>
                           <p style={{fontSize:13,fontWeight:600,color:TEXTMU,fontVariantNumeric:'tabular-nums',margin:0,textDecoration:'line-through',flexShrink:0}}>{formatCurrency(tx.installment_value||tx.amount)}</p>
                         </button>

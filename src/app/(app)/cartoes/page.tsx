@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency, CAT_ICONS } from '@/lib/utils'
+import { formatCurrency, CAT_ICONS, dataParaExibir } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, parseISO, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronDown, ChevronUp, ArrowUp, ArrowDown } from 'lucide-react'
@@ -412,7 +412,7 @@ export default function Cartoes() {
                                 return (<>
                                   <p style={{fontSize:13,fontWeight:500,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nome}</p>
                                   <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
-                                    {tx.category} · {format(parseISO(tx.purchase_date),'dd/MM/yyyy')}
+                                    {tx.category} · {format(dataParaExibir(tx.description,tx.purchase_date),'dd/MM/yyyy')}
                                     {parcInfo&&<span style={{color:'#C4622D',fontWeight:600}}> · {parcInfo}</span>}
                                   </p>
                                 </>)

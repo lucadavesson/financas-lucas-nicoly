@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
+import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency, dataParaExibir } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, parseISO, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, SlidersHorizontal, X } from 'lucide-react'
@@ -267,7 +267,7 @@ export default function Lancamentos() {
                           </div>
                           <div style={{flex:1,minWidth:0}}>
                             <p style={{fontSize:13,fontWeight:500,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',margin:0}}>{tx.description}</p>
-                            <p style={{fontSize:10,color:TEXTMU,margin:'2px 0 0'}}>{tx.category} · {tx.holder} · {format(parseISO(tx.purchase_date),'dd/MM/yyyy')}{tx.card_name?` · ${tx.card_name}`:''}</p>
+                            <p style={{fontSize:10,color:TEXTMU,margin:'2px 0 0'}}>{tx.category} · {tx.holder} · {format(dataParaExibir(tx.description,tx.purchase_date),'dd/MM/yyyy')}{tx.card_name?` · ${tx.card_name}`:''}</p>
                           </div>
                           <div style={{textAlign:'right',flexShrink:0}}>
                             <p style={{fontSize:13,fontWeight:700,color:tx.transaction_type==='receita'||tx.type==='Receita'?GREEN:RED,fontVariantNumeric:'tabular-nums',margin:0}}>
