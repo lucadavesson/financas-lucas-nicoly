@@ -75,6 +75,13 @@ export default function Parametros() {
   const [editRecVigencia, setEditRecVigencia] = useState('')
   const [editSalVigencia, setEditSalVigencia] = useState('')
   const [diaVigencia, setDiaVigencia] = useState('')
+  // Confirmação em modal do app. O confirm() nativo do navegador trava a
+  // página, destoa do resto e, no iPhone instalado como app, ainda mostra a
+  // URL no topo do alerta — parece que o site "vazou" para fora do app.
+  const [confirmar, setConfirmar] = useState<{
+    titulo:string; linhas:string[]; rotuloOk:string; perigo?:boolean; onOk:()=>void|Promise<void>
+  }|null>(null)
+  const [confirmando, setConfirmando] = useState(false)
   // Segurança
   const [faceIdEnabled, setFaceIdEnabled] = useState(false)
   const [userId, setUserId] = useState('')
@@ -106,6 +113,7 @@ export default function Parametros() {
   // Arrastar para voltar fecha a camada aberta (seção interna, modal) em vez
   // de sair de Configurações inteira — que é o que acontecia antes, já que as
   // seções são estado e não entravam no histórico do navegador.
+  useBackGuard(!!confirmar, ()=>setConfirmar(null))
   useBackGuard(sec!=='main', ()=>setSec('main'))
   useBackGuard(!!editRec,   ()=>setEditRec(null))
   useBackGuard(!!editSal,   ()=>setEditSal(null))
@@ -310,22 +318,24 @@ export default function Parametros() {
     setRecurrents(cards.sort((a,b)=>(a.description||'').localeCompare(b.description||'')))
   }
 
-  async function removeRecurrent(tx:any){
-    const s=createClient()
+  function removeRecurrent(tx:any){
     const n=tx._ocorrencias||1
-    const escolha=confirm(
-      `Apagar a conta recorrente "${tx.description}"?\n\n` +
-      `Existem ${n} lançamento${n>1?'s':''} desta conta.\n\n` +
-      `ATENÇÃO: isso apaga TAMBÉM o histórico dos meses anteriores — os valores somem dos relatórios passados.\n\n` +
-      `Se a conta apenas deixou de existir de agora em diante, use "Encerrar": para de gerar e mantém o histórico.\n\n` +
-      `OK = apagar tudo   ·   Cancelar = não apagar`
-    )
-    if(!escolha)return
-    const {error}=await s.from('transactions').delete()
-      .eq('is_recurring',true).eq('holder',tx.holder).eq('description',tx.description)
-    if(error){toast.error(`Não foi possível apagar: ${error.message}`);return}
-    toast.success(`"${tx.description}" apagada (${n} lançamento${n>1?'s':''})`)
-    loadRecurrents()
+    setConfirmar({
+      titulo:`Apagar "${tx.description}"?`,
+      linhas:[
+        `Existem ${n} lançamento${n>1?'s':''} desta conta.`,
+        'Isso apaga TAMBÉM o histórico dos meses anteriores — os valores somem dos relatórios passados.',
+        'Se a conta apenas deixou de existir de agora em diante, use "Encerrar": para de gerar e mantém o histórico.',
+      ],
+      rotuloOk:'Apagar tudo', perigo:true,
+      onOk:async()=>{
+        const {error}=await createClient().from('transactions').delete()
+          .eq('is_recurring',true).eq('holder',tx.holder).eq('description',tx.description)
+        if(error){toast.error(`Não foi possível apagar: ${error.message}`);return}
+        toast.success(`"${tx.description}" apagada (${n} lançamento${n>1?'s':''})`)
+        loadRecurrents()
+      },
+    })
   }
 
   function abrirEditorRec(tx:any){
@@ -421,23 +431,29 @@ export default function Parametros() {
     loadRecurrents()
   }
 
-  async function encerrarRecorrencia(tx:any,encerrar:boolean){
-    // Encerrar = definir o prazo como "até este mês": para de gerar, apaga os
-    // meses futuros ainda não pagos que já tinham sido criados, e mantém todo
-    // o histórico. Reativar volta a conta para "sem prazo".
-    const conta:ContaRec=tx._conta
-    if(encerrar&&!confirm(
-      `Encerrar "${tx.description}"?\n\n` +
-      `Ela deixa de ser gerada a partir do mês que vem e os meses futuros já\n` +
-      `criados que ainda não foram pagos são removidos.\n\n` +
-      `Todo o histórico até ${rotuloMes(mesAtual())} é mantido intacto.`
-    ))return
-    const r=await definirPrazo(conta, encerrar?mesAtual():null)
+  // Encerrar = definir o prazo como "até este mês": para de gerar, apaga os
+  // meses futuros ainda não pagos que já tinham sido criados, e mantém todo
+  // o histórico. Reativar volta a conta para "sem prazo".
+  async function aplicarEncerramento(tx:any,encerrar:boolean){
+    const r=await definirPrazo(tx._conta as ContaRec, encerrar?mesAtual():null)
     if(!r.ok){ toast.error(`Erro: ${r.erro}`); return }
     toast.success(encerrar
       ? `Encerrada em ${rotuloMes(mesAtual())} — histórico preservado`
       : 'Conta reativada — volta a ser gerada todo mês')
     loadRecurrents()
+  }
+
+  function encerrarRecorrencia(tx:any,encerrar:boolean){
+    if(!encerrar){ aplicarEncerramento(tx,false); return }
+    setConfirmar({
+      titulo:`Encerrar "${tx.description}"?`,
+      linhas:[
+        'Ela deixa de ser gerada a partir do mês que vem, e os meses futuros já criados que ainda não foram pagos são removidos.',
+        `Todo o histórico até ${rotuloMes(mesAtual())} é mantido intacto.`,
+      ],
+      rotuloOk:'Encerrar',
+      onOk:()=>aplicarEncerramento(tx,true),
+    })
   }
 
   async function saveDueDay(tx:any){
@@ -1027,6 +1043,43 @@ export default function Parametros() {
               <button onClick={salvarEditorRec} disabled={savingRec}
                 style={{flex:1,height:48,background:TERRA,color:'#fff',borderRadius:14,border:'none',fontSize:14,fontWeight:700,cursor:savingRec?'default':'pointer',opacity:savingRec?0.6:1}}>
                 {savingRec?'Salvando...':'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+        </ModalPortal>
+      )}
+
+      {/* Confirmação — no lugar do confirm() do navegador */}
+      {confirmar&&(
+        <ModalPortal>
+        <div style={{position:'fixed',inset:0,zIndex:90,display:'flex',alignItems:'flex-end'}} onClick={()=>!confirmando&&setConfirmar(null)}>
+          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(6px)'}}/>
+          <div onClick={e=>e.stopPropagation()} style={{position:'relative',width:'100%',maxWidth:390,margin:'0 auto',
+            background:'#fff',borderRadius:'24px 24px 0 0',maxHeight:'90vh',
+            display:'flex',flexDirection:'column',overflow:'hidden'}}>
+            <div style={{padding:'22px 18px 0'}}>
+              <h3 style={{fontSize:16,fontWeight:700,color:confirmar.perigo?RED:TEXT,margin:'0 0 10px'}}>{confirmar.titulo}</h3>
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'0 18px 12px',WebkitOverflowScrolling:'touch' as any}}>
+              {confirmar.linhas.map((linha,i)=>(
+                <p key={i} style={{fontSize:13,color:TEXTLT,margin:'0 0 10px',lineHeight:1.5}}>{linha}</p>
+              ))}
+            </div>
+            <div style={{display:'flex',gap:8,padding:'12px 18px calc(16px + env(safe-area-inset-bottom, 12px))',
+              borderTop:'1px solid rgba(0,0,0,0.07)',background:'#fff',flexShrink:0}}>
+              <button onClick={()=>setConfirmar(null)} disabled={confirmando}
+                style={{flex:1,height:48,background:'#F5F5F7',color:TEXTLT,borderRadius:14,border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>
+                Cancelar
+              </button>
+              <button disabled={confirmando}
+                onClick={async()=>{
+                  setConfirmando(true)
+                  try{ await confirmar.onOk() } finally { setConfirmando(false); setConfirmar(null) }
+                }}
+                style={{flex:1,height:48,background:confirmar.perigo?RED:TERRA,color:'#fff',borderRadius:14,border:'none',
+                  fontSize:14,fontWeight:700,cursor:confirmando?'default':'pointer',opacity:confirmando?0.6:1}}>
+                {confirmando?'Aguarde...':confirmar.rotuloOk}
               </button>
             </div>
           </div>
