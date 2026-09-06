@@ -91,6 +91,8 @@ export default function Parametros() {
   const [dups, setDups] = useState<AuditoriaDup|null>(null)
   const [buscandoDups, setBuscandoDups] = useState(false)
   const [removendoDups, setRemovendoDups] = useState(false)
+  // Nada vem marcado: apagar lançamento não pode ser o caminho de menor esforço.
+  const [dupsEscolhidas, setDupsEscolhidas] = useState<string[]>([])
   // Segurança
   const [faceIdEnabled, setFaceIdEnabled] = useState(false)
   const [userId, setUserId] = useState('')
@@ -510,28 +512,31 @@ export default function Parametros() {
     setBuscandoDups(true)
     try{
       const r=await auditarDuplicatas()
-      setDups(r)
+      setDups(r); setDupsEscolhidas([])
       if(r.totalARemover===0)toast.success(`${r.linhasConferidas} lançamentos conferidos — nenhuma duplicata`)
       else toast.error(`${r.totalARemover} lançamento${r.totalARemover>1?'s':''} duplicado${r.totalARemover>1?'s':''}`)
     }catch(e:any){ toast.error(`Não foi possível conferir: ${e?.message||e}`) }
     finally{ setBuscandoDups(false) }
   }
 
+  const totalEscolhido=(dups?.resumo||[]).filter(r=>dupsEscolhidas.includes(r.chave)).reduce((s,r)=>s+r.aRemover,0)
+
   function confirmarRemocaoDuplicatas(){
-    if(!dups||dups.totalARemover===0)return
+    if(!dups||totalEscolhido===0)return
+    const escolhidos=dups.resumo.filter(r=>dupsEscolhidas.includes(r.chave))
     setConfirmar({
-      titulo:`Apagar ${dups.totalARemover} lançamento${dups.totalARemover>1?'s':''} duplicado${dups.totalARemover>1?'s':''}?`,
+      titulo:`Apagar ${totalEscolhido} lançamento${totalEscolhido>1?'s':''}?`,
       linhas:[
-        ...dups.resumo.map(r=>`${r.titulo} (${r.holder}): ${r.aRemover} ${r.aRemover>1?'meses':'mês'} — fica a de ${formatCurrency(r.valores[0])}, sai a de ${formatCurrency(r.valores[r.valores.length-1])}`),
+        ...escolhidos.map(r=>`${r.titulo} (${r.holder}): ${r.aRemover} ${r.aRemover>1?'linhas':'linha'} — fica a de ${formatCurrency(r.valores[0])}${r.valores.length>1?`, sai a de ${formatCurrency(r.valores[r.valores.length-1])}`:''}`),
         'Em cada mês fica a linha de menor valor. Isso não tem desfazer.',
       ],
-      rotuloOk:'Apagar duplicados', perigo:true,
+      rotuloOk:'Apagar', perigo:true,
       onOk:async()=>{
         setRemovendoDups(true)
         try{
-          const r=await removerDuplicatas(dups.grupos)
+          const r=await removerDuplicatas(dups.grupos, dupsEscolhidas)
           if(r.erro)toast.error(`Removidas ${r.removidas}, mas deu erro: ${r.erro}`)
-          else toast.success(`${r.removidas} lançamento${r.removidas>1?'s':''} duplicado${r.removidas>1?'s':''} apagado${r.removidas>1?'s':''}`)
+          else toast.success(`${r.removidas} lançamento${r.removidas>1?'s':''} apagado${r.removidas>1?'s':''}`)
           await procurarDuplicatas()
         }finally{ setRemovendoDups(false) }
       },
@@ -1435,18 +1440,33 @@ export default function Parametros() {
                 <p style={{fontSize:13,color:GREEN,fontWeight:600,margin:0}}>✓ Nenhuma duplicata</p>
               ):(
                 <>
-                  {dups.resumo.map((r,i)=>(
-                    <div key={i} style={{background:'rgba(255,59,48,0.05)',borderRadius:10,padding:'10px 12px',marginBottom:8}}>
-                      <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:0}}>{r.titulo}</p>
-                      <p style={{fontSize:10.5,color:TEXTMU,margin:'1px 0 6px'}}>
+                  <p style={{fontSize:11,color:TEXTLT,margin:'0 0 8px',lineHeight:1.45}}>
+                    Marque o que você quer apagar. Nada vem marcado — confira cada um antes.
+                  </p>
+                  {dups.resumo.map((r,i)=>{
+                    const marcado=dupsEscolhidas.includes(r.chave)
+                    return (
+                    <button key={i} onClick={()=>setDupsEscolhidas(p=>marcado?p.filter(x=>x!==r.chave):[...p,r.chave])}
+                      style={{display:'block',width:'100%',textAlign:'left',cursor:'pointer',
+                        background:marcado?'rgba(255,59,48,0.09)':'rgba(0,0,0,0.03)',
+                        border:`1.5px solid ${marcado?RED:'transparent'}`,
+                        borderRadius:10,padding:'10px 12px',marginBottom:8}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <span style={{width:18,height:18,borderRadius:5,flexShrink:0,
+                          border:`1.5px solid ${marcado?RED:'rgba(0,0,0,0.2)'}`,background:marcado?RED:'transparent',
+                          color:'#fff',fontSize:12,fontWeight:900,lineHeight:'16px',textAlign:'center'}}>{marcado?'✓':''}</span>
+                        <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:0}}>{r.titulo}</p>
+                      </div>
+                      <p style={{fontSize:10.5,color:TEXTMU,margin:'3px 0 5px',paddingLeft:26}}>
                         {r.holder} · aparece em {r.meses.length} {r.meses.length>1?'meses':'mês'} ({rotuloMes(r.meses[0])} → {rotuloMes(r.meses[r.meses.length-1])})
                       </p>
-                      <p style={{fontSize:11.5,color:TEXTLT,margin:0,lineHeight:1.5}}>
-                        Valores lançados: {r.valores.map(v=>formatCurrency(v)).join(' e ')}.
-                        {r.aRemover>0&&<> Fica a de <strong>{formatCurrency(r.valores[0])}</strong>, saem {r.aRemover} {r.aRemover>1?'linhas':'linha'}.</>}
+                      <p style={{fontSize:11.5,color:TEXTLT,margin:0,paddingLeft:26,lineHeight:1.5}}>
+                        {r.valores.length>1
+                          ? <>Valores lançados: {r.valores.map(v=>formatCurrency(v)).join(' e ')}. Fica a de <strong>{formatCurrency(r.valores[0])}</strong>, saem {r.aRemover} {r.aRemover>1?'linhas':'linha'}.</>
+                          : <>Duas linhas idênticas de <strong>{formatCurrency(r.valores[0])}</strong> por mês. Fica uma, saem {r.aRemover}.</>}
                       </p>
-                    </div>
-                  ))}
+                    </button>
+                  )})}
 
                   {dups.grupos.some(g=>g.certeza==='duplicata'&&g.protegidas.length>0)&&(
                     <p style={{fontSize:11,color:'#B37700',background:'rgba(255,170,0,0.1)',borderRadius:8,padding:'8px 10px',margin:'0 0 8px',lineHeight:1.45}}>
@@ -1476,10 +1496,12 @@ export default function Parametros() {
                   )}
 
                   {dups.totalARemover>0&&(
-                    <button onClick={confirmarRemocaoDuplicatas} disabled={removendoDups}
-                      style={{width:'100%',height:44,background:RED,color:'#fff',border:'none',borderRadius:12,
-                        fontSize:13,fontWeight:700,cursor:removendoDups?'default':'pointer',opacity:removendoDups?0.6:1,marginTop:4}}>
-                      {removendoDups?'Apagando...':`Apagar ${dups.totalARemover} duplicado${dups.totalARemover>1?'s':''} (fica o de menor valor)`}
+                    <button onClick={confirmarRemocaoDuplicatas} disabled={removendoDups||totalEscolhido===0}
+                      style={{width:'100%',height:44,background:totalEscolhido===0?'#F5F5F7':RED,
+                        color:totalEscolhido===0?TEXTMU:'#fff',border:'none',borderRadius:12,
+                        fontSize:13,fontWeight:700,cursor:(removendoDups||totalEscolhido===0)?'default':'pointer',
+                        opacity:removendoDups?0.6:1,marginTop:4}}>
+                      {removendoDups?'Apagando...':totalEscolhido===0?'Marque o que apagar':`Apagar ${totalEscolhido} linha${totalEscolhido>1?'s':''} (fica a de menor valor)`}
                     </button>
                   )}
                 </>

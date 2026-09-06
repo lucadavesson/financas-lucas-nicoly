@@ -154,12 +154,12 @@ export function acharDuplicatas(linhas: LinhaDup[]): GrupoDuplicado[] {
  * dez blocos quase iguais.
  */
 export function resumirPorCompromisso(grupos: GrupoDuplicado[], certeza: 'duplicata'|'conferir' = 'duplicata') {
-  const mapa = new Map<string, { titulo: string; holder: string; meses: string[]; aRemover: number; valores: number[] }>()
+  const mapa = new Map<string, { chave: string; titulo: string; holder: string; meses: string[]; aRemover: number; valores: number[] }>()
   for (const g of grupos) {
     if (g.certeza !== certeza) continue
     const semParcela = g.descricao.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim()
     const chave = `${normalizar(semParcela)}|${normalizar(g.holder)}`
-    if (!mapa.has(chave)) mapa.set(chave, { titulo: semParcela, holder: g.holder, meses: [], aRemover: 0, valores: [] })
+    if (!mapa.has(chave)) mapa.set(chave, { chave, titulo: semParcela, holder: g.holder, meses: [], aRemover: 0, valores: [] })
     const r = mapa.get(chave)!
     r.meses.push(g.mes)
     r.aRemover += g.remover.length
@@ -168,4 +168,10 @@ export function resumirPorCompromisso(grupos: GrupoDuplicado[], certeza: 'duplic
   return Array.from(mapa.values())
     .map(r => ({ ...r, meses: r.meses.sort(), valores: r.valores.sort((a, b) => a - b) }))
     .sort((a, b) => b.aRemover - a.aRemover)
+}
+
+/** Chave de compromisso de um grupo — casa com a devolvida por resumirPorCompromisso. */
+export function chaveCompromisso(g: GrupoDuplicado): string {
+  const semParcela = g.descricao.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim()
+  return `${normalizar(semParcela)}|${normalizar(g.holder)}`
 }

@@ -147,7 +147,7 @@ export async function corrigirDatas(grupos: GrupoAuditado[]): Promise<{ corrigid
 
 /* ── Duplicatas ────────────────────────────────────────────────── */
 
-import { acharDuplicatas, resumirPorCompromisso, type GrupoDuplicado } from '@/lib/utils/duplicatas'
+import { acharDuplicatas, resumirPorCompromisso, chaveCompromisso, type GrupoDuplicado } from '@/lib/utils/duplicatas'
 
 export type AuditoriaDup = {
   linhasConferidas: number
@@ -178,8 +178,15 @@ export async function auditarDuplicatas(): Promise<AuditoriaDup> {
   }
 }
 
-export async function removerDuplicatas(grupos: GrupoDuplicado[]): Promise<{ removidas: number; erro?: string }> {
-  const ids = grupos.flatMap(g => g.remover)
+/** Remove só os compromissos escolhidos — nunca a lista inteira por padrão. */
+export async function removerDuplicatas(
+  grupos: GrupoDuplicado[],
+  chavesEscolhidas: string[],
+): Promise<{ removidas: number; erro?: string }> {
+  const escolhidas = new Set(chavesEscolhidas)
+  const ids = grupos
+    .filter(g => g.certeza === 'duplicata' && escolhidas.has(chaveCompromisso(g)))
+    .flatMap(g => g.remover)
   if (ids.length === 0) return { removidas: 0 }
   // Em lotes: uma lista gigante no .in() estoura o tamanho da URL do PostgREST.
   let removidas = 0
