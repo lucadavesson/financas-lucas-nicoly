@@ -1520,6 +1520,7 @@ export default function Parametros() {
           <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>Desenvolvido por Lucas & Claude</p>
         </div>
       </div>
+      {modalConfirmar}
     </div>
   )
 
