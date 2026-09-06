@@ -97,6 +97,7 @@ export default function Parametros() {
   const [recTitular, setRecTitular] = useState<GrupoReceita[]|null>(null)
   const [carregandoTit, setCarregandoTit] = useState(false)
   const [trocandoTit, setTrocandoTit] = useState<string|null>(null)
+  const [titEscolhidos, setTitEscolhidos] = useState<string[]>([])
   // Segurança
   const [faceIdEnabled, setFaceIdEnabled] = useState(false)
   const [userId, setUserId] = useState('')
@@ -550,9 +551,37 @@ export default function Parametros() {
   // ── Titular das receitas ──
   async function carregarTitularReceitas(){
     setCarregandoTit(true)
-    try{ setRecTitular(await receitasPorTitular()) }
+    try{ setRecTitular(await receitasPorTitular()); setTitEscolhidos([]) }
     catch(e:any){ toast.error(`Não foi possível carregar: ${e?.message||e}`) }
     finally{ setCarregandoTit(false) }
+  }
+
+  function confirmarTrocaEmLote(){
+    if(!recTitular)return
+    const grupos=recTitular.filter(g=>titEscolhidos.includes(g.chave)&&!g.travado)
+    if(grupos.length===0)return
+    const qtd=grupos.reduce((s,g)=>s+g.qtd,0)
+    setConfirmar({
+      titulo:`Trocar o titular de ${grupos.length} ${grupos.length>1?'receitas':'receita'}?`,
+      linhas:[
+        ...grupos.map(g=>`${g.base}: ${g.holder} → ${g.holder==='Lucas'?'Nicoly':'Lucas'} (${g.qtd} ${g.qtd>1?'lançamentos':'lançamento'}, ${formatCurrency(g.total)})`),
+        `Ao todo ${qtd} lançamentos. Muda só de quem é a receita — valores, datas e status ficam iguais.`,
+      ],
+      rotuloOk:'Trocar titular',
+      onOk:async()=>{
+        setTrocandoTit('lote')
+        try{
+          let total=0
+          for(const g of grupos){
+            const r=await trocarTitular(g.ids, g.holder==='Lucas'?'Nicoly':'Lucas')
+            if(r.erro){ toast.error(`Erro em "${g.base}": ${r.erro}`); break }
+            total+=r.alteradas
+          }
+          toast.success(`${total} lançamentos com o titular corrigido`)
+          await carregarTitularReceitas()
+        }finally{ setTrocandoTit(null) }
+      },
+    })
   }
 
   function confirmarTrocaTitular(g:GrupoReceita){
@@ -1576,9 +1605,28 @@ export default function Parametros() {
                     <p style={{fontSize:11,fontWeight:700,color:TEXTMU,textTransform:'uppercase',letterSpacing:'0.04em',margin:'0 0 6px'}}>
                       {quem} · {formatCurrency(soma)}
                     </p>
-                    {doTitular.map(g=>(
-                      <div key={g.chave} style={{background:'rgba(0,0,0,0.03)',borderRadius:10,padding:'10px 12px',marginBottom:6}}>
+                    {doTitular.some(g=>!g.travado)&&(
+                      <button onClick={()=>{
+                        const livres=doTitular.filter(g=>!g.travado).map(g=>g.chave)
+                        const todas=livres.every(k=>titEscolhidos.includes(k))
+                        setTitEscolhidos(p=>todas?p.filter(k=>!livres.includes(k)):[...p.filter(k=>!livres.includes(k)),...livres])
+                      }} style={{fontSize:11,fontWeight:700,color:ACCENT,background:'none',border:'none',padding:'0 0 6px',cursor:'pointer'}}>
+                        Marcar/desmarcar todas de {quem}
+                      </button>
+                    )}
+                    {doTitular.map(g=>{
+                      const marcado=titEscolhidos.includes(g.chave)
+                      return (
+                      <div key={g.chave} onClick={()=>!g.travado&&setTitEscolhidos(p=>marcado?p.filter(k=>k!==g.chave):[...p,g.chave])}
+                        style={{background:marcado?'rgba(196,98,45,0.09)':'rgba(0,0,0,0.03)',
+                          border:`1.5px solid ${marcado?TERRA:'transparent'}`,
+                          borderRadius:10,padding:'10px 12px',marginBottom:6,cursor:g.travado?'default':'pointer'}}>
                         <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+                          {!g.travado&&(
+                            <span style={{width:18,height:18,borderRadius:5,flexShrink:0,marginTop:1,
+                              border:`1.5px solid ${marcado?TERRA:'rgba(0,0,0,0.2)'}`,background:marcado?TERRA:'transparent',
+                              color:'#fff',fontSize:12,fontWeight:900,lineHeight:'16px',textAlign:'center'}}>{marcado?'✓':''}</span>
+                          )}
                           <div style={{flex:1,minWidth:0}}>
                             <p style={{fontSize:13,fontWeight:600,color:TEXT,margin:0}}>{g.base}</p>
                             <p style={{fontSize:10.5,color:TEXTMU,margin:'2px 0 0',lineHeight:1.4}}>
@@ -1591,7 +1639,7 @@ export default function Parametros() {
                               Ciclo Salarial
                             </span>
                           ):(
-                            <button onClick={()=>confirmarTrocaTitular(g)} disabled={trocandoTit===g.chave}
+                            <button onClick={e=>{e.stopPropagation();confirmarTrocaTitular(g)}} disabled={trocandoTit===g.chave}
                               style={{fontSize:11,fontWeight:700,color:TERRA,background:'rgba(196,98,45,0.1)',border:'none',
                                 borderRadius:8,padding:'5px 10px',cursor:'pointer',flexShrink:0,whiteSpace:'nowrap'}}>
                               {trocandoTit===g.chave?'...':`→ ${g.holder==='Lucas'?'Nicoly':'Lucas'}`}
@@ -1599,10 +1647,18 @@ export default function Parametros() {
                           )}
                         </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 )
               })}
+              {titEscolhidos.length>0&&(
+                <button onClick={confirmarTrocaEmLote} disabled={trocandoTit==='lote'}
+                  style={{width:'100%',height:44,background:TERRA,color:'#fff',border:'none',borderRadius:12,
+                    fontSize:13,fontWeight:700,cursor:trocandoTit==='lote'?'default':'pointer',
+                    opacity:trocandoTit==='lote'?0.6:1,margin:'4px 0 10px'}}>
+                  {trocandoTit==='lote'?'Trocando...':`Trocar o titular ${titEscolhidos.length>1?`dos ${titEscolhidos.length} marcados`:'do marcado'}`}
+                </button>
+              )}
               <p style={{fontSize:10.5,color:TEXTMU,margin:0,lineHeight:1.45}}>
                 O salário fica travado aqui porque quem o gera é o Ciclo Salarial — mudar o titular por fora
                 faria o app recriar o antigo no mês seguinte.
