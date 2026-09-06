@@ -8,6 +8,7 @@ import { formatCurrency, CATS_DESPESA, SUBCATS, CAT_ICONS, maskCurrency, unmaskC
 import { loadCustomCategorias, mesclarCategorias, criarCategoria, renomearCategoria, excluirCategoria, contarUsoCategoria, ehCategoriaFixa, type CustomCategoria } from '@/lib/utils/categorias'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
+import { registrarFaceId, esquecerFaceId, faceIdAtivo, biometriaDisponivel } from '@/lib/utils/passkey'
 import {
   carregarRecorrentes, prazoDaConta, aplicarAjusteRecorrente, aplicarAjusteSalario,
   definirPrazo, mesAtual, somaMeses, rotuloMes, chaveConta, MESES_FUTURO_MAX,
@@ -476,34 +477,31 @@ export default function Parametros() {
     const s=createClient();const {data:{user}}=await s.auth.getUser()
     if(user){
       setUserId(user.id);setUserEmail(user.email||'')
-      setFaceIdEnabled(localStorage.getItem(`ln_faceid_${user.id}`)==='1')
+      setFaceIdEnabled(faceIdAtivo(user.id))
     }
   }
   async function toggleFaceId(){
     if(faceIdEnabled){
-      localStorage.removeItem(`ln_faceid_${userId}`)
-      localStorage.removeItem('ln_saved_pw')
+      esquecerFaceId(userId)
       setFaceIdEnabled(false)
       toast.success('Face ID desativado')
-    }else{
-      try{
-        const challenge=crypto.getRandomValues(new Uint8Array(32))
-        const uid8=new TextEncoder().encode(userId.slice(0,16))
-        await navigator.credentials.create({
-          publicKey:{
-            challenge,rp:{name:'Finanças L&N',id:window.location.hostname},
-            user:{id:uid8,name:userEmail,displayName:userEmail.split('@')[0]},
-            pubKeyCredParams:[{alg:-7,type:'public-key'},{alg:-257,type:'public-key'}],
-            authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',requireResidentKey:true},
-            timeout:30000,
-          }
-        })
-        localStorage.setItem(`ln_faceid_${userId}`,'1')
-        setFaceIdEnabled(true)
-        toast.success('Face ID ativado! 🔒')
-      }catch{toast.error('Não foi possível configurar o Face ID')}
+      return
     }
+    if(!(await biometriaDisponivel())){
+      toast.error('Este aparelho não tem biometria disponível para o navegador')
+      return
+    }
+    // O registro guarda o ID da passkey. É ele que faz o desbloqueio chamar o
+    // Face ID direto, sem o menu de "qual dispositivo usar".
+    const r=await registrarFaceId(userId,userEmail)
+    if(!r.ok){
+      if(r.erro!=='Cancelado.')toast.error(`Não foi possível configurar o Face ID: ${r.erro}`)
+      return
+    }
+    setFaceIdEnabled(true)
+    toast.success('Face ID ativado! 🔒')
   }
+
   async function handleLogout(){
     await createClient().auth.signOut()
     localStorage.removeItem('ln_last_email')

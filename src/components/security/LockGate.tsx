@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { pedirFaceId, faceIdAtivo, credencialSalva, esquecerCredencial } from '@/lib/utils/passkey'
 
 /**
  * Trava o app atrás do Face ID.
@@ -21,6 +22,9 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
   const [autenticando, setAutenticando] = useState(false)
   const [erro, setErro] = useState('')
   const [nome, setNome] = useState('')
+  const [uid, setUid] = useState('')
+  // Só oferece o "tentar de outro jeito" depois de uma tentativa mirada falhar.
+  const [ofereceAlternativa, setOfereceAlternativa] = useState(false)
 
   useEffect(() => {
     let vivo = true
@@ -32,8 +36,9 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
 
         const email = user.email || ''
         setNome(email.split('@')[0].split(/[._-]/)[0])
+        setUid(user.id)
 
-        const ativo = localStorage.getItem(`ln_faceid_${user.id}`) === '1'
+        const ativo = faceIdAtivo(user.id)
         // Já desbloqueou nesta sessão? Não repete a cada troca de tela.
         const liberadoNaSessao = sessionStorage.getItem('ln_unlocked') === '1'
         setEstado(ativo && !liberadoNaSessao ? 'travado' : 'liberado')
@@ -55,7 +60,7 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
       if (document.visibilityState !== 'visible') return
       if (sessionStorage.getItem('ln_unlocked') === '1') return
       const { data: { user } } = await createClient().auth.getUser()
-      if (user && localStorage.getItem(`ln_faceid_${user.id}`) === '1') setEstado('travado')
+      if (user && faceIdAtivo(user.id)) setEstado('travado')
     }
     document.addEventListener('visibilitychange', aoEsconder)
     document.addEventListener('visibilitychange', aoVoltar)
@@ -65,33 +70,35 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const desbloquear = useCallback(async () => {
+  const desbloquear = useCallback(async (mirado = true) => {
+    if (!uid) return
     setErro(''); setAutenticando(true)
-    try {
-      await navigator.credentials.get({
-        publicKey: {
-          challenge: crypto.getRandomValues(new Uint8Array(32)),
-          rpId: window.location.hostname,
-          userVerification: 'required',
-          timeout: 60000,
-        },
-      })
+    const r = await pedirFaceId(uid, mirado)
+    setAutenticando(false)
+    if (r.ok) {
       sessionStorage.setItem('ln_unlocked', '1')
       setEstado('liberado')
-    } catch {
-      setErro('Não reconhecido. Tente de novo.')
-    } finally {
-      setAutenticando(false)
+      return
     }
-  }, [])
+    setErro(r.erro)
+    // Se a passkey guardada não serve mais (trocou de aparelho, apagou a chave),
+    // não adianta insistir nela — abre a saída para o fluxo antigo.
+    if (mirado && credencialSalva(uid)) setOfereceAlternativa(true)
+  }, [uid])
+
+  function tentarDeOutroJeito() {
+    esquecerCredencial(uid)
+    setOfereceAlternativa(false)
+    desbloquear(false)
+  }
 
   // Tenta assim que a tela de bloqueio aparece, como os apps de banco fazem
   useEffect(() => {
-    if (estado === 'travado') {
+    if (estado === 'travado' && uid) {
       const t = setTimeout(() => { desbloquear() }, 400)
       return () => clearTimeout(t)
     }
-  }, [estado, desbloquear])
+  }, [estado, uid, desbloquear])
 
   async function sairDaConta() {
     await createClient().auth.signOut()
@@ -146,7 +153,7 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
             </p>
           )}
 
-          <button onClick={desbloquear} disabled={autenticando} style={{
+          <button onClick={() => desbloquear()} disabled={autenticando} style={{
             width: '100%', height: 54, borderRadius: 16, border: 'none', cursor: 'pointer',
             background: '#fff', color: '#3A2016', fontSize: 15, fontWeight: 700,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
@@ -167,6 +174,16 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
 
           {erro && (
             <p style={{ fontSize: 12.5, color: 'rgba(255,190,185,0.95)', margin: '12px 0 0', textAlign: 'center', fontWeight: 600 }}>{erro}</p>
+          )}
+
+          {ofereceAlternativa && (
+            <button onClick={tentarDeOutroJeito} style={{
+              width: '100%', marginTop: 10, height: 42, background: 'rgba(255,255,255,0.12)',
+              border: '1px solid rgba(255,255,255,0.18)', borderRadius: 12,
+              color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            }}>
+              Tentar de outro jeito
+            </button>
           )}
 
           <button onClick={sairDaConta} style={{
