@@ -144,3 +144,46 @@ export async function corrigirDatas(grupos: GrupoAuditado[]): Promise<{ corrigid
 
   return { corrigidas, erros }
 }
+
+/* ── Duplicatas ────────────────────────────────────────────────── */
+
+import { acharDuplicatas, resumirPorCompromisso, type GrupoDuplicado } from '@/lib/utils/duplicatas'
+
+export type AuditoriaDup = {
+  linhasConferidas: number
+  grupos: GrupoDuplicado[]
+  resumo: ReturnType<typeof resumirPorCompromisso>
+  totalARemover: number
+}
+
+/**
+ * Varre TODOS os lançamentos, não só os parcelados: a série duplicada que
+ * motivou isso tinha transaction_type diferente e por isso escapava de
+ * qualquer conferência restrita a parcelamentos.
+ */
+export async function auditarDuplicatas(): Promise<AuditoriaDup> {
+  const { data } = await createClient().from('transactions')
+    .select('id,description,holder,purchase_date,amount,installment_value,status,paid_date,card_name,category,transaction_type')
+  const linhas = data || []
+  const grupos = acharDuplicatas(linhas as any)
+  return {
+    linhasConferidas: linhas.length,
+    grupos,
+    resumo: resumirPorCompromisso(grupos),
+    totalARemover: grupos.reduce((s, g) => s + g.remover.length, 0),
+  }
+}
+
+export async function removerDuplicatas(grupos: GrupoDuplicado[]): Promise<{ removidas: number; erro?: string }> {
+  const ids = grupos.flatMap(g => g.remover)
+  if (ids.length === 0) return { removidas: 0 }
+  // Em lotes: uma lista gigante no .in() estoura o tamanho da URL do PostgREST.
+  let removidas = 0
+  for (let i = 0; i < ids.length; i += 50) {
+    const lote = ids.slice(i, i + 50)
+    const { error } = await createClient().from('transactions').delete().in('id', lote)
+    if (error) return { removidas, erro: error.message }
+    removidas += lote.length
+  }
+  return { removidas }
+}

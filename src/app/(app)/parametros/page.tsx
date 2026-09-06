@@ -9,7 +9,7 @@ import { loadCustomCategorias, mesclarCategorias, criarCategoria, renomearCatego
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
 import { registrarFaceId, esquecerFaceId, faceIdAtivo, biometriaDisponivel } from '@/lib/utils/passkey'
-import { auditarParcelas, corrigirDatas, descreverProblema, type Auditoria } from '@/lib/utils/auditoriaParcelas'
+import { auditarParcelas, corrigirDatas, descreverProblema, auditarDuplicatas, removerDuplicatas, type Auditoria, type AuditoriaDup } from '@/lib/utils/auditoriaParcelas'
 import {
   carregarRecorrentes, prazoDaConta, aplicarAjusteRecorrente, aplicarAjusteSalario,
   definirPrazo, mesAtual, somaMeses, rotuloMes, chaveConta, MESES_FUTURO_MAX,
@@ -88,6 +88,9 @@ export default function Parametros() {
   const [auditoria, setAuditoria] = useState<Auditoria|null>(null)
   const [conferindo, setConferindo] = useState(false)
   const [corrigindoParc, setCorrigindoParc] = useState(false)
+  const [dups, setDups] = useState<AuditoriaDup|null>(null)
+  const [buscandoDups, setBuscandoDups] = useState(false)
+  const [removendoDups, setRemovendoDups] = useState(false)
   // Segurança
   const [faceIdEnabled, setFaceIdEnabled] = useState(false)
   const [userId, setUserId] = useState('')
@@ -500,6 +503,39 @@ export default function Parametros() {
       await conferirParcelamentos()
     }catch(e:any){ toast.error(`Falha ao corrigir: ${e?.message||e}`) }
     finally{ setCorrigindoParc(false) }
+  }
+
+  // ── Duplicatas ──
+  async function procurarDuplicatas(){
+    setBuscandoDups(true)
+    try{
+      const r=await auditarDuplicatas()
+      setDups(r)
+      if(r.totalARemover===0)toast.success(`${r.linhasConferidas} lançamentos conferidos — nenhuma duplicata`)
+      else toast.error(`${r.totalARemover} lançamento${r.totalARemover>1?'s':''} duplicado${r.totalARemover>1?'s':''}`)
+    }catch(e:any){ toast.error(`Não foi possível conferir: ${e?.message||e}`) }
+    finally{ setBuscandoDups(false) }
+  }
+
+  function confirmarRemocaoDuplicatas(){
+    if(!dups||dups.totalARemover===0)return
+    setConfirmar({
+      titulo:`Apagar ${dups.totalARemover} lançamento${dups.totalARemover>1?'s':''} duplicado${dups.totalARemover>1?'s':''}?`,
+      linhas:[
+        ...dups.resumo.map(r=>`${r.titulo} (${r.holder}): ${r.aRemover} ${r.aRemover>1?'meses':'mês'} — fica a de ${formatCurrency(r.valores[0])}, sai a de ${formatCurrency(r.valores[r.valores.length-1])}`),
+        'Em cada mês fica a linha de menor valor. Isso não tem desfazer.',
+      ],
+      rotuloOk:'Apagar duplicados', perigo:true,
+      onOk:async()=>{
+        setRemovendoDups(true)
+        try{
+          const r=await removerDuplicatas(dups.grupos)
+          if(r.erro)toast.error(`Removidas ${r.removidas}, mas deu erro: ${r.erro}`)
+          else toast.success(`${r.removidas} lançamento${r.removidas>1?'s':''} duplicado${r.removidas>1?'s':''} apagado${r.removidas>1?'s':''}`)
+          await procurarDuplicatas()
+        }finally{ setRemovendoDups(false) }
+      },
+    })
   }
 
   // ── Segurança ──
@@ -1367,6 +1403,65 @@ export default function Parametros() {
                     própria não é apagado — só o &quot;pago&quot; que o app tinha carimbado sozinho em cima
                     da data errada. Parcela faltando é recriada sozinha ao abrir Parcelamentos.
                   </p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Lançamentos duplicados */}
+        <div style={{...sCard,padding:'16px 18px'}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
+            <span style={{fontSize:20}}>👯</span>
+            <div style={{flex:1,minWidth:0}}>
+              <p style={{fontSize:14,fontWeight:600,color:TEXT,margin:0}}>Procurar lançamentos duplicados</p>
+              <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
+                O mesmo compromisso lançado duas vezes no mesmo mês
+              </p>
+            </div>
+          </div>
+
+          <button onClick={procurarDuplicatas} disabled={buscandoDups}
+            style={{width:'100%',height:42,background:buscandoDups?'#F5F5F7':'rgba(0,122,255,0.1)',color:ACCENT,
+              border:'none',borderRadius:12,fontSize:13,fontWeight:700,cursor:buscandoDups?'default':'pointer'}}>
+            {buscandoDups?'Procurando...':'Procurar agora'}
+          </button>
+
+          {dups&&(
+            <div style={{marginTop:12}}>
+              <p style={{fontSize:11,color:TEXTMU,margin:'0 0 8px'}}>{dups.linhasConferidas} lançamentos conferidos</p>
+
+              {dups.totalARemover===0&&dups.grupos.length===0?(
+                <p style={{fontSize:13,color:GREEN,fontWeight:600,margin:0}}>✓ Nenhuma duplicata</p>
+              ):(
+                <>
+                  {dups.resumo.map((r,i)=>(
+                    <div key={i} style={{background:'rgba(255,59,48,0.05)',borderRadius:10,padding:'10px 12px',marginBottom:8}}>
+                      <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:0}}>{r.titulo}</p>
+                      <p style={{fontSize:10.5,color:TEXTMU,margin:'1px 0 6px'}}>
+                        {r.holder} · aparece em {r.meses.length} {r.meses.length>1?'meses':'mês'} ({rotuloMes(r.meses[0])} → {rotuloMes(r.meses[r.meses.length-1])})
+                      </p>
+                      <p style={{fontSize:11.5,color:TEXTLT,margin:0,lineHeight:1.5}}>
+                        Valores lançados: {r.valores.map(v=>formatCurrency(v)).join(' e ')}.
+                        {r.aRemover>0&&<> Fica a de <strong>{formatCurrency(r.valores[0])}</strong>, saem {r.aRemover} {r.aRemover>1?'linhas':'linha'}.</>}
+                      </p>
+                    </div>
+                  ))}
+
+                  {dups.grupos.some(g=>g.protegidas.length>0)&&(
+                    <p style={{fontSize:11,color:'#B37700',background:'rgba(255,170,0,0.1)',borderRadius:8,padding:'8px 10px',margin:'0 0 8px',lineHeight:1.45}}>
+                      Algumas linhas não serão apagadas porque têm pagamento registrado por você, com data própria.
+                      Essas ficam para você conferir na mão.
+                    </p>
+                  )}
+
+                  {dups.totalARemover>0&&(
+                    <button onClick={confirmarRemocaoDuplicatas} disabled={removendoDups}
+                      style={{width:'100%',height:44,background:RED,color:'#fff',border:'none',borderRadius:12,
+                        fontSize:13,fontWeight:700,cursor:removendoDups?'default':'pointer',opacity:removendoDups?0.6:1,marginTop:4}}>
+                      {removendoDups?'Apagando...':`Apagar ${dups.totalARemover} duplicado${dups.totalARemover>1?'s':''} (fica o de menor valor)`}
+                    </button>
+                  )}
                 </>
               )}
             </div>
