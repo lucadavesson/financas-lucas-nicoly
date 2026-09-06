@@ -10,6 +10,7 @@ import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
 import { registrarFaceId, esquecerFaceId, faceIdAtivo, biometriaDisponivel } from '@/lib/utils/passkey'
 import { auditarParcelas, corrigirDatas, descreverProblema, auditarDuplicatas, removerDuplicatas, type Auditoria, type AuditoriaDup } from '@/lib/utils/auditoriaParcelas'
+import { receitasPorTitular, trocarTitular, type GrupoReceita } from '@/lib/utils/titularReceitas'
 import {
   carregarRecorrentes, prazoDaConta, aplicarAjusteRecorrente, aplicarAjusteSalario,
   definirPrazo, mesAtual, somaMeses, rotuloMes, chaveConta, MESES_FUTURO_MAX,
@@ -93,6 +94,9 @@ export default function Parametros() {
   const [removendoDups, setRemovendoDups] = useState(false)
   // Nada vem marcado: apagar lançamento não pode ser o caminho de menor esforço.
   const [dupsEscolhidas, setDupsEscolhidas] = useState<string[]>([])
+  const [recTitular, setRecTitular] = useState<GrupoReceita[]|null>(null)
+  const [carregandoTit, setCarregandoTit] = useState(false)
+  const [trocandoTit, setTrocandoTit] = useState<string|null>(null)
   // Segurança
   const [faceIdEnabled, setFaceIdEnabled] = useState(false)
   const [userId, setUserId] = useState('')
@@ -539,6 +543,35 @@ export default function Parametros() {
           else toast.success(`${r.removidas} lançamento${r.removidas>1?'s':''} apagado${r.removidas>1?'s':''}`)
           await procurarDuplicatas()
         }finally{ setRemovendoDups(false) }
+      },
+    })
+  }
+
+  // ── Titular das receitas ──
+  async function carregarTitularReceitas(){
+    setCarregandoTit(true)
+    try{ setRecTitular(await receitasPorTitular()) }
+    catch(e:any){ toast.error(`Não foi possível carregar: ${e?.message||e}`) }
+    finally{ setCarregandoTit(false) }
+  }
+
+  function confirmarTrocaTitular(g:GrupoReceita){
+    const novo=g.holder==='Lucas'?'Nicoly':'Lucas'
+    setConfirmar({
+      titulo:`"${g.base}" passa a ser da ${novo}?`,
+      linhas:[
+        `${g.qtd} lançamento${g.qtd>1?'s':''} (${g.periodo}), somando ${formatCurrency(g.total)}.`,
+        'Muda só de quem é a receita — valores, datas e status ficam iguais.',
+      ],
+      rotuloOk:`Passar para ${novo}`,
+      onOk:async()=>{
+        setTrocandoTit(g.chave)
+        try{
+          const r=await trocarTitular(g.ids,novo)
+          if(r.erro)toast.error(`Erro: ${r.erro}`)
+          else toast.success(`"${g.base}" agora é ${novo==='Nicoly'?'da Nicoly':'do Lucas'} (${r.alteradas} lançamentos)`)
+          await carregarTitularReceitas()
+        }finally{ setTrocandoTit(null) }
       },
     })
   }
@@ -1510,6 +1543,70 @@ export default function Parametros() {
                   )}
                 </>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Titular das receitas */}
+        <div style={{...sCard,padding:'16px 18px'}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
+            <span style={{fontSize:20}}>🙋</span>
+            <div style={{flex:1,minWidth:0}}>
+              <p style={{fontSize:14,fontWeight:600,color:TEXT,margin:0}}>De quem é cada receita</p>
+              <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
+                É o titular que decide a divisão por pessoa no Início
+              </p>
+            </div>
+          </div>
+
+          <button onClick={carregarTitularReceitas} disabled={carregandoTit}
+            style={{width:'100%',height:42,background:carregandoTit?'#F5F5F7':'rgba(0,122,255,0.1)',color:ACCENT,
+              border:'none',borderRadius:12,fontSize:13,fontWeight:700,cursor:carregandoTit?'default':'pointer'}}>
+            {carregandoTit?'Carregando...':recTitular?'Recarregar':'Ver receitas por titular'}
+          </button>
+
+          {recTitular&&(
+            <div style={{marginTop:12}}>
+              {(['Lucas','Nicoly'] as const).map(quem=>{
+                const doTitular=recTitular.filter(g=>g.holder===quem)
+                if(doTitular.length===0)return null
+                const soma=doTitular.reduce((s,g)=>s+g.total,0)
+                return (
+                  <div key={quem} style={{marginBottom:12}}>
+                    <p style={{fontSize:11,fontWeight:700,color:TEXTMU,textTransform:'uppercase',letterSpacing:'0.04em',margin:'0 0 6px'}}>
+                      {quem} · {formatCurrency(soma)}
+                    </p>
+                    {doTitular.map(g=>(
+                      <div key={g.chave} style={{background:'rgba(0,0,0,0.03)',borderRadius:10,padding:'10px 12px',marginBottom:6}}>
+                        <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <p style={{fontSize:13,fontWeight:600,color:TEXT,margin:0}}>{g.base}</p>
+                            <p style={{fontSize:10.5,color:TEXTMU,margin:'2px 0 0',lineHeight:1.4}}>
+                              {g.qtd} {g.qtd>1?'lançamentos':'lançamento'} · {g.periodo} · {formatCurrency(g.total)}
+                              {g.contas.length>0&&<> · cai em {g.contas.join(', ')}</>}
+                            </p>
+                          </div>
+                          {g.travado?(
+                            <span style={{fontSize:10,color:TEXTMU,background:'rgba(0,0,0,0.05)',borderRadius:6,padding:'3px 7px',flexShrink:0,whiteSpace:'nowrap'}}>
+                              Ciclo Salarial
+                            </span>
+                          ):(
+                            <button onClick={()=>confirmarTrocaTitular(g)} disabled={trocandoTit===g.chave}
+                              style={{fontSize:11,fontWeight:700,color:TERRA,background:'rgba(196,98,45,0.1)',border:'none',
+                                borderRadius:8,padding:'5px 10px',cursor:'pointer',flexShrink:0,whiteSpace:'nowrap'}}>
+                              {trocandoTit===g.chave?'...':`→ ${g.holder==='Lucas'?'Nicoly':'Lucas'}`}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+              <p style={{fontSize:10.5,color:TEXTMU,margin:0,lineHeight:1.45}}>
+                O salário fica travado aqui porque quem o gera é o Ciclo Salarial — mudar o titular por fora
+                faria o app recriar o antigo no mês seguinte.
+              </p>
             </div>
           )}
         </div>
