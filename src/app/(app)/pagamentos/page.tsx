@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency, dataParaExibir } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, parseISO, addDays, subMonths, addMonths } from 'date-fns'
@@ -8,6 +8,7 @@ import { Check, ChevronDown, ChevronUp, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
 import { generateRecurrents } from '@/lib/utils/recurrents'
+import { atribuirCartoes } from '@/lib/utils/cartoes'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
 import Link from 'next/link'
@@ -74,6 +75,11 @@ function BadgeStatus({ status }: { status: string }) {
 export default function Pagamentos() {
   const [txs,      setTxs]     = useState<Tx[]>([])
   const [cards,    setCards]   = useState<Card[]>([])
+  // Cada lançamento pertence a UM cartão só. Antes o casamento era por "o nome
+  // do cartão está contido no card_name", e com dois cartões de mesmo nome
+  // (um de cada titular) a fatura de um puxava as compras do outro — inclusive
+  // na hora de PAGAR, que marcava tudo como pago de uma vez.
+  const mapaCartao = useMemo(()=>atribuirCartoes(txs, cards), [txs, cards])
   const [loading,  setLoad]    = useState(true)
   const [paying,   setPaying]  = useState<string|null>(null)
   const [openGrp,  setOpenGrp] = useState<Record<string,boolean>>({})
@@ -110,7 +116,7 @@ export default function Pagamentos() {
     // Marca TODAS as transações pendentes daquele cartão como pagas
     setPaying(cardId)
     const txsDoCartao = txs.filter(t =>
-      (t.card_name === cardName || t.card_name?.includes(cardName.split('—')[0]?.trim())) &&
+      mapaCartao.get(t.id) === cardId &&
       t.payment_method === 'cartao_credito' && t.status !== 'Pago'
     )
     if (txsDoCartao.length === 0) { setPaying(null); return }
@@ -187,11 +193,7 @@ export default function Pagamentos() {
   const faturas: FaturaCard[] = cards
     .filter(c => c.card_type === 'credito' || !c.card_type || c.card_type === undefined)
     .map(card => {
-      const itens = txCartao.filter(t =>
-        t.card_name === `${card.name} — ${card.holder}` ||
-        t.card_name === card.name ||
-        t.holder === card.holder && t.card_name?.toLowerCase().includes(card.name.toLowerCase().split(' ')[0])
-      )
+      const itens = txCartao.filter(t => mapaCartao.get(t.id) === card.id)
       const total    = itens.reduce((s,t)=>s+(t.installment_value||t.amount),0)
       const pago     = itens.filter(t=>t.status==='Pago').reduce((s,t)=>s+(t.paid_amount||t.installment_value||t.amount),0)
       const pendente = itens.filter(t=>t.status!=='Pago'&&t.status!=='Cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)

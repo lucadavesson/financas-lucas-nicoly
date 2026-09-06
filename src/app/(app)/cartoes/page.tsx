@@ -1,7 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS, dataParaExibir } from '@/lib/utils'
+import { atribuirCartoes } from '@/lib/utils/cartoes'
 import { format, startOfMonth, endOfMonth, parseISO, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronDown, ChevronUp, ArrowUp, ArrowDown } from 'lucide-react'
@@ -155,14 +156,26 @@ export default function Cartoes() {
     try{localStorage.setItem('ln_card_order',JSON.stringify(cardOrder))}catch{}
   },[cardOrder])
 
+  // Cada lançamento pertence a UM cartão. Antes o casamento era por "contém o
+  // nome do cartão", o que funcionava enquanto não existisse um segundo cartão
+  // com o mesmo nome — aí toda compra do Santander do Lucas passava a aparecer
+  // também no Santander da Nicoly, e o limite usado contava o mesmo gasto duas
+  // vezes, uma em cada cartão.
+  const doCartao=useMemo(()=>{
+    const elegiveis=txs.filter(t=>t.payment_method==='cartao_credito'||t.transaction_type==='parcelada')
+    const mapa=atribuirCartoes(elegiveis,cards)
+    const porCartao=new Map<string,Tx[]>()
+    for(const t of elegiveis){
+      const cardId=mapa.get(t.id)
+      if(!cardId)continue
+      if(!porCartao.has(cardId))porCartao.set(cardId,[])
+      porCartao.get(cardId)!.push(t)
+    }
+    return porCartao
+  },[txs,cards])
+
   function txsDoCartao(card:Card):Tx[]{
-    const nome=`${card.name} — ${card.holder}`
-    const nomeLower=card.name.toLowerCase()
-    return txs.filter(t=>{
-      if(t.payment_method!=='cartao_credito'&&t.transaction_type!=='parcelada')return false
-      const cn=(t.card_name||'').toLowerCase()
-      return cn===nome.toLowerCase()||cn===nomeLower||cn.includes(nomeLower)||t.card_name===nome||t.card_name===card.name
-    })
+    return doCartao.get(card.id)||[]
   }
 
   function moveCard(id:string,dir:-1|1){
