@@ -9,6 +9,7 @@ import { loadCustomCategorias, mesclarCategorias, criarCategoria, renomearCatego
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
 import { registrarFaceId, esquecerFaceId, faceIdAtivo, biometriaDisponivel } from '@/lib/utils/passkey'
+import { auditarParcelas, corrigirDatas, descreverProblema, type Auditoria } from '@/lib/utils/auditoriaParcelas'
 import {
   carregarRecorrentes, prazoDaConta, aplicarAjusteRecorrente, aplicarAjusteSalario,
   definirPrazo, mesAtual, somaMeses, rotuloMes, chaveConta, MESES_FUTURO_MAX,
@@ -83,6 +84,10 @@ export default function Parametros() {
     titulo:string; linhas:string[]; rotuloOk:string; perigo?:boolean; onOk:()=>void|Promise<void>
   }|null>(null)
   const [confirmando, setConfirmando] = useState(false)
+  // Conferência de parcelamentos
+  const [auditoria, setAuditoria] = useState<Auditoria|null>(null)
+  const [conferindo, setConferindo] = useState(false)
+  const [corrigindoParc, setCorrigindoParc] = useState(false)
   // Segurança
   const [faceIdEnabled, setFaceIdEnabled] = useState(false)
   const [userId, setUserId] = useState('')
@@ -470,6 +475,31 @@ export default function Parametros() {
     toast.success(`Vencimento no dia ${dia} a partir de ${rotuloMes(mesAtual())}`)
     setEditingDueDay(null); setDueDayRaw('')
     loadRecurrents()
+  }
+
+  // ── Conferência de parcelamentos ──
+  async function conferirParcelamentos(){
+    setConferindo(true)
+    try{
+      const r=await auditarParcelas()
+      setAuditoria(r)
+      if(r.comProblema.length===0)toast.success(`${r.gruposConferidos} parcelamentos conferidos — nenhum furo`)
+      else toast.error(`${r.comProblema.length} parcelamento${r.comProblema.length>1?'s':''} com problema`)
+    }catch(e:any){ toast.error(`Não foi possível conferir: ${e?.message||e}`) }
+    finally{ setConferindo(false) }
+  }
+
+  async function corrigirParcelamentos(){
+    if(!auditoria)return
+    setCorrigindoParc(true)
+    try{
+      const r=await corrigirDatas(auditoria.comProblema)
+      if(r.erros.length>0)toast.error(`Corrigidas ${r.corrigidas}, mas ${r.erros.length} falharam`)
+      else if(r.corrigidas>0)toast.success(`${r.corrigidas} parcela${r.corrigidas>1?'s':''} colocada${r.corrigidas>1?'s':''} no mês certo`)
+      else toast.success('Nada para corrigir automaticamente')
+      await conferirParcelamentos()
+    }catch(e:any){ toast.error(`Falha ao corrigir: ${e?.message||e}`) }
+    finally{ setCorrigindoParc(false) }
   }
 
   // ── Segurança ──
@@ -1265,7 +1295,9 @@ export default function Parametros() {
         </button>
         <button onClick={async()=>{
           const s=createClient();const {data:{user}}=await s.auth.getUser();if(!user)return
-          const {data}=await s.from('transactions').select('*').eq('owner_id',user.id).order('purchase_date',{ascending:false})
+          // Sem filtro de owner_id: o app e do casal e o export precisa sair
+          // completo. Filtrando por quem esta logado, metade sumia do arquivo.
+          const {data}=await s.from('transactions').select('*').order('purchase_date',{ascending:false})
           if(!data||data.length===0){toast.error('Nenhum lançamento encontrado');return}
           const headers=['Data','Descrição','Categoria','Subcategoria','Valor','Parcela','Status','Método','Cartão','Titular','Tipo','Observações']
           const rows=data.map((t:any)=>[
@@ -1287,6 +1319,60 @@ export default function Parametros() {
             <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>Baixar todos os lançamentos em formato CSV (Excel)</p>
           </div>
         </button>
+        {/* Conferência de parcelamentos */}
+        <div style={{...sCard,padding:'16px 18px'}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
+            <span style={{fontSize:20}}>🧾</span>
+            <div style={{flex:1,minWidth:0}}>
+              <p style={{fontSize:14,fontWeight:600,color:TEXT,margin:0}}>Conferir parcelamentos</p>
+              <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
+                Procura parcela em mês errado, mês pulado, parcela repetida ou faltando
+              </p>
+            </div>
+          </div>
+
+          <button onClick={conferirParcelamentos} disabled={conferindo}
+            style={{width:'100%',height:42,background:conferindo?'#F5F5F7':'rgba(0,122,255,0.1)',color:ACCENT,
+              border:'none',borderRadius:12,fontSize:13,fontWeight:700,cursor:conferindo?'default':'pointer'}}>
+            {conferindo?'Conferindo...':'Conferir agora'}
+          </button>
+
+          {auditoria&&(
+            <div style={{marginTop:12}}>
+              <p style={{fontSize:11,color:TEXTMU,margin:'0 0 8px'}}>
+                {auditoria.gruposConferidos} parcelamentos · {auditoria.linhasConferidas} lançamentos conferidos
+              </p>
+
+              {auditoria.comProblema.length===0?(
+                <p style={{fontSize:13,color:GREEN,fontWeight:600,margin:0}}>✓ Está tudo na sequência certa</p>
+              ):(
+                <>
+                  {auditoria.comProblema.map(g=>(
+                    <div key={g.chave} style={{background:'rgba(255,59,48,0.05)',borderRadius:10,padding:'10px 12px',marginBottom:8}}>
+                      <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:0}}>{g.base}</p>
+                      <p style={{fontSize:10.5,color:TEXTMU,margin:'1px 0 6px'}}>{g.holder} · {g.card||'sem cartão'} · {g.total}x</p>
+                      {g.problemas.map((pb,i)=>(
+                        <p key={i} style={{fontSize:11.5,color:TEXTLT,margin:'0 0 3px',lineHeight:1.4}}>• {descreverProblema(pb)}</p>
+                      ))}
+                    </div>
+                  ))}
+
+                  <button onClick={corrigirParcelamentos} disabled={corrigindoParc}
+                    style={{width:'100%',height:44,background:TERRA,color:'#fff',border:'none',borderRadius:12,
+                      fontSize:13,fontWeight:700,cursor:corrigindoParc?'default':'pointer',opacity:corrigindoParc?0.6:1,marginTop:4}}>
+                    {corrigindoParc?'Corrigindo...':'Colocar as parcelas no mês certo'}
+                  </button>
+                  <p style={{fontSize:10.5,color:TEXTMU,margin:'7px 0 0',lineHeight:1.45}}>
+                    Corrige a data da parcela e o mês da fatura. Um pagamento que você registrou com data
+                    própria não é apagado — só o &quot;pago&quot; que o app tinha carimbado sozinho em cima
+                    da data errada. Parcela faltando é recriada sozinha ao abrir Parcelamentos.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
         <div style={{...sCard,padding:'16px 18px'}}>
           <p style={{fontSize:11,fontWeight:600,color:TEXTMU,textTransform:'uppercase',letterSpacing:'0.05em',margin:'0 0 8px'}}>Versão</p>
           <p style={{fontSize:14,color:TEXT,margin:0}}>Finanças L&N v1.0</p>

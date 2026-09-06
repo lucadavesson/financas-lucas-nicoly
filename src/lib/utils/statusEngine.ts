@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client'
 import { format, addMonths, parseISO } from 'date-fns'
 import { calcBillingMonth } from '@/lib/utils'
+import { baseConsenso, mesesEntre, somaMesesData } from '@/lib/utils/parcelasCore'
 
 /**
  * Corrige automaticamente o status de parcelas de compras parceladas cujo mês
@@ -133,18 +134,45 @@ export async function materializarParcelasFaltantes(): Promise<{ criadas: number
     }).sort((a, b) => (a.purchase_date || '').localeCompare(b.purchase_date || ''))
 
     if (semNumero.length > 0) {
+      // O número sai da DATA da linha: quantos meses ela está depois da
+      // primeira parcela. Antes saía do primeiro número livre, em ordem de
+      // data — e a data da linha não era corrigida junto. Era assim que uma
+      // linha antiga com data de out/2025 virava "parcela 12 de 12" e o mês
+      // que ela deveria ocupar (set/2026) simplesmente sumia da lista.
+      const base = baseConsenso(parcelas as any)
       const livres: number[] = []
-      for (let n = 1; n <= total && livres.length < semNumero.length; n++) {
-        if (!existentes.has(n)) livres.push(n)
-      }
-      for (let i = 0; i < semNumero.length && i < livres.length; i++) {
-        const linha = semNumero[i]
-        const n = livres[i]
-        await s.from('transactions').update({
+      for (let n = 1; n <= total; n++) if (!existentes.has(n)) livres.push(n)
+
+      for (const linha of semNumero) {
+        let n: number | null = null
+        let dataCorrigida: string | null = null
+
+        if (base && linha.purchase_date) {
+          const pelaData = mesesEntre(base, linha.purchase_date) + 1
+          if (pelaData >= 1 && pelaData <= total && !existentes.has(pelaData)) n = pelaData
+        }
+        if (n === null) {
+          // Não deu para deduzir pela data (data ausente ou posição já ocupada):
+          // usa o primeiro número livre, mas então move a data para casar com
+          // ele — número e data precisam contar a mesma história.
+          n = livres.find(x => !existentes.has(x)) ?? null
+          if (n !== null && base) dataCorrigida = somaMesesData(base, n - 1)
+        }
+        if (n === null) continue
+
+        const patch: Record<string, any> = {
           installment_num: n,
           description: `${baseDaDescricao(linha.description)} (${n}/${total})`,
-        }).eq('id', linha.id)
-        existentes.set(n, linha)
+        }
+        if (dataCorrigida && dataCorrigida !== linha.purchase_date) {
+          patch.purchase_date = dataCorrigida
+          const fech = closingPorCartao[linha.card_name || ''] || 1
+          if (linha.payment_method === 'cartao_credito' || linha.card_name) {
+            patch.billing_month = format(calcBillingMonth(parseISO(dataCorrigida), fech), 'yyyy-MM-dd')
+          }
+        }
+        await s.from('transactions').update(patch).eq('id', linha.id)
+        existentes.set(n, { ...linha, ...patch })
       }
     }
 
