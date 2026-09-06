@@ -597,6 +597,45 @@ export default function Parametros() {
   // ────────────────────────────────────────────────────────────
   // SEÇÃO: CARTÕES
   // ────────────────────────────────────────────────────────────
+  // Overlay compartilhado: o componente tem um return por seção, entao um
+  // modal declarado dentro de uma delas nao existe nas outras — foi por isso
+  // que a confirmacao nao aparecia em Dados do App.
+  const modalConfirmar = confirmar ? (
+        <ModalPortal>
+        <div style={{position:'fixed',inset:0,zIndex:90,display:'flex',alignItems:'flex-end'}} onClick={()=>!confirmando&&setConfirmar(null)}>
+          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(6px)'}}/>
+          <div onClick={e=>e.stopPropagation()} style={{position:'relative',width:'100%',maxWidth:390,margin:'0 auto',
+            background:'#fff',borderRadius:'24px 24px 0 0',maxHeight:'90vh',
+            display:'flex',flexDirection:'column',overflow:'hidden'}}>
+            <div style={{padding:'22px 18px 0'}}>
+              <h3 style={{fontSize:16,fontWeight:700,color:confirmar.perigo?RED:TEXT,margin:'0 0 10px'}}>{confirmar.titulo}</h3>
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'0 18px 12px',WebkitOverflowScrolling:'touch' as any}}>
+              {confirmar.linhas.map((linha,i)=>(
+                <p key={i} style={{fontSize:13,color:TEXTLT,margin:'0 0 10px',lineHeight:1.5}}>{linha}</p>
+              ))}
+            </div>
+            <div style={{display:'flex',gap:8,padding:'12px 18px calc(16px + env(safe-area-inset-bottom, 12px))',
+              borderTop:'1px solid rgba(0,0,0,0.07)',background:'#fff',flexShrink:0}}>
+              <button onClick={()=>setConfirmar(null)} disabled={confirmando}
+                style={{flex:1,height:48,background:'#F5F5F7',color:TEXTLT,borderRadius:14,border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>
+                Cancelar
+              </button>
+              <button disabled={confirmando}
+                onClick={async()=>{
+                  setConfirmando(true)
+                  try{ await confirmar.onOk() } finally { setConfirmando(false); setConfirmar(null) }
+                }}
+                style={{flex:1,height:48,background:confirmar.perigo?RED:TERRA,color:'#fff',borderRadius:14,border:'none',
+                  fontSize:14,fontWeight:700,cursor:confirmando?'default':'pointer',opacity:confirmando?0.6:1}}>
+                {confirmando?'Aguarde...':confirmar.rotuloOk}
+              </button>
+            </div>
+          </div>
+        </div>
+        </ModalPortal>
+  ) : null
+
   if(sec==='cartoes') return (
     <div style={{background:BG,minHeight:'100%',padding:'14px 14px 160px'}}>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
@@ -1119,42 +1158,7 @@ export default function Parametros() {
         </ModalPortal>
       )}
 
-      {/* Confirmação — no lugar do confirm() do navegador */}
-      {confirmar&&(
-        <ModalPortal>
-        <div style={{position:'fixed',inset:0,zIndex:90,display:'flex',alignItems:'flex-end'}} onClick={()=>!confirmando&&setConfirmar(null)}>
-          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(6px)'}}/>
-          <div onClick={e=>e.stopPropagation()} style={{position:'relative',width:'100%',maxWidth:390,margin:'0 auto',
-            background:'#fff',borderRadius:'24px 24px 0 0',maxHeight:'90vh',
-            display:'flex',flexDirection:'column',overflow:'hidden'}}>
-            <div style={{padding:'22px 18px 0'}}>
-              <h3 style={{fontSize:16,fontWeight:700,color:confirmar.perigo?RED:TEXT,margin:'0 0 10px'}}>{confirmar.titulo}</h3>
-            </div>
-            <div style={{flex:1,overflowY:'auto',padding:'0 18px 12px',WebkitOverflowScrolling:'touch' as any}}>
-              {confirmar.linhas.map((linha,i)=>(
-                <p key={i} style={{fontSize:13,color:TEXTLT,margin:'0 0 10px',lineHeight:1.5}}>{linha}</p>
-              ))}
-            </div>
-            <div style={{display:'flex',gap:8,padding:'12px 18px calc(16px + env(safe-area-inset-bottom, 12px))',
-              borderTop:'1px solid rgba(0,0,0,0.07)',background:'#fff',flexShrink:0}}>
-              <button onClick={()=>setConfirmar(null)} disabled={confirmando}
-                style={{flex:1,height:48,background:'#F5F5F7',color:TEXTLT,borderRadius:14,border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>
-                Cancelar
-              </button>
-              <button disabled={confirmando}
-                onClick={async()=>{
-                  setConfirmando(true)
-                  try{ await confirmar.onOk() } finally { setConfirmando(false); setConfirmar(null) }
-                }}
-                style={{flex:1,height:48,background:confirmar.perigo?RED:TERRA,color:'#fff',borderRadius:14,border:'none',
-                  fontSize:14,fontWeight:700,cursor:confirmando?'default':'pointer',opacity:confirmando?0.6:1}}>
-                {confirmando?'Aguarde...':confirmar.rotuloOk}
-              </button>
-            </div>
-          </div>
-        </div>
-        </ModalPortal>
-      )}
+      {modalConfirmar}
     </div>
   )
 
@@ -1561,6 +1565,7 @@ export default function Parametros() {
       <div style={{textAlign:'center',paddingTop:8}}>
         <p style={{fontSize:11,color:TEXTMU}}>Finanças L&N · Agosto 2026</p>
       </div>
+      {modalConfirmar}
     </div>
   )
 }
