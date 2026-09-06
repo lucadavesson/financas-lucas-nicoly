@@ -1431,7 +1431,7 @@ export default function Parametros() {
             <div style={{marginTop:12}}>
               <p style={{fontSize:11,color:TEXTMU,margin:'0 0 8px'}}>{dups.linhasConferidas} lançamentos conferidos</p>
 
-              {dups.totalARemover===0&&dups.grupos.length===0?(
+              {dups.totalARemover===0&&dups.resumoConferir.length===0?(
                 <p style={{fontSize:13,color:GREEN,fontWeight:600,margin:0}}>✓ Nenhuma duplicata</p>
               ):(
                 <>
@@ -1448,11 +1448,31 @@ export default function Parametros() {
                     </div>
                   ))}
 
-                  {dups.grupos.some(g=>g.protegidas.length>0)&&(
+                  {dups.grupos.some(g=>g.certeza==='duplicata'&&g.protegidas.length>0)&&(
                     <p style={{fontSize:11,color:'#B37700',background:'rgba(255,170,0,0.1)',borderRadius:8,padding:'8px 10px',margin:'0 0 8px',lineHeight:1.45}}>
                       Algumas linhas não serão apagadas porque têm pagamento registrado por você, com data própria.
                       Essas ficam para você conferir na mão.
                     </p>
+                  )}
+
+                  {dups.resumoConferir.length>0&&(
+                    <div style={{marginTop:dups.totalARemover>0?14:0}}>
+                      <p style={{fontSize:11,fontWeight:700,color:TEXTMU,textTransform:'uppercase',letterSpacing:'0.04em',margin:'0 0 6px'}}>
+                        Só para você conferir
+                      </p>
+                      <p style={{fontSize:11,color:TEXTLT,margin:'0 0 8px',lineHeight:1.45}}>
+                        Mesma descrição e mesma data, mas valores diferentes. Provavelmente são compras separadas
+                        (duas idas ao mercado, dois Ubers) — por isso o app <strong>não</strong> apaga nada aqui.
+                      </p>
+                      {dups.resumoConferir.map((r,i)=>(
+                        <div key={i} style={{background:'rgba(255,170,0,0.07)',borderRadius:10,padding:'9px 12px',marginBottom:6}}>
+                          <p style={{fontSize:12.5,fontWeight:600,color:TEXT,margin:0}}>{r.titulo}</p>
+                          <p style={{fontSize:11,color:TEXTLT,margin:'2px 0 0',lineHeight:1.45}}>
+                            {r.holder} · {rotuloMes(r.meses[0])} · {r.valores.map(v=>formatCurrency(v)).join(' · ')}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   )}
 
                   {dups.totalARemover>0&&(

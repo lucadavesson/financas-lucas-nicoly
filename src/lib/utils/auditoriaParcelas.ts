@@ -152,7 +152,10 @@ import { acharDuplicatas, resumirPorCompromisso, type GrupoDuplicado } from '@/l
 export type AuditoriaDup = {
   linhasConferidas: number
   grupos: GrupoDuplicado[]
+  /** Sem outra explicação — pode remover. */
   resumo: ReturnType<typeof resumirPorCompromisso>
+  /** Parece repetido mas pode ser compra separada — só aviso. */
+  resumoConferir: ReturnType<typeof resumirPorCompromisso>
   totalARemover: number
 }
 
@@ -169,7 +172,8 @@ export async function auditarDuplicatas(): Promise<AuditoriaDup> {
   return {
     linhasConferidas: linhas.length,
     grupos,
-    resumo: resumirPorCompromisso(grupos),
+    resumo: resumirPorCompromisso(grupos, 'duplicata'),
+    resumoConferir: resumirPorCompromisso(grupos, 'conferir'),
     totalARemover: grupos.reduce((s, g) => s + g.remover.length, 0),
   }
 }
