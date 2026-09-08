@@ -320,7 +320,14 @@ export default function Lancamentos() {
                   <p style={{ fontSize:12,color:TERRA,fontWeight:600,margin:0,textAlign:'center' }}>💳 Pago junto com a fatura do cartão</p>
                 </div>
               )}
-              <Link href={`/lancamentos/editar/${sel.id}`} onClick={()=>setSel(null)}
+              {/* Sem onClick fechando o modal: setSel(null) desativa o useBackGuard,
+                  que consome a entrada do histórico com history.back() — e esse
+                  voltar cancelava a navegação que o próprio Link tinha acabado de
+                  iniciar. O clique em Editar saía e voltava na mesma hora, e o
+                  lançamento parecia impossível de editar. Sair da rota já
+                  desmonta a tela, e a limpeza do hook tira a camada da pilha
+                  sem mexer no histórico. */}
+              <Link href={`/lancamentos/editar/${sel.id}`}
                 style={{ width:'100%',height:46,background:'rgba(0,0,0,0.03)',color:TEXT,fontWeight:600,fontSize:14,borderRadius:24,display:'flex',alignItems:'center',justifyContent:'center' }}>
                 ✏️ Editar
               </Link>

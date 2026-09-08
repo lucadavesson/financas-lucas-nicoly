@@ -13,6 +13,20 @@ import { useEffect, useRef } from 'react'
  * As camadas formam uma pilha (LIFO) com UM único ouvinte de popstate: se um
  * modal está aberto sobre uma seção, o gesto fecha só o modal. Se cada camada
  * registrasse o próprio ouvinte, um único gesto fecharia todas de uma vez.
+ *
+ * ⚠️ CUIDADO AO FECHAR A CAMADA JUNTO COM UMA NAVEGAÇÃO
+ * Desativar a camada faz o hook consumir a entrada do histórico com
+ * history.back(). Se isso acontecer no mesmo clique que navega para outra
+ * rota, o voltar cancela a navegação e o usuário fica onde estava.
+ *
+ * Foi o que quebrou o botão Editar do lançamento: o <Link> tinha um
+ * onClick={()=>setSel(null)} e o clique saía e voltava na mesma hora — dava a
+ * impressão de que não era mais possível editar nada.
+ *
+ * Então: ao navegar para outra tela, NÃO feche a camada na mão. Sair da rota
+ * já desmonta o componente, e a limpeza lá embaixo tira a camada da pilha sem
+ * encostar no histórico. Fechar na mão é só para Cancelar/X, que ficam na
+ * mesma tela.
  */
 type Camada = { id: number; fechar: () => void }
 
