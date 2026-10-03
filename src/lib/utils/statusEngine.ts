@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/client'
 import { format, addMonths, parseISO } from 'date-fns'
 import { calcBillingMonth } from '@/lib/utils'
-import { baseConsenso, mesesEntre, somaMesesData } from '@/lib/utils/parcelasCore'
+import { baseConsenso, mesesEntre, somaMesesData, statusPorMes } from '@/lib/utils/parcelasCore'
 
 /**
  * Corrige automaticamente o status de parcelas de compras parceladas cujo mês
@@ -27,6 +27,17 @@ export async function autoCorrigirStatusVencido(): Promise<{ corrigidas: number 
   // linhas no banco — senão parcelas de meses passados nem existem para corrigir
   // e a tela mostra "Futuro" sem data (bug do Vestido Noiva).
   await materializarParcelasFaltantes()
+
+  // Previsto → Pendente quando o mês da parcela chega. Antes o status só era
+  // gravado na criação e nunca andava: uma parcela salva como Previsto em
+  // setembro continuava Previsto em outubro, e parcelas do mesmo mês
+  // apareciam com status diferentes dependendo de quando foram lançadas.
+  const proximoMes = format(addMonths(new Date(`${mesHoje}-01T12:00:00`), 1), 'yyyy-MM-01')
+  await s.from('transactions')
+    .update({ status: 'Pendente' })
+    .eq('transaction_type', 'parcelada')
+    .eq('status', 'Previsto')
+    .lt('purchase_date', proximoMes)
 
   // Só compras parceladas — regras de conta avulsa/recorrente exigem confirmação manual
   const { data, error } = await s
@@ -217,9 +228,7 @@ export async function materializarParcelasFaltantes(): Promise<{ criadas: number
       const purchaseDate = format(dataParcela, 'yyyy-MM-dd')
       const mesParcela = format(dataParcela, 'yyyy-MM')
 
-      let status = 'Previsto'
-      if (mesParcela < mesHoje) status = 'Pago'
-      else if (mesParcela === mesHoje) status = 'Pendente'
+      const status = statusPorMes(mesParcela, mesHoje)
 
       const valor = modelo.installment_value || modelo.amount
 

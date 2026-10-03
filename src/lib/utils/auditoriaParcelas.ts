@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/client'
 import { format, parseISO } from 'date-fns'
 import { calcBillingMonth } from '@/lib/utils'
 import {
-  conferirGrupo, baseDaDescricao, totalDoGrupo, pagamentoFoiAutomatico,
+  conferirGrupo, baseDaDescricao, totalDoGrupo, pagamentoFoiAutomatico, statusPorMes,
   type LinhaParcela, type Problema,
 } from '@/lib/utils/parcelasCore'
 
@@ -131,7 +131,7 @@ export async function corrigirDatas(grupos: GrupoAuditado[]): Promise<{ corrigid
         // certa, vale a regra de mês — e um mês que ainda não chegou volta a
         // ser uma conta em aberto, não um pagamento inventado.
         const mes = p.paraData.slice(0, 7)
-        patch.status = mes < mesHoje ? 'Pago' : (mes === mesHoje ? 'Pendente' : 'Previsto')
+        patch.status = statusPorMes(mes, mesHoje)
         patch.paid_date = mes < mesHoje ? p.paraData : null
         patch.paid_amount = mes < mesHoje ? (linha.paid_amount ?? null) : null
       }

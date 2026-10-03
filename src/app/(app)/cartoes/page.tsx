@@ -78,53 +78,53 @@ export default function Cartoes() {
       return mesRef>=monthStart&&mesRef<=monthEnd
     })
 
-    // Para cada parcela, projetar em meses futuros
-    const jaAdicionado=new Set(txsDoMes.map((t:any)=>t.id))
+    // Projeção de parcelas que NÃO existem no banco (dado antigo, sem uma linha
+    // por parcela). Hoje toda compra parcelada grava todas as suas linhas, então
+    // quase nunca há o que projetar.
+    //
+    // Antes, cada linha projetava as parcelas seguintes pelo mês da COMPRA e só
+    // comparava com as linhas daquele mês de fatura. Como a fatura costuma cair
+    // no mês seguinte à compra, a parcela real (na fatura certa) não era
+    // encontrada e aparecia uma cópia "projetada" ao lado — e ainda uma
+    // projeção por linha de origem, o que multiplicava as cópias.
+    //
+    // Agora: só projeta se nenhuma linha real do grupo tem aquele número, no
+    // máximo uma projeção por parcela, e usa o mês de fatura como referência.
+    const chaveParcela=(t:any,num:number,total:number)=>{
+      const base=(t.description||'').replace(/\s*\(\d+\/\d+\)\s*$/,'').trim()
+      return `${base}|${t.holder||''}|${t.card_name||''}|${total}|${num}`
+    }
+    const infoParcela=(t:any)=>{
+      const m=t.description?.match(/\((\d+)\/(\d+)\)/)
+      if(m)return {num:parseInt(m[1]),total:parseInt(m[2])}
+      return {num:t.installment_num||t.installment_number||1,total:t.installment_total||t.total_installments||0}
+    }
+    const reais=new Set<string>()
     ;(txDataParc||[]).forEach((t:any)=>{
-      // Detectar parcela: pela descrição (X/Y) OU por campos installment
-      const match=t.description?.match(/\((\d+)\/(\d+)\)/)
-      let numAtual=0, total=0
-      
-      if(match){
-        numAtual=parseInt(match[1]); total=parseInt(match[2])
-      } else {
-        numAtual=t.installment_num||t.installment_number||1
-        total=t.installment_total||t.total_installments||0
-      }
-      
-      if(total<=1)return
-      if(t.payment_method!=='cartao_credito')return
-      
+      const {num,total}=infoParcela(t)
+      if(total>1&&t.payment_method==='cartao_credito')reais.add(chaveParcela(t,num,total))
+    })
+    const projetadas=new Set<string>()
+    ;(txDataParc||[]).forEach((t:any)=>{
+      const {num:numAtual,total}=infoParcela(t)
+      if(total<=1||t.payment_method!=='cartao_credito')return
+      const refMes=new Date((t.billing_month||t.purchase_date)+'T12:00:00')
       const dataParcela=new Date(t.purchase_date+'T12:00:00')
       const nomeBase=t.description.replace(/\s*\(\d+\/\d+\)$/,'').trim()
-
-      // Projetar parcelas futuras
       for(let i=1;i<=total-numAtual;i++){
-        const mesFuturo=format(addMonths(dataParcela,i),'yyyy-MM')
-        if(mesFuturo!==mesKey)continue
-        
         const numFuturo=numAtual+i
-        const novaDesc=`${nomeBase} (${numFuturo}/${total})`
-        const projId=t.id+'_proj_'+numFuturo
-        
-        // Verificar se já existe (por id ou nome similar)
-        if(jaAdicionado.has(projId))continue
-        const jaExisteNome=txsDoMes.some((x:any)=>{
-          const xBase=x.description.replace(/\s*\(\d+\/\d+\)$/,'').trim()
-          const xMatch=x.description.match(/\((\d+)\/(\d+)\)/)
-          return xBase===nomeBase && xMatch && parseInt(xMatch[1])===numFuturo
-        })
-        if(jaExisteNome)continue
-        
+        const k=chaveParcela(t,numFuturo,total)
+        if(reais.has(k)||projetadas.has(k))continue
+        if(format(addMonths(refMes,i),'yyyy-MM')!==mesKey)continue
+        projetadas.add(k)
         txsDoMes.push({
           ...t,
-          id:projId,
-          description:novaDesc,
+          id:t.id+'_proj_'+numFuturo,
+          description:`${nomeBase} (${numFuturo}/${total})`,
           purchase_date:format(addMonths(dataParcela,i),'yyyy-MM-dd'),
-          status:'Pendente',
+          status:'Previsto',
           _projected:true,
         })
-        jaAdicionado.add(projId)
       }
     })
 

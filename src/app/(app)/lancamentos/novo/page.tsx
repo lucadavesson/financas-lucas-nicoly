@@ -9,6 +9,7 @@ import { ChevronLeft, Loader2, Plus, X, ChevronDown } from 'lucide-react'
 import { format, parseISO, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Simulador from './simulador'
+import { statusPorMes } from '@/lib/utils/parcelasCore'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import {
   carregarRecorrentes, definirPrazo, mesAtual, mesDe, somaMeses, rotuloMes, chaveConta,
@@ -297,22 +298,17 @@ export default function NovoLancamento() {
           const purchaseDateP = format(dataParcela, 'yyyy-MM-dd')
           const bmP = format(calcBillingMonth(dataParcela, cardClosing[card] || 1), 'yyyy-MM-dd')
           
-          let statusP: string
+          // Status pela regra única (mês da parcela). Se informou quantas já
+          // foram pagas, essas contam como Pago; as demais seguem a regra do
+          // mês — antes só a "próxima" virava Pendente e o resto Previsto, mesmo
+          // com o mês já chegado, e por isso apareciam status diferentes.
           const nJaPagas = parseInt(jaPagas) || 0
+          let statusP: string = statusPorMes(format(dataParcela, 'yyyy-MM'), format(hoje, 'yyyy-MM'))
           if (jaPagas.trim() !== '') {
-            // Usuário informou explicitamente quantas já pagou (compra antiga) — tem prioridade
             if (p <= nJaPagas) statusP = 'Pago'
-            else if (p === nJaPagas + 1) statusP = 'Pendente'
-            else statusP = 'Previsto'
-          } else {
-            // Compra recente: calcula automaticamente pelo mês
-            const mesParcela = format(dataParcela, 'yyyy-MM')
-            const mesHoje = format(hoje, 'yyyy-MM')
-            statusP = 'Pendente'
-            if (mesParcela < mesHoje) statusP = 'Pago'
-            else if (mesParcela > mesHoje) statusP = 'Previsto'
+            else if (statusP === 'Pago') statusP = 'Pendente' // disse que não pagou
           }
-          
+
           const { error } = await supabase.from('transactions').insert({
             owner_id:user.id, owner_name:ownerName, holder, transaction_type:'parcelada', type:'Despesa',
             description:`${desc} (${p}/${nParcelas})`, amount:iVal, category:cat, subcategory:subcat||null,

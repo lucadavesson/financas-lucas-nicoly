@@ -9,6 +9,7 @@ import { ptBR } from 'date-fns/locale'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
+import { statusPorMes } from '@/lib/utils/parcelasCore'
 
 // A partir de quantas parcelas um parcelamento conta como "financiamento longo"
 // (imóvel, consórcio). 24 = 2 anos.
@@ -42,10 +43,7 @@ export default function Parcelamentos() {
     let corrigidas = 0
     for (const p of grupo.parcelas) {
       const mesParcela = p.purchase_date.slice(0, 7)
-      let novoStatus: string
-      if (mesParcela < mesHoje) novoStatus = 'Pago'
-      else if (mesParcela === mesHoje) novoStatus = 'Pendente'
-      else novoStatus = 'Previsto'
+      const novoStatus: string = statusPorMes(mesParcela, mesHoje)
 
       // Só atualiza se estiver errado, sem sobrescrever pagamentos/cancelamentos reais
       if (p.status === novoStatus) continue

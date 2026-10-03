@@ -67,6 +67,22 @@ export function mesesEntre(a: string, b: string): number {
 
 /* ── Identidade da parcela ─────────────────────────────────────── */
 
+/**
+ * REGRA ÚNICA do status de uma parcela, decidida pelo MÊS da parcela
+ * (yyyy-MM), nunca pelo dia:
+ *   mês < mês atual  → 'Pago'
+ *   mês = mês atual  → 'Pendente'
+ *   mês > mês atual  → 'Previsto'
+ * Antes esta conta estava copiada em cinco lugares (novo lançamento, motor de
+ * status, Parcelamentos, materialização e auditoria) e cada cópia podia
+ * divergir das outras.
+ */
+export function statusPorMes(mesParcela: string, mesHoje: string): 'Pago' | 'Pendente' | 'Previsto' {
+  if (mesParcela < mesHoje) return 'Pago'
+  if (mesParcela === mesHoje) return 'Pendente'
+  return 'Previsto'
+}
+
 export function baseDaDescricao(desc: string): string {
   return (desc || '').replace(/\s*\(\d+\/\d+\)\s*$/, '').trim()
 }
