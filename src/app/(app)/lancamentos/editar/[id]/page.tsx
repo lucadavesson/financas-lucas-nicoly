@@ -27,6 +27,8 @@ export default function EditarLancamento(){
   const [valRaw,setValRaw]=useState('')
   const [instValRaw,setInstValRaw]=useState('')
   const [paidAmountRaw,setPaidAmountRaw]=useState('')
+  // Em parcela de um parcelamento: até onde a mudança de valor se aplica
+  const [escopo,setEscopo]=useState<'esta'|'daqui'|'todas'>('daqui')
 
   useEffect(()=>{
     load()
@@ -56,7 +58,9 @@ export default function EditarLancamento(){
       // por engano (já vimos isso acontecer neste app). Se o nome TEM essa
       // referência, ela sai do campo de qualquer forma; o tipo não importa.
       setForm({...data,description:mDesc?nomeBase:data.description})
-      setValRaw(maskCurrency(Math.round((data.amount||0)*100).toString()))
+      const ehParcelado=!!mDesc||data.transaction_type==='parcelada'
+      const valorExibido=ehParcelado?(data.installment_value||data.amount||0):(data.amount||0)
+      setValRaw(maskCurrency(Math.round(valorExibido*100).toString()))
       if(data.installment_value){setInstValRaw(maskCurrency(Math.round(data.installment_value*100).toString()))}
       if(data.paid_amount){setPaidAmountRaw(maskCurrency(Math.round(data.paid_amount*100).toString()))}
     }
@@ -85,6 +89,7 @@ export default function EditarLancamento(){
     }
     setSaving(true)
     const amount=unmaskCurrency(valRaw)||parseFloat(form.amount)||0
+    const ehParcelado=!!(tx?.description||'').match(/\((\d+)\/(\d+)\)$/)||form.transaction_type==='parcelada'
     // O campo só guarda o nome base ("Moto"); o "(7/12)" volta a ser
     // costurado aqui na hora de salvar, com o número FIXO desta parcela e o
     // total ATUAL do campo "Nº de parcelas" (que pode ter sido corrigido).
@@ -109,7 +114,7 @@ export default function EditarLancamento(){
       notes:form.notes||null,
       paid_amount:paidAmountRaw?unmaskCurrency(paidAmountRaw):null,
       paid_date:form.paid_date||null,
-      installment_value:instValRaw?unmaskCurrency(instValRaw):null,
+      installment_value:ehParcelado?amount:(instValRaw?unmaskCurrency(instValRaw):null),
       installment_total:form.installment_total?parseInt(form.installment_total):null,
       is_recurring:form.transaction_type==='recorrente',
       recurring_day:form.transaction_type==='recorrente'?(form.recurring_day||null):null,
@@ -124,7 +129,6 @@ export default function EditarLancamento(){
       const s=createClient()
       const irmas=(await buscarIrmas(s,tx)).filter(l=>l.id!==id)
       const nomeBase=(form.description||'').trim()
-      const instVal=instValRaw?unmaskCurrency(instValRaw):amount
       for(const l of irmas){
         const suf=sufixoDaParcela(l.description||'')
         if(!suf)continue
@@ -138,13 +142,16 @@ export default function EditarLancamento(){
           payment_method:form.payment_method||null,
           installment_total:form.installment_total?parseInt(form.installment_total):null,
         }
-        if(l.status!=='Pago'){campos.amount=amount;campos.installment_value=instVal}
+        // Valor: só nas parcelas dentro do escopo escolhido. Parcela já paga
+        // com valor real (paid_amount) mantém o que foi de fato pago.
+        const dentro=escopo==='todas'||(escopo==='daqui'&&suf.num>(numParcela||0))
+        if(dentro){campos.amount=amount;campos.installment_value=amount}
         const {error:e2}=await s.from('transactions').update(campos).eq('id',l.id)
         if(e2){toast.error(`Parcela ${suf.num} não atualizou: ${e2.message}`);setSaving(false);return}
         nIrmas++
       }
     }
-    toast.success(nIrmas>0?`Salvo! Aplicado também às outras ${nIrmas} parcelas.`:'Salvo!')
+    toast.success(nIrmas>0?`Salvo! Nome e dados aplicados às ${nIrmas} outras parcelas${escopo==='esta'?'; o valor só nesta.':escopo==='daqui'?'; o valor daqui para frente.':'; o valor em todas.'}`:'Salvo!')
     router.push('/lancamentos')
   }
 
@@ -308,13 +315,32 @@ export default function EditarLancamento(){
 
         {/* Valor */}
         <div>
-          <label style={lbl}>Valor (R$)</label>
+          <label style={lbl}>{(ehParcelaDeGrupo||form.transaction_type==='parcelada')?'Valor da parcela (R$)':'Valor (R$)'}</label>
           <div style={{position:'relative'}}>
             <span style={{position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',fontSize:14,color:TEXTMU,fontWeight:600}}>R$</span>
             <input type="text" inputMode="numeric" value={valRaw}
               onChange={e=>setValRaw(maskCurrency(e.target.value))}
               required style={{...inp,paddingLeft:40,fontSize:18,fontWeight:700,color:isReceita?GREEN:'#FF3B30'}}/>
           </div>
+          {ehParcelaDeGrupo&&(
+            <div style={{marginTop:10}}>
+              <p style={{fontSize:11,color:TEXTMU,margin:'0 0 6px'}}>Aplicar a mudança de valor em:</p>
+              <div style={{display:'grid',gridTemplateColumns:'1fr',gap:6}}>
+                {([
+                  ['esta',`Só esta parcela (${numParcela}/${totalParcelasAtual})`],
+                  ['daqui',`Esta e as próximas (${numParcela} a ${totalParcelasAtual})`],
+                  ['todas','Todas as parcelas (inclui as já pagas)'],
+                ] as const).map(([k,txt])=>(
+                  <button key={k} type="button" onClick={()=>setEscopo(k)}
+                    style={{textAlign:'left',padding:'10px 12px',borderRadius:12,fontSize:13,cursor:'pointer',
+                      border:`1.5px solid ${escopo===k?TERRA:'rgba(0,0,0,0.1)'}`,
+                      background:escopo===k?'rgba(196,98,45,0.08)':'#fff',color:'#1C1C1E',fontWeight:escopo===k?700:500}}>
+                    {escopo===k?'● ':'○ '}{txt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Data */}
@@ -331,19 +357,10 @@ export default function EditarLancamento(){
 
         {/* Campos de parcelamento (quando tipo=parcelada) */}
         {form.transaction_type==='parcelada'&&(
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr',gap:10}}>
             <div>
               <label style={lbl}>Nº de parcelas</label>
               <input type="number" value={form.installment_total||form.total_installments||''} onChange={e=>sf('installment_total',parseInt(e.target.value)||null)} style={inp} min="2" max="600"/>
-            </div>
-            <div>
-              <label style={lbl}>Valor da parcela</label>
-              <div style={{position:'relative'}}>
-                <span style={{position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',fontSize:13,color:TEXTMU,fontWeight:600}}>R$</span>
-                <input type="text" inputMode="numeric" value={instValRaw}
-                  onChange={e=>setInstValRaw(maskCurrency(e.target.value))}
-                  style={{...inp,paddingLeft:38}} placeholder="Calc. automático"/>
-              </div>
             </div>
           </div>
         )}
@@ -459,7 +476,7 @@ export default function EditarLancamento(){
               </div>
             </div>
             {(()=>{
-              const valorOriginal = instValRaw ? unmaskCurrency(instValRaw) : unmaskCurrency(valRaw)
+              const valorOriginal = unmaskCurrency(valRaw) || (instValRaw ? unmaskCurrency(instValRaw) : 0)
               const valorPago = unmaskCurrency(paidAmountRaw)
               const desconto = valorOriginal - valorPago
               if (valorPago > 0 && desconto > 0.01 && desconto < valorOriginal) {

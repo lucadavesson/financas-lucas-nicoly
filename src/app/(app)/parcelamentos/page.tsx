@@ -157,7 +157,15 @@ export default function Parcelamentos() {
       const linhaDe = new Map<number,Tx>()
       comNum.forEach(x=>{ if(!linhaDe.has(x.n)) linhaDe.set(x.n,x.p) })
 
-      // Cada parcela, exista linha no banco ou não
+      // Valor de referência para parcelas que não têm linha no banco: o da
+      // linha de MAIOR número. Quando o valor é alterado "dessa parcela para
+      // frente", é ele que vale para o resto do parcelamento. Antes todas as
+      // parcelas mostravam o valor da primeira linha lida, e editar uma
+      // parcela parecia mudar o parcelamento inteiro nesta tela.
+      const ultima = comNum.length>0 ? comNum.reduce((a,b)=>a.n>=b.n?a:b).p : null
+      const valorRef = ultima ? (ultima.installment_value || ultima.amount) : g.valorParcela
+
+      // Cada parcela, exista linha no banco ou não. Cada uma com o SEU valor.
       const cronograma = Array.from({length:g.totalParcelas},(_,i)=>{
         const num = i+1
         const linha = linhaDe.get(num)
@@ -165,13 +173,18 @@ export default function Parcelamentos() {
         const mes = format(data,'yyyy-MM')
         // Sem linha, vale a regra de mês: mês passado conta como pago
         const pago = linha ? linha.status==='Pago' : mes < mesAgora
-        const valor = linha ? (linha.paid_amount || linha.installment_value || linha.amount) : g.valorParcela
+        const valor = linha
+          ? (pago ? (linha.paid_amount || linha.installment_value || linha.amount) : (linha.installment_value || linha.amount))
+          : valorRef
         return { num, data, mes, pago, valor, temLinha: !!linha }
       })
 
       const pagas = cronograma.filter(c=>c.pago).length
       const valorPago = cronograma.filter(c=>c.pago).reduce((sum,c)=>sum+c.valor,0)
-      const valorFalta = cronograma.filter(c=>!c.pago).reduce((sum,c)=>sum+g.valorParcela,0)
+      const valorFalta = cronograma.filter(c=>!c.pago).reduce((sum,c)=>sum+c.valor,0)
+      // Valor "do mês": o da próxima parcela em aberto (ou o da última)
+      const valorParcela = (cronograma.find(c=>!c.pago) || cronograma[cronograma.length-1])?.valor ?? g.valorParcela
+      const valorTotal = cronograma.reduce((sum,c)=>sum+c.valor,0)
       const mesQuitacao = cronograma[cronograma.length-1]?.data || base1
       const proxima = cronograma.find(c=>!c.pago) || null
 
@@ -181,12 +194,12 @@ export default function Parcelamentos() {
       // e abaixo da soma de todas. Sem isso, não afirmamos nada sobre juros.
       const candidatos = g.parcelas
         .map(p=>p.amount||0)
-        .filter(v=>v > g.valorParcela*1.5 && v < g.valorTotal-0.01)
+        .filter(v=>v > valorParcela*1.5 && v < valorTotal-0.01)
       const valorCompra = candidatos.length>0 ? Math.max(...candidatos) : null
-      const juros = valorCompra ? g.valorTotal - valorCompra : 0
+      const juros = valorCompra ? valorTotal - valorCompra : 0
       const pctJuros = valorCompra && valorCompra>0 ? (juros/valorCompra)*100 : 0
 
-      return { ...g, base1, cronograma, pagas, valorPago, valorFalta, mesQuitacao, proxima, valorCompra, juros, pctJuros }
+      return { ...g, valorParcela, valorTotal, base1, cronograma, pagas, valorPago, valorFalta, mesQuitacao, proxima, valorCompra, juros, pctJuros }
     })
   }, [txs])
 
@@ -242,7 +255,7 @@ export default function Parcelamentos() {
 
     // Quanto sai de parcela neste mês e daqui a 6 meses — o alívio em uma frase
     const somaDoMes=(mes:string)=>gruposNoEscopo.reduce((sum,g)=>
-      sum+g.cronograma.filter(c=>c.mes===mes&&!c.pago).length*g.valorParcela,0)
+      sum+g.cronograma.filter(c=>c.mes===mes&&!c.pago).reduce((ss,c)=>ss+c.valor,0),0)
     const agora=somaDoMes(mesAtual)
     const daquiSeis=somaDoMes(format(addMonths(new Date(),5),'yyyy-MM'))
     if(agora>0){
@@ -534,7 +547,7 @@ export default function Parcelamentos() {
                               </p>
                             </div>
                             <div style={{textAlign:'right'}}>
-                              <p style={{fontSize:12,fontWeight:600,color:statusFinal?GREEN:isFutura?TEXTMU:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(g.valorParcela)}</p>
+                              <p style={{fontSize:12,fontWeight:600,color:statusFinal?GREEN:isFutura?TEXTMU:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(g.cronograma[i]?.valor ?? g.valorParcela)}</p>
                             </div>
                           </div>
                         )
@@ -542,7 +555,7 @@ export default function Parcelamentos() {
                     </div>
                     <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0 0',marginTop:4}}>
                       <p style={{fontSize:12,fontWeight:600,color:TEXTMU,margin:0}}>Restam {total-pagas} parcela{total-pagas!==1?'s':''}</p>
-                      <p style={{fontSize:13,fontWeight:700,color:RED,margin:0}}>{formatCurrency((total-pagas)*g.valorParcela)}</p>
+                      <p style={{fontSize:13,fontWeight:700,color:RED,margin:0}}>{formatCurrency(g.valorFalta)}</p>
                     </div>
                     {!finalizada&&(
                       <button onClick={(e)=>{e.stopPropagation();setAntecipando(g)}}
