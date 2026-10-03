@@ -115,7 +115,6 @@ export default function NovoLancamento() {
   const [installments, setInst] = useState('')
   // Em compra parcelada, às vezes se sabe o valor total, às vezes só o da
   // parcela. O campo dizia sempre "Valor total", o que confundia.
-  const [modoValor, setModoValor] = useState<'total'|'parcela'>('total')
   const [jaPagas, setJaPagas] = useState('')
   const [instRaw, setInstRaw]   = useState('')
   const [hasEntry, setHasEntry] = useState(false)
@@ -156,7 +155,6 @@ export default function NovoLancamento() {
     setAmountRaw(''); setDesc(''); setCat(''); setSubcat('')
     setDate(format(new Date(),'yyyy-MM-dd')); setNotes('')
     setInst(''); setInstRaw(''); setHasEntry(false); setEntryRaw('')
-    setModoValor('total')
     setRecTipo(''); setRecItem(''); setRecDay('')
     setRecIsRec(false)
   }
@@ -169,10 +167,15 @@ export default function NovoLancamento() {
   // Juros só existem quando sabemos as DUAS pontas: o preço da compra e o valor
   // real cobrado por parcela. No modo "sei o valor da parcela" não há preço de
   // compra para comparar, então não afirmamos nada sobre juros.
-  const sabeAsDuasPontas = modoValor === 'total' && amount > 0 && instValue > 0 && nParcelas > 0
+  const sabeAsDuasPontas = amount > 0 && instValue > 0 && nParcelas > 0
   const totalPago    = sabeAsDuasPontas ? instValue * nParcelas : 0
   const totalJuros   = sabeAsDuasPontas ? Math.max(0, totalPago - (amount - entryAmt)) : 0
   const pctJuros     = (amount - entryAmt) > 0 && totalJuros > 0 ? (totalJuros / (amount - entryAmt) * 100) : 0
+  // Parcelas somando MENOS que o preço do produto: não é juros, é sinal de que um dos números está errado
+  const somaMenorQuePreco = sabeAsDuasPontas && totalPago < (amount - entryAmt) - 0.01
+  // O que não foi digitado é calculado a partir do que foi
+  const parcelaCalculada = amount > 0 && nParcelas > 0 ? (amount - entryAmt) / nParcelas : 0
+  const totalCalculado   = instValue > 0 && nParcelas > 0 ? instValue * nParcelas : 0
 
   const billingMonth = tipo === 'parcelada' && date && card
     ? calcBillingMonth(parseISO(date), cardClosing[card] || 1)
@@ -223,14 +226,14 @@ export default function NovoLancamento() {
     // Em compra parcelada o valor pode ter sido informado como total OU como
     // valor da parcela — validar sempre `amount` rejeitava o segundo caso.
     const temValor = tipo === 'parcelada'
-      ? (modoValor === 'total' ? amount > 0 : instValue > 0 && nParcelas > 0)
+      ? (amount > 0 || instValue > 0)
       : amount > 0
 
     // Uma mensagem por campo: "preencha todos os campos obrigatórios" não diz
     // qual está faltando, e dado incompleto entrando é o que gera os
     // lançamentos órfãos que aparecem errado nas outras telas.
     if (!desc.trim()) { toast.error('Informe a descrição'); return }
-    if (!temValor) { toast.error(tipo === 'parcelada' && modoValor === 'parcela' ? 'Informe o valor da parcela' : 'Informe o valor'); return }
+    if (!temValor) { toast.error(tipo === 'parcelada' ? 'Informe o valor da parcela ou o total do produto' : 'Informe o valor'); return }
     if (!cat && tipo !== 'recorrente') { toast.error('Escolha a categoria'); return }
     if (!date) { toast.error('Informe a data'); return }
 
@@ -282,9 +285,8 @@ export default function NovoLancamento() {
 
     try {
       if (tipo === 'parcelada') {
-        const iVal = modoValor === 'parcela'
-          ? instValue
-          : (instValue > 0 ? instValue : (amount - entryAmt) / (nParcelas || 1))
+        // Parcela informada manda; sem ela, divide o total (menos a entrada)
+        const iVal = instValue > 0 ? instValue : (amount - entryAmt) / (nParcelas || 1)
         const hoje = new Date()
         const dataCompra = parseISO(date)
         
@@ -642,62 +644,46 @@ export default function NovoLancamento() {
               </p>
             )}
           </div>
-          {/* Qual valor você tem em mãos? */}
-          <div>
-            <label style={S.lbl}>Você sabe qual valor?</label>
-            <div style={{display:'flex',gap:8}}>
-              <button type="button" onClick={()=>setModoValor('total')} style={S.seg(modoValor==='total')}>
-                O total da compra
-              </button>
-              <button type="button" onClick={()=>setModoValor('parcela')} style={S.seg(modoValor==='parcela')}>
-                O valor da parcela
-              </button>
-            </div>
-          </div>
-
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+          {/* Os três números juntos: preencha o que souber, o resto é calculado */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
             <div>
-              <label style={S.lbl}>Nº de parcelas<Obrig/></label>
+              <label style={S.lbl}>Parcelas<Obrig/></label>
               <input type="number" value={installments} onChange={e=>setInst(e.target.value)}
-                placeholder="Ex: 12" style={S.inp} min="2"/>
+                placeholder="10" style={S.inp} min="2"/>
             </div>
-            {modoValor==='total'?(
-              <div>
-                <label style={S.lbl}>Valor total da compra<Obrig/></label>
-                <input type="text" inputMode="numeric" value={amountRaw}
-                  onChange={e=>setAmountRaw(formatMoneyInput(e.target.value))}
-                  placeholder="R$ 0,00" style={S.inp}/>
-              </div>
-            ):(
-              <div>
-                <label style={S.lbl}>Valor de cada parcela<Obrig/></label>
-                <input type="text" inputMode="numeric" value={instRaw}
-                  onChange={e=>setInstRaw(formatMoneyInput(e.target.value))}
-                  placeholder="R$ 0,00" style={S.inp}/>
-              </div>
-            )}
-          </div>
-
-          {/* Opcional: se a loja cobrou juros, a parcela real é maior que total/n */}
-          {modoValor==='total'&&nParcelas>0&&amount>0&&(
             <div>
-              <label style={S.lbl}>Valor real da parcela (opcional)</label>
+              <label style={S.lbl}>Valor da parcela</label>
               <input type="text" inputMode="numeric" value={instRaw}
                 onChange={e=>setInstRaw(formatMoneyInput(e.target.value))}
-                placeholder="Só se a loja cobrou juros" style={S.inp}/>
-              <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
-                Deixe em branco se as parcelas são o total dividido igualmente. Preenchendo, o app calcula os juros embutidos.
+                placeholder={parcelaCalculada>0?parcelaCalculada.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'R$ 0,00'}
+                style={S.inp}/>
+            </div>
+            <div>
+              <label style={S.lbl}>Total do produto</label>
+              <input type="text" inputMode="numeric" value={amountRaw}
+                onChange={e=>setAmountRaw(formatMoneyInput(e.target.value))}
+                placeholder={totalCalculado>0?totalCalculado.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'R$ 0,00'}
+                style={S.inp}/>
+            </div>
+          </div>
+          <p style={{fontSize:11,color:'#8E8E93',margin:'-4px 0 0'}}>
+            Preencha o que souber. Se informar a parcela e o total do produto, o app mostra se houve juros.
+          </p>
+
+          {/* O que faltou, calculado */}
+          {nParcelas>0&&(amount>0||instValue>0)&&(
+            <div style={{background:'rgba(0,0,0,0.03)',borderRadius:12,padding:'10px 14px'}}>
+              <p style={{fontSize:12,color:'#48484A',margin:0}}>
+                {instValue>0
+                  ? <>{nParcelas}x de <strong>{instValue.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong> — total a pagar <strong>{totalCalculado.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong></>
+                  : <>Cada parcela fica em <strong>{parcelaCalculada.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong> — {nParcelas}x</>}
               </p>
             </div>
           )}
-
-          {/* O outro valor, calculado */}
-          {nParcelas>0&&(modoValor==='total'?amount>0:instValue>0)&&(
-            <div style={{background:'rgba(0,0,0,0.03)',borderRadius:12,padding:'10px 14px'}}>
-              <p style={{fontSize:12,color:'#48484A',margin:0}}>
-                {modoValor==='total'
-                  ? <>Cada parcela fica em <strong>{((amount-entryAmt)/nParcelas).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong> — {nParcelas}x</>
-                  : <>O total da compra fica em <strong>{(instValue*nParcelas).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong> — {nParcelas}x de {instValue.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</>}
+          {somaMenorQuePreco&&(
+            <div style={{background:'rgba(255,149,0,0.12)',borderRadius:12,padding:'10px 14px'}}>
+              <p style={{fontSize:12,color:'#8A5A00',margin:0}}>
+                As parcelas somam {totalPago.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}, menos que o total do produto. Confira os valores.
               </p>
             </div>
           )}
