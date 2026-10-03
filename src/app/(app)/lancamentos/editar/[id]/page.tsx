@@ -3,10 +3,11 @@ import { format, parseISO, addMonths } from 'date-fns'
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { CATS_DESPESA, CATS_RECEITA, SUBCATS, maskCurrency, unmaskCurrency, formatCurrency } from '@/lib/utils'
+import { CATS_DESPESA, CATS_RECEITA, SUBCATS, maskCurrency, unmaskCurrency, formatCurrency, calcBillingMonth } from '@/lib/utils'
 import { ChevronLeft, Loader2, Trash2, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { buscarIrmas, apagarParcelamento, sufixoDaParcela } from '@/lib/utils/parcelamentoGrupo'
+import { baseConsenso, statusPorMes, pagamentoFoiAutomatico } from '@/lib/utils/parcelasCore'
 
 const BG='#F5F5F7',TEXT='#1C1C1E',TEXTMU='#8E8E93',TERRA='#C4622D',GREEN='#34C759'
 
@@ -29,6 +30,9 @@ export default function EditarLancamento(){
   const [paidAmountRaw,setPaidAmountRaw]=useState('')
   // Em parcela de um parcelamento: até onde a mudança de valor se aplica
   const [irmas,setIrmas]=useState<any[]>([])
+  // Parcelamento: a data que se edita é a da COMPRA (parcela 1); as datas de cada parcela derivam dela
+  const [dataCompra,setDataCompra]=useState('')
+  const [dataCompraInicial,setDataCompraInicial]=useState('')
   const [totalProdRaw,setTotalProdRaw]=useState('')
   const [escopo,setEscopo]=useState<'esta'|'daqui'|'todas'>('daqui')
 
@@ -66,6 +70,10 @@ export default function EditarLancamento(){
       if(mDesc){
         const ir=await buscarIrmas(s,data)
         setIrmas(ir)
+        const numAqui=parseInt(mDesc[1])
+        const consenso=baseConsenso(ir as any)
+        const dc=consenso||format(addMonths(parseISO(data.purchase_date),-(numAqui-1)),'yyyy-MM-dd')
+        setDataCompra(dc); setDataCompraInicial(dc)
         if(!(data.notes||'').trim()){
           const n=ir.find((l:any)=>(l.notes||'').trim())?.notes
           if(n)setForm((f:any)=>({...f,notes:n}))
@@ -83,6 +91,13 @@ export default function EditarLancamento(){
 
   function sf(k:string,v:any){setForm((f:any)=>({...f,[k]:v}))}
 
+  // Dia de fechamento do cartão (o card_name pode ser "Nome" ou "Nome — Titular")
+  function fechamentoDe(nome?:string|null):number{
+    if(!nome)return 1
+    const c=cards.find((x:any)=>x.name===nome||`${x.name} — ${x.holder}`===nome)
+    return c?.closing_day||1
+  }
+
   async function save(e:React.FormEvent){
     e.preventDefault()
     // A edição não validava nada: dava pra apagar a descrição, zerar o valor ou
@@ -91,7 +106,7 @@ export default function EditarLancamento(){
     const valorEditado=unmaskCurrency(valRaw)||parseFloat(form.amount)||0
     if(valorEditado<=0){toast.error('Informe o valor');return}
     if(!(form.category||'').trim()){toast.error('Escolha a categoria');return}
-    if(!form.purchase_date){toast.error('Informe a data');return}
+    if(!(ehParcelaDeGrupo?(dataCompra||form.purchase_date):form.purchase_date)){toast.error('Informe a data');return}
     if(form.payment_method==='cartao_credito'&&!(form.card_name||'').trim()){
       toast.error('Escolha o cartão de crédito')
       return
@@ -111,6 +126,33 @@ export default function EditarLancamento(){
     const descricaoFinal=ehParcelaDeGrupo
       ? `${(form.description||'').trim()} (${numParcela}/${totalParcelasAtual})`
       : (form.description||'').trim()
+    // ── Datas ────────────────────────────────────────────────────────────
+    // Parcelamento: o campo é a data da COMPRA. Mudou → todas as parcelas
+    // andam junto (parcela n = compra + (n-1) meses) e a fatura de cada uma é
+    // recalculada. Lançamento comum: a data é a própria, e se for no crédito a
+    // fatura acompanha a data e o cartão.
+    const mesHoje=format(new Date(),'yyyy-MM')
+    const mudouData=ehParcelaDeGrupo
+      ? !!dataCompra&&dataCompra!==dataCompraInicial
+      : form.purchase_date!==tx?.purchase_date
+    const mudouCartao=(form.card_name||null)!==(tx?.card_name||null)
+    const noCredito=form.payment_method==='cartao_credito'
+    const dataDestaLinha=(ehParcelaDeGrupo&&mudouData)
+      ? format(addMonths(parseISO(dataCompra),(numParcela||1)-1),'yyyy-MM-dd')
+      : form.purchase_date
+    const patchFatura:any={}
+    if(noCredito&&(mudouData||mudouCartao)){
+      patchFatura.billing_month=format(calcBillingMonth(parseISO(dataDestaLinha),fechamentoDe(form.card_name)),'yyyy-MM-dd')
+    }
+    // Se o status não foi mexido na tela e a data mudou, ele segue a regra do mês
+    let statusEdit=(form.payment_method==='cartao_credito'&&form.transaction_type!=='parcelada')?'Pendente':form.status
+    const patchPagto:any={}
+    if(ehParcelaDeGrupo&&mudouData&&form.status===tx?.status&&form.status!=='Cancelado'&&(form.status!=='Pago'||pagamentoFoiAutomatico(tx))){
+      statusEdit=statusPorMes(dataDestaLinha.slice(0,7),mesHoje)
+      if(statusEdit!=='Pago'){patchPagto.paid_date=null;patchPagto.paid_amount=null}
+      else{patchPagto.paid_date=dataDestaLinha}
+    }
+
     const {error}=await createClient().from('transactions').update({
       holder:form.holder,
       owner_name:(form.holder==='Prata'?'Lucas':form.holder)||'Lucas',
@@ -120,10 +162,10 @@ export default function EditarLancamento(){
       amount,
       category:form.category,
       subcategory:form.subcategory||null,
-      purchase_date:form.purchase_date,
+      purchase_date:dataDestaLinha,
       payment_method:form.payment_method||null,
       card_name:form.card_name||null,
-      status:(form.payment_method==='cartao_credito'&&form.transaction_type!=='parcelada')?'Pendente':form.status,
+      status:statusEdit,
       notes:form.notes||null,
       paid_amount:paidAmountRaw?unmaskCurrency(paidAmountRaw):null,
       paid_date:form.paid_date||null,
@@ -131,6 +173,8 @@ export default function EditarLancamento(){
       installment_total:form.installment_total?parseInt(form.installment_total):null,
       is_recurring:form.transaction_type==='recorrente',
       recurring_day:form.transaction_type==='recorrente'?(form.recurring_day||null):null,
+      ...patchFatura,
+      ...patchPagto,
     }).eq('id',id)
     if(error){toast.error(`Erro: ${error.message}`);setSaving(false);return}
 
@@ -160,6 +204,27 @@ export default function EditarLancamento(){
         // com valor real (paid_amount) mantém o que foi de fato pago.
         const dentro=escopo==='todas'||(escopo==='daqui'&&suf.num>(numParcela||0))
         if(dentro){campos.amount=amount;campos.installment_value=amount}
+
+        // Data da compra mudou: cada parcela vai para compra + (n-1) meses.
+        // Parcela paga de verdade (pagamento registrado por você) mantém o
+        // status e a fatura em que foi paga; só a data acompanha.
+        if(mudouData){
+          const dataN=addMonths(parseISO(dataCompra),suf.num-1)
+          const dataNStr=format(dataN,'yyyy-MM-dd')
+          campos.purchase_date=dataNStr
+          const pagoDeVerdade=l.status==='Pago'&&!pagamentoFoiAutomatico(l as any)
+          if(noCredito&&!pagoDeVerdade){
+            campos.billing_month=format(calcBillingMonth(dataN,fechamentoDe(form.card_name)),'yyyy-MM-dd')
+          }
+          if(!pagoDeVerdade&&l.status!=='Cancelado'){
+            const novoSt=statusPorMes(dataNStr.slice(0,7),mesHoje)
+            campos.status=novoSt
+            campos.paid_date=novoSt==='Pago'?dataNStr:null
+            campos.paid_amount=novoSt==='Pago'?(l.installment_value||l.amount||amount):null
+          }
+        } else if(mudouCartao&&noCredito&&!(l.status==='Pago'&&!pagamentoFoiAutomatico(l as any))){
+          campos.billing_month=format(calcBillingMonth(parseISO(l.purchase_date),fechamentoDe(form.card_name)),'yyyy-MM-dd')
+        }
         const {error:e2}=await s.from('transactions').update(campos).eq('id',l.id)
         if(e2){toast.error(`Parcela ${suf.num} não atualizou: ${e2.message}`);setSaving(false);return}
         nIrmas++
@@ -390,12 +455,15 @@ export default function EditarLancamento(){
 
         {/* Data */}
         <div>
-          <label style={lbl}>{ehParcelaDeGrupo?'Data desta parcela':'Data da compra'}</label>
-          <input type="date" value={form.purchase_date||''} onChange={e=>sf('purchase_date',e.target.value)} required style={{...inp,WebkitAppearance:'none' as any,maxWidth:'100%'}}/>
+          <label style={lbl}>Data da compra</label>
+          <input type="date"
+            value={ehParcelaDeGrupo?(dataCompra||(dataCompraOriginal?format(dataCompraOriginal,'yyyy-MM-dd'):'')):(form.purchase_date||'')}
+            onChange={e=>ehParcelaDeGrupo?setDataCompra(e.target.value):sf('purchase_date',e.target.value)}
+            required style={{...inp,WebkitAppearance:'none' as any,maxWidth:'100%'}}/>
           {ehParcelaDeGrupo&&(
             <p style={{fontSize:11,color:TEXTMU,margin:'6px 0 0'}}>
-              Essa é a data em que a parcela {numParcela} cai, não a data da compra em si.
-              {dataCompraOriginal&&<> A compra foi feita em <strong>{format(dataCompraOriginal,'dd/MM/yyyy')}</strong>.</>}
+              Mudando a data, todas as {totalParcelasAtual} parcelas e as faturas acompanham.
+              {dataCompra&&numParcela&&<> A parcela {numParcela} cai em <strong>{format(addMonths(parseISO(dataCompra),numParcela-1),'dd/MM/yyyy')}</strong>.</>}
             </p>
           )}
         </div>
