@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { CATS_DESPESA, CATS_RECEITA, SUBCATS, maskCurrency, unmaskCurrency, formatCurrency } from '@/lib/utils'
 import { ChevronLeft, Loader2, Trash2, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
+import { buscarIrmas, apagarParcelamento, sufixoDaParcela } from '@/lib/utils/parcelamentoGrupo'
 
 const BG='#F5F5F7',TEXT='#1C1C1E',TEXTMU='#8E8E93',TERRA='#C4622D',GREEN='#34C759'
 
@@ -114,28 +115,52 @@ export default function EditarLancamento(){
       recurring_day:form.transaction_type==='recorrente'?(form.recurring_day||null):null,
     }).eq('id',id)
     if(error){toast.error(`Erro: ${error.message}`);setSaving(false);return}
-    toast.success('Salvo!')
+
+    // Compra parcelada é UMA compra: nome, categoria, titular, cartão e valor
+    // valem para todas as parcelas. Cada irmã mantém o próprio número, data e
+    // status; o valor só muda nas que ainda não foram pagas.
+    let nIrmas=0
+    if(ehParcelaDeGrupo&&tx){
+      const s=createClient()
+      const irmas=(await buscarIrmas(s,tx)).filter(l=>l.id!==id)
+      const nomeBase=(form.description||'').trim()
+      const instVal=instValRaw?unmaskCurrency(instValRaw):amount
+      for(const l of irmas){
+        const suf=sufixoDaParcela(l.description||'')
+        if(!suf)continue
+        const campos:any={
+          description:`${nomeBase} (${suf.num}/${totalParcelasAtual})`,
+          holder:form.holder,
+          owner_name:(form.holder==='Prata'?'Lucas':form.holder)||'Lucas',
+          category:form.category,
+          subcategory:form.subcategory||null,
+          card_name:form.card_name||null,
+          payment_method:form.payment_method||null,
+          installment_total:form.installment_total?parseInt(form.installment_total):null,
+        }
+        if(l.status!=='Pago'){campos.amount=amount;campos.installment_value=instVal}
+        const {error:e2}=await s.from('transactions').update(campos).eq('id',l.id)
+        if(e2){toast.error(`Parcela ${suf.num} não atualizou: ${e2.message}`);setSaving(false);return}
+        nIrmas++
+      }
+    }
+    toast.success(nIrmas>0?`Salvo! Aplicado também às outras ${nIrmas} parcelas.`:'Salvo!')
     router.push('/lancamentos')
   }
 
   async function del(){
     const s=createClient()
-    const ehParcelada=tx?.transaction_type==='parcelada'
-    const base=(tx?.description||'').replace(/\s*\(\d+\/\d+\)\s*$/,'').trim()
-
-    if(ehParcelada){
-      // Apagar UMA parcela não resolve: a correção automática de dados legados
-      // percebe a lacuna no grupo e recria a linha na próxima tela que abrir.
-      // Por isso, em parcelamento, a exclusão é do compromisso inteiro.
-      const {count}=await s.from('transactions')
-        .select('id',{count:'exact',head:true})
-        .eq('transaction_type','parcelada').eq('holder',tx.holder).ilike('description',`${base}%`)
-      const n=count||0
-      if(!confirm(`"${base}" é uma compra parcelada com ${n} parcela${n>1?'s':''}.\n\nApagar uma parcela só não funciona — ela é recriada automaticamente para manter o parcelamento completo.\n\nApagar o parcelamento INTEIRO (todas as ${n} parcelas)?`))return
-      const {error}=await s.from('transactions').delete()
-        .eq('transaction_type','parcelada').eq('holder',tx.holder).ilike('description',`${base}%`)
-      if(error){toast.error(`Não foi possível apagar: ${error.message}`);return}
-      toast.success(`Parcelamento apagado (${n} parcelas)`)
+    // Qualquer linha com "(n/total)" faz parte de um parcelamento — mesmo as
+    // antigas salvas com transaction_type errado. Apagar uma só deixaria as
+    // outras soltas (e seriam recriadas pela correção de legados).
+    const suf=sufixoDaParcela(tx?.description||'')
+    if(tx&&suf&&suf.total>1){
+      const base=(tx.description||'').replace(/\s*\(\d+\/\d+\)\s*$/,'').trim()
+      const n=(await buscarIrmas(s,tx)).length
+      if(!confirm(`"${base}" é uma compra parcelada com ${n} parcela${n>1?'s':''}.\n\nApagar o parcelamento INTEIRO (todas as ${n} parcelas)?`))return
+      const r=await apagarParcelamento(s,tx)
+      if(!r.ok){toast.error(`Não foi possível apagar: ${r.erro}`);return}
+      toast.success(`Parcelamento apagado (${r.n} parcelas)`)
       router.push('/lancamentos')
       return
     }

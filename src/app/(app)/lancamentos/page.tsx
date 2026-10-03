@@ -11,6 +11,7 @@ import { autoCorrigirStatusVencido } from '@/lib/utils/statusEngine'
 import { generateRecurrents } from '@/lib/utils/recurrents'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
+import { buscarIrmas, apagarParcelamento, sufixoDaParcela } from '@/lib/utils/parcelamentoGrupo'
 
 
 type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;type?:string;payment_method?:string;card_name?:string;is_recurring?:boolean }
@@ -104,8 +105,22 @@ export default function Lancamentos() {
     loadData()
   }
   async function del(tx:Tx) {
+    const s=createClient()
+    // Parcela de uma compra parcelada: apagar uma só deixaria as outras soltas
+    // (e a correção de dados legados recriaria a linha). A exclusão é do
+    // parcelamento inteiro, igual à tela de edição.
+    const suf=sufixoDaParcela(tx.description)
+    if(suf&&suf.total>1){
+      const n=(await buscarIrmas(s,tx as any)).length
+      const base=tx.description.replace(/\s*\(\d+\/\d+\)\s*$/,'').trim()
+      if(!confirm(`"${base}" é uma compra parcelada (${n} parcela${n>1?'s':''}).\n\nApagar o parcelamento INTEIRO?`))return
+      const r=await apagarParcelamento(s,tx as any)
+      if(!r.ok){toast.error(`Não foi possível apagar: ${r.erro}`);return}
+      toast.success(`Parcelamento apagado (${r.n} parcelas)`); setSel(null); loadData()
+      return
+    }
     if(!confirm('Apagar?'))return
-    await createClient().from('transactions').delete().eq('id',tx.id)
+    await s.from('transactions').delete().eq('id',tx.id)
     toast.success('Apagado!'); setSel(null); loadData()
   }
 
