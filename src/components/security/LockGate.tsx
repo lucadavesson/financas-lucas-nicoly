@@ -92,13 +92,16 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
     desbloquear(false)
   }
 
-  // Tenta assim que a tela de bloqueio aparece, como os apps de banco fazem
+  // Não dispara o Face ID sozinho: a tela abre e a pessoa escolhe entre Face ID
+  // e senha. Disparar sozinho fazia o menu do navegador pular na cara antes de
+  // qualquer escolha.
+
+  // No Chrome do iPhone (CriOS) o navegador mostra o próprio seletor de passkeys
+  // antes do Face ID; isso não dá para esconder pelo app, então avisamos.
+  const [noChromeIOS, setNoChromeIOS] = useState(false)
   useEffect(() => {
-    if (estado === 'travado' && uid) {
-      const t = setTimeout(() => { desbloquear() }, 400)
-      return () => clearTimeout(t)
-    }
-  }, [estado, uid, desbloquear])
+    setNoChromeIOS(/CriOS/i.test(navigator.userAgent))
+  }, [])
 
   async function sairDaConta() {
     await createClient().auth.signOut()
@@ -138,7 +141,7 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
           <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', margin: 0, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Lucas &amp; Nicoly</p>
           <p style={{ fontSize: 25, fontWeight: 700, color: '#fff', margin: '6px 0 0' }}>Finanças L&amp;N</p>
           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', margin: '14px 0 0', textAlign: 'center', lineHeight: 1.5 }}>
-            Suas finanças estão protegidas.<br />Use o Face ID para entrar.
+            Suas finanças estão protegidas.<br />Escolha como quer entrar.
           </p>
         </div>
 
@@ -187,11 +190,18 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
           )}
 
           <button onClick={sairDaConta} style={{
-            width: '100%', marginTop: 12, height: 44, background: 'none', border: 'none',
-            color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            width: '100%', marginTop: 10, height: 50, borderRadius: 16, cursor: 'pointer',
+            background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.22)',
+            color: '#fff', fontSize: 15, fontWeight: 600,
           }}>
             Entrar com senha
           </button>
+
+          {noChromeIOS && (
+            <p style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.5)', margin: '12px 0 0', textAlign: 'center', lineHeight: 1.45 }}>
+              No Chrome, o iPhone pode mostrar uma tela de escolha antes do Face ID. No Safari ele vai direto.
+            </p>
+          )}
         </div>
       </div>
     )
