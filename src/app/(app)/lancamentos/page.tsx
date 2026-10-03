@@ -12,9 +12,10 @@ import { generateRecurrents } from '@/lib/utils/recurrents'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
 import { buscarIrmas, apagarParcelamento, sufixoDaParcela } from '@/lib/utils/parcelamentoGrupo'
+import { baseDaDescricao } from '@/lib/utils/parcelasCore'
 
 
-type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;type?:string;payment_method?:string;card_name?:string;is_recurring?:boolean }
+type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;type?:string;payment_method?:string;card_name?:string;is_recurring?:boolean;notes?:string|null }
 
 const BADGE: Record<string,string> = { Pago:'badge-pago',Pendente:'badge-pendente',Previsto:'badge-previsto',Atrasado:'badge-atrasado',Cancelado:'badge-previsto' }
 const BADGE_LABEL: Record<string,string> = { Pago:'Pago',Pendente:'Pendente',Previsto:'Previsto',Atrasado:'Atrasado',Cancelado:'Cancelado' }
@@ -60,6 +61,14 @@ export default function Lancamentos() {
   const [search,setSearch]=useState('')
   const [openSecs,setOpenSecs]=useState<Record<string,boolean>>(()=>{try{const s=sessionStorage.getItem('ln_open_secs');return s?JSON.parse(s):{}}catch{return {}}})
   const [sel,setSel]   = useState<Tx|null>(null)
+  // Observação de um parcelamento: compras antigas só guardaram a nota na
+  // parcela 1, então as outras parcelas herdam a do grupo.
+  const [notasGrupo,setNotasGrupo] = useState<Record<string,string>>({})
+  const chaveGrupo=(t:{description:string;holder?:string|null;card_name?:string|null})=>`${baseDaDescricao(t.description)}|${t.holder||''}|${t.card_name||''}`
+  const notaDe=(t:Tx):string=>{
+    if(t.notes&&t.notes.trim())return t.notes.trim()
+    return sufixoDaParcela(t.description)?(notasGrupo[chaveGrupo(t)]||''):''
+  }
   const [fH,setFH]     = useState<string[]>([])
   const [fT,setFT]     = useState<string[]>([])
 
@@ -79,6 +88,12 @@ export default function Lancamentos() {
       .order('purchase_date',{ascending:false})
     // Carrega TUDO do mês - segregação é visual, não por exclusão
     setTxs(data||[]); setLoad(false)
+    // Notas de parcelamentos (qualquer mês) para exibir em todas as parcelas
+    const {data:comNota}=await createClient().from('transactions')
+      .select('description,holder,card_name,notes').not('notes','is',null).neq('notes','').ilike('description','%(%/%)')
+    const mapa:Record<string,string>={}
+    ;(comNota||[]).forEach((r:any)=>{const k=chaveGrupo(r);if(!mapa[k]&&r.notes)mapa[k]=String(r.notes).trim()})
+    setNotasGrupo(mapa)
   }
 
   const [payConfirm, setPayConfirm] = useState<Tx|null>(null)
@@ -288,6 +303,7 @@ export default function Lancamentos() {
                           <div style={{flex:1,minWidth:0}}>
                             <p style={{fontSize:13,fontWeight:500,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',margin:0}}>{tx.description}</p>
                             <p style={{fontSize:10,color:TEXTMU,margin:'2px 0 0'}}>{tx.category} · {tx.holder} · {format(dataParaExibir(tx.description,tx.purchase_date),'dd/MM/yyyy')}{tx.card_name?` · ${tx.card_name}`:''}</p>
+                            {notaDe(tx)&&<p style={{fontSize:10,color:TEXTMU,margin:'2px 0 0',fontStyle:'italic',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>📝 {notaDe(tx)}</p>}
                           </div>
                           <div style={{textAlign:'right',flexShrink:0}}>
                             <p style={{fontSize:13,fontWeight:700,color:tx.transaction_type==='receita'||tx.type==='Receita'?GREEN:RED,fontVariantNumeric:'tabular-nums',margin:0}}>
@@ -318,6 +334,7 @@ export default function Lancamentos() {
               <div style={{ flex:1 }}>
                 <p style={{ fontSize:15,fontWeight:600,color:TEXT }}>{sel.description}</p>
                 <p style={{ fontSize:12,color:TEXTMU }}>{sel.category} · {sel.holder}</p>
+                {notaDe(sel)&&<p style={{ fontSize:12,color:TEXTMU,margin:'4px 0 0',fontStyle:'italic' }}>📝 {notaDe(sel)}</p>}
               </div>
               <div style={{ textAlign:'right' }}>
                 <p style={{ fontSize:16,fontWeight:700,color:sel.transaction_type==='receita'?GREEN:TERRA,fontVariantNumeric:'tabular-nums' as const }}>

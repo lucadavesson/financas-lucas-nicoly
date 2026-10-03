@@ -316,7 +316,7 @@ export default function NovoLancamento() {
           const { error } = await supabase.from('transactions').insert({
             owner_id:user.id, owner_name:ownerName, holder, transaction_type:'parcelada', type:'Despesa',
             description:`${desc} (${p}/${nParcelas})`, amount:iVal, category:cat, subcategory:subcat||null,
-            purchase_date:purchaseDateP, notes:p===1?notes||null:null,
+            purchase_date:purchaseDateP, notes:notes||null,
             card_name:card, billing_month:bmP, status:statusP,
             payment_method:'cartao_credito',
             installment_total:nParcelas||1, installment_value:iVal,

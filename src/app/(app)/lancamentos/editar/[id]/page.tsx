@@ -28,6 +28,8 @@ export default function EditarLancamento(){
   const [instValRaw,setInstValRaw]=useState('')
   const [paidAmountRaw,setPaidAmountRaw]=useState('')
   // Em parcela de um parcelamento: até onde a mudança de valor se aplica
+  const [irmas,setIrmas]=useState<any[]>([])
+  const [totalProdRaw,setTotalProdRaw]=useState('')
   const [escopo,setEscopo]=useState<'esta'|'daqui'|'todas'>('daqui')
 
   useEffect(()=>{
@@ -58,6 +60,17 @@ export default function EditarLancamento(){
       // por engano (já vimos isso acontecer neste app). Se o nome TEM essa
       // referência, ela sai do campo de qualquer forma; o tipo não importa.
       setForm({...data,description:mDesc?nomeBase:data.description})
+      // Parcelamento: carrega as irmãs (para o resumo de juros) e herda a
+      // observação do grupo quando esta parcela não tem — senão salvar aqui
+      // apagaria a nota das outras.
+      if(mDesc){
+        const ir=await buscarIrmas(s,data)
+        setIrmas(ir)
+        if(!(data.notes||'').trim()){
+          const n=ir.find((l:any)=>(l.notes||'').trim())?.notes
+          if(n)setForm((f:any)=>({...f,notes:n}))
+        }
+      }
       const ehParcelado=!!mDesc||data.transaction_type==='parcelada'
       const valorExibido=ehParcelado?(data.installment_value||data.amount||0):(data.amount||0)
       setValRaw(maskCurrency(Math.round(valorExibido*100).toString()))
@@ -138,6 +151,7 @@ export default function EditarLancamento(){
           owner_name:(form.holder==='Prata'?'Lucas':form.holder)||'Lucas',
           category:form.category,
           subcategory:form.subcategory||null,
+          notes:form.notes||null,
           card_name:form.card_name||null,
           payment_method:form.payment_method||null,
           installment_total:form.installment_total?parseInt(form.installment_total):null,
@@ -339,6 +353,37 @@ export default function EditarLancamento(){
                   </button>
                 ))}
               </div>
+              {(()=>{
+                const novo=unmaskCurrency(valRaw)
+                const n=totalParcelasAtual
+                // Total a pagar = soma das parcelas já considerando o escopo escolhido
+                let total=0
+                irmas.forEach((l:any)=>{
+                  const suf=sufixoDaParcela(l.description||'')
+                  const num=suf?.num||0
+                  const dentro=l.id===id||escopo==='todas'||(escopo==='daqui'&&num>(numParcela||0))
+                  total+=(dentro&&novo>0)?novo:(l.installment_value||l.amount||0)
+                })
+                if(irmas.length<n)total+=(n-irmas.length)*novo
+                const produto=unmaskCurrency(totalProdRaw)
+                const juros=produto>0?Math.max(0,total-produto):0
+                const R=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+                return(
+                  <div style={{marginTop:12,background:'rgba(0,0,0,0.03)',borderRadius:12,padding:'10px 14px'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#48484A'}}>
+                      <span>Total a pagar ({n}x)</span><strong>{R(total)}</strong>
+                    </div>
+                    <label style={{...lbl,marginTop:10}}>Total do produto (opcional)</label>
+                    <input type="text" inputMode="numeric" value={totalProdRaw}
+                      onChange={e=>setTotalProdRaw(maskCurrency(e.target.value))}
+                      placeholder="Para ver os juros" style={inp}/>
+                    {produto>0&&(juros>0
+                      ?<p style={{fontSize:12,color:'#7B3020',margin:'8px 0 0',fontWeight:600}}>Juros: {R(juros)} ({(juros/produto*100).toFixed(1)}%)</p>
+                      :<p style={{fontSize:12,color:TEXTMU,margin:'8px 0 0'}}>{total<produto-0.01?'As parcelas somam menos que o produto. Confira os valores.':'Sem juros.'}</p>)}
+                    <p style={{fontSize:10,color:TEXTMU,margin:'6px 0 0'}}>Só para conferir: este valor não é salvo.</p>
+                  </div>
+                )
+              })()}
             </div>
           )}
         </div>
