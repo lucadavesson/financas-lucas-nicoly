@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Loader2, Eye, EyeOff } from 'lucide-react'
+import { pedirFaceId, registrarFaceId } from '@/lib/utils/passkey'
 
 const KNOWN_USERS: Record<string, string> = {
   'lucasdavesson@gmail.com': 'Lucas Davisson',
@@ -69,10 +70,8 @@ function LoginContent() {
         toast.info('Use sua senha primeiro — o Face ID será configurado automaticamente!')
         setFaceLoading(false); return
       }
-      const challenge = crypto.getRandomValues(new Uint8Array(32))
-      const credential = await navigator.credentials.get({
-        publicKey: { challenge, rpId: window.location.hostname, userVerification:'required', timeout:30000, allowCredentials:[] }
-      })
+      const r = await pedirFaceId(uid, true)
+      const credential = r.ok
       if (credential) {
         const savedPw = localStorage.getItem('ln_saved_pw')
         if (savedPw) {
@@ -118,21 +117,8 @@ function LoginContent() {
     localStorage.setItem('ln_saved_pw', btoa(password))
     // Registra Face ID se disponível e ainda não registrado
     if (uid && !hasFaceIdStored(uid) && faceAvailable) {
-      try {
-        const challenge = crypto.getRandomValues(new Uint8Array(32))
-        const uid8 = new TextEncoder().encode(uid.slice(0,16))
-        await navigator.credentials.create({
-          publicKey: {
-            challenge, rp:{ name:'Finanças L&N', id:window.location.hostname },
-            user:{ id:uid8, name:savedEmail, displayName:userName },
-            pubKeyCredParams:[{alg:-7,type:'public-key'},{alg:-257,type:'public-key'}],
-            authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required', requireResidentKey:true },
-            timeout:30000,
-          }
-        })
-        localStorage.setItem(`ln_faceid_${uid}`, '1')
-        toast.success('Face ID configurado! Na próxima vez use o Face ID para entrar. 🔒')
-      } catch { /* usuário cancelou */ }
+      const reg = await registrarFaceId(uid, savedEmail)
+      if (reg.ok) toast.success('Face ID configurado! Na próxima vez use o Face ID para entrar. 🔒')
     }
     sessionStorage.removeItem('ln_locked')
     router.push('/dashboard'); router.refresh()

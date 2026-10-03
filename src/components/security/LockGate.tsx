@@ -190,7 +190,7 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
             width: '100%', marginTop: 12, height: 44, background: 'none', border: 'none',
             color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
           }}>
-            Entrar com outra conta
+            Entrar com senha
           </button>
         </div>
       </div>
