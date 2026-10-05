@@ -36,6 +36,31 @@ function Section({title,icon,count,total,children,defaultOpen=false}:{title:stri
   )
 }
 
+const STATUS_REL:Record<string,{txt:string;cor:string}>={
+  Pago:{txt:'Pago',cor:GREEN}, Pendente:{txt:'A pagar',cor:TERRA}, Previsto:{txt:'Previsto',cor:'#B37700'},
+  Atrasado:{txt:'Atrasado',cor:RED},
+}
+
+/** Linha de lançamento das listas do relatório: mesma cara em todas as seções. */
+function LinhaRel({icone,titulo,sub,valor,status,extra}:{icone:string;titulo:string;sub:string;valor:number;status:string;extra?:string}) {
+  const st=STATUS_REL[status]||{txt:status,cor:TEXTMU}
+  return (
+    <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderTop:'1px solid rgba(0,0,0,0.06)'}}>
+      <span style={{width:34,height:34,borderRadius:10,background:'#F5F5F7',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0}}>{icone}</span>
+      <div style={{flex:1,minWidth:0}}>
+        <p style={{fontSize:13,fontWeight:600,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{titulo}</p>
+        <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{sub}</p>
+      </div>
+      <div style={{textAlign:'right',flexShrink:0}}>
+        <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:0,fontVariantNumeric:'tabular-nums'}}>{v(valor)}</p>
+        <span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:10.5,fontWeight:600,color:st.cor,marginTop:2}}>
+          <span style={{width:5,height:5,borderRadius:3,background:st.cor}}/>{extra?`${extra} · `:''}{st.txt}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export default function Relatorios() {
   const [txs,setTxs]=useState<any[]>([])
   const [loading,setLoading]=useState(true)
@@ -58,7 +83,7 @@ export default function Relatorios() {
 
   function getMes(d=date){
     const s=format(startOfMonth(d),'yyyy-MM-dd'),e=format(endOfMonth(d),'yyyy-MM-dd')
-    return txs.filter(t=>t.purchase_date>=s&&t.purchase_date<=e&&(holder==='Todos'||t.holder===holder))
+    return txs.filter(t=>t.purchase_date>=s&&t.purchase_date<=e&&t.status!=='Cancelado'&&(holder==='Todos'||t.holder===holder))
   }
 
   const mes=getMes()
@@ -83,6 +108,17 @@ export default function Relatorios() {
   const isCredito=(t:any)=>t.payment_method==='cartao_credito'&&!isParcelada(t)
 
   const parceladas=despesasTodas.filter(isParcelada)
+  // Juros gravado nas compras parceladas (uma vez por compra, não por parcela)
+  const jurosParcelamentos=(()=>{
+    const porCompra=new Map<string,number>()
+    parceladas.forEach((t:any)=>{
+      const j=Number(t.installment_interest)||0
+      if(j<=0.004)return
+      const chave=`${(t.description||'').replace(/\s*\(\d+\/\d+\)\s*$/,'').trim().toLowerCase()}|${t.holder}|${t.card_name||''}`
+      porCompra.set(chave,Math.max(porCompra.get(chave)||0,j))
+    })
+    return {total:Array.from(porCompra.values()).reduce((a,b)=>a+b,0),n:porCompra.size}
+  })()
   const recorrentes=despesasTodas.filter(isRecorrente)
   const avista=despesasTodas.filter(t=>!isParcelada(t)&&!isRecorrente(t))
 
@@ -266,6 +302,14 @@ export default function Relatorios() {
       titulo:`No ritmo atual, o mês fecha em ${formatCurrency(projecao)}`,
       texto:`${formatCurrency(totalD)} gastos em ${diaHoje} dias de ${diasNoMes}.`,
       tom:totalR>0&&projecao>totalR?'ruim':'neutro',
+    })
+  }
+  if(jurosParcelamentos.total>0.004){
+    insights.push({
+      icone:'⚠️',
+      titulo:`${formatCurrency(jurosParcelamentos.total)} em juros nos parcelamentos`,
+      texto:`${jurosParcelamentos.n} compra${jurosParcelamentos.n>1?'s':''} parcelada${jurosParcelamentos.n>1?'s':''} com juros embutido, somando as que têm parcela neste mês.`,
+      tom:'ruim',
     })
   }
   if(maiorGasto){
@@ -496,82 +540,51 @@ export default function Relatorios() {
         </div>
       </Section>
 
-      {/* Parcelamentos do mês */}
-      {avista.length>0&&(
-        <Section title="Compras à vista / avulsas" icon="🛒" count={avista.length} total={totalAv}>
-          <div style={{display:'flex',flexDirection:'column',gap:4,marginTop:8}}>
-            {avista.sort((a:any,b:any)=>(b.installment_value||b.amount)-(a.installment_value||a.amount)).map((t:any)=>{
-              const isPago=t.status==='Pago'
-              return (
-                <div key={t.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'0.5px solid rgba(0,0,0,0.04)'}}>
-                  <span style={{fontSize:15}}>{CAT_ICONS[t.category]||'📦'}</span>
-                  <div style={{flex:1,minWidth:0}}>
-                    <p style={{fontSize:12,fontWeight:600,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.description}</p>
-                    <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{t.holder} · {t.category} · {format(dataParaExibir(t.description,t.purchase_date),'dd/MM/yyyy')}</p>
-                  </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <p style={{fontSize:12,fontWeight:700,color:isPago?GREEN:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{v(t.installment_value||t.amount)}</p>
-                    <span style={{fontSize:10,fontWeight:600,color:isPago?GREEN:TERRA}}>{isPago?'✓ Pago':'⏳'}</span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </Section>
-      )}
-
+      {/* Listas do mês — mesma linha em todas */}
       {parceladas.length>0&&(
-        <Section title="Parcelas do mês" icon="💳" count={parceladas.length} total={totalParc}>
-          <div style={{display:'flex',flexDirection:'column',gap:4,marginTop:8}}>
-            {parceladas.sort((a:any,b:any)=>(b.installment_value||b.amount)-(a.installment_value||a.amount)).map((t:any)=>{
+        <Section title="Parcelas do mês" count={parceladas.length} total={totalParc}>
+          <div style={{marginTop:6}}>
+            {[...parceladas].sort((a:any,b:any)=>(b.installment_value||b.amount)-(a.installment_value||a.amount)).map((t:any,i:number)=>{
               const m=t.description?.match(/^(.+?)\s*\((\d+)\/(\d+)\)$/)
               const base=m?m[1]:t.description
               const num=m?m[2]:(t.installment_num||t.installment_number||'?')
               const total=m?m[3]:(t.installment_total||t.total_installments||'?')
-              const isPago=t.status==='Pago'
-              return (
-                <div key={t.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'0.5px solid rgba(0,0,0,0.04)'}}>
-                  <span style={{fontSize:15}}>{CAT_ICONS[t.category]||'📦'}</span>
-                  <div style={{flex:1,minWidth:0}}>
-                    <p style={{fontSize:12,fontWeight:600,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{base}</p>
-                    <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{t.holder} · {t.card_name||t.payment_method}</p>
-                  </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <p style={{fontSize:12,fontWeight:700,color:isPago?GREEN:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{v(t.installment_value||t.amount)}</p>
-                    <span style={{fontSize:10,fontWeight:600,color:isPago?GREEN:TERRA}}>{num}/{total} {isPago?'✓':'⏳'}</span>
-                  </div>
-                </div>
-              )
+              return <LinhaRel key={t.id} icone={CAT_ICONS[t.category]||'📦'} titulo={base}
+                sub={`${t.holder} · ${t.card_name||t.payment_method||''}`} valor={t.installment_value||t.amount}
+                status={t.status} extra={`${num}/${total}`}/>
             })}
           </div>
+          {jurosParcelamentos.total>0.004&&(
+            <p style={{fontSize:12,color:'#B3261E',fontWeight:600,margin:'10px 0 0'}}>
+              Juros nos parcelamentos em andamento: {v(jurosParcelamentos.total)}
+            </p>
+          )}
         </Section>
       )}
 
-      {/* Recorrentes */}
       {recorrentes.length>0&&(
-        <Section title="Contas recorrentes" icon="🔄" count={recorrentes.length} total={totalRec}>
-          <div style={{display:'flex',flexDirection:'column',gap:4,marginTop:8}}>
-            {recorrentes.sort((a:any,b:any)=>(b.installment_value||b.amount)-(a.installment_value||a.amount)).map((t:any)=>{
-              const isPago=t.status==='Pago'
-              return (
-                <div key={t.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'0.5px solid rgba(0,0,0,0.04)'}}>
-                  <span style={{fontSize:15}}>{CAT_ICONS[t.category]||'📦'}</span>
-                  <div style={{flex:1,minWidth:0}}>
-                    <p style={{fontSize:12,fontWeight:600,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.description}</p>
-                    <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>{t.holder} · Dia {new Date(t.purchase_date).getDate()}</p>
-                  </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <p style={{fontSize:12,fontWeight:700,color:isPago?GREEN:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{v(t.installment_value||t.amount)}</p>
-                    <span style={{fontSize:10,fontWeight:600,color:isPago?GREEN:TERRA}}>{isPago?'✓ Pago':'⏳ Pendente'}</span>
-                  </div>
-                </div>
-              )
-            })}
+        <Section title="Contas recorrentes" count={recorrentes.length} total={totalRec}>
+          <div style={{marginTop:6}}>
+            {[...recorrentes].sort((a:any,b:any)=>(b.installment_value||b.amount)-(a.installment_value||a.amount)).map((t:any)=>(
+              <LinhaRel key={t.id} icone={CAT_ICONS[t.category]||'📦'} titulo={t.description}
+                sub={`${t.holder} · ${t.payment_method==='cartao_credito'?'Fatura do cartão':`Dia ${parseInt((t.purchase_date||'').slice(8,10))||'?'}`}`}
+                valor={t.installment_value||t.amount} status={t.status}/>
+            ))}
           </div>
         </Section>
       )}
 
-      {/* Compras à vista */}
+      {avista.length>0&&(
+        <Section title="À vista e avulsas" count={avista.length} total={totalAv}>
+          <div style={{marginTop:6}}>
+            {[...avista].sort((a:any,b:any)=>(b.installment_value||b.amount)-(a.installment_value||a.amount)).map((t:any)=>(
+              <LinhaRel key={t.id} icone={CAT_ICONS[t.category]||'📦'} titulo={t.description}
+                sub={`${t.holder} · ${t.category} · ${format(dataParaExibir(t.description,t.purchase_date),'dd/MM/yyyy')}`}
+                valor={t.installment_value||t.amount} status={t.status}/>
+            ))}
           </div>
+        </Section>
+      )}
+    </div>
   )
 }
