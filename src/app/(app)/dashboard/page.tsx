@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency, dataParaExibir } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ChevronRight, ChevronDown, ChevronUp, ArrowUpRight, ArrowDownRight, Wallet, TrendingUp } from 'lucide-react'
+import { ChevronRight, ChevronDown, ChevronUp, ArrowUpRight, ArrowDownRight, Wallet, TrendingUp, Eye, EyeOff, Plus, Check, CreditCard, FileText } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
@@ -299,65 +299,44 @@ export default function Dashboard() {
           <button onClick={nextMonth} style={{width:28,height:28,background:'rgba(0,0,0,0.04)',borderRadius:8,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:TEXTLT}}>›</button>
           {!isCurrentMonth&&<button onClick={()=>setCurMonth(new Date())} style={{fontSize:10,color:TERRA,background:'rgba(196,98,45,0.08)',border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer',fontWeight:600}}>Hoje</button>}
         </div>
-        <button onClick={()=>setHide(h=>!h)} style={{fontSize:12,color:TEXTMU,background:'none',border:'none',cursor:'pointer'}}>{hide?'👁 Mostrar':'👁 Ocultar'}</button>
+        <button onClick={()=>setHide(h=>!h)} aria-label={hide?'Mostrar valores':'Ocultar valores'} style={{width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.04)',border:'none',borderRadius:10,cursor:'pointer'}}>{hide?<EyeOff size={16} color={TEXTMU}/>:<Eye size={16} color={TEXTMU}/>}</button>
       </div>
 
       
       
-      {/* ── Hero: saldo do mês ────────────────────────────── */}
-      <div style={{borderRadius:26,padding:'22px 22px 20px',marginBottom:12,position:'relative',overflow:'hidden',
-        background:'linear-gradient(150deg,#3A2016 0%,#5C3320 55%,#7A4526 100%)',boxShadow:'0 6px 22px rgba(58,32,22,0.28)'}}>
-        <div style={{position:'absolute',top:-70,right:-50,width:210,height:210,borderRadius:'50%',background:'rgba(255,255,255,0.05)',pointerEvents:'none'}}/>
-        <div style={{position:'absolute',bottom:-90,left:-40,width:170,height:170,borderRadius:'50%',background:'rgba(255,255,255,0.035)',pointerEvents:'none'}}/>
+      {/* ── Saldo do mês ──────────────────────────────────── */}
+      <div style={{borderRadius:22,padding:'18px 20px 16px',marginBottom:12,background:'#2E1C13',boxShadow:'0 4px 16px rgba(46,28,19,0.18)'}}>
+        <p style={{fontSize:11,fontWeight:600,color:'rgba(255,255,255,0.55)',margin:0,textTransform:'uppercase',letterSpacing:'0.07em'}}>Saldo do mês</p>
+        <p style={{fontSize:32,fontWeight:700,color:'#fff',margin:'6px 0 0',lineHeight:1.05,letterSpacing:'-0.02em',fontVariantNumeric:'tabular-nums'}}>{v(saldo)}</p>
+        {saldo<0&&<p style={{fontSize:12,color:'rgba(255,140,130,0.95)',fontWeight:600,margin:'6px 0 0'}}>Gastos acima das entradas</p>}
 
-        <div style={{position:'relative'}}>
-          <p style={{fontSize:12,color:'rgba(255,255,255,0.55)',margin:'0 0 6px',letterSpacing:'0.02em'}}>Saldo disponível</p>
-          <p style={{fontSize:36,fontWeight:800,color:'#fff',margin:0,lineHeight:1.05,letterSpacing:'-1px',fontVariantNumeric:'tabular-nums'}}>{v(saldo)}</p>
-          {saldo<0&&(
-            <p style={{fontSize:12,color:'rgba(255,140,130,0.95)',fontWeight:600,margin:'8px 0 0'}}>Orçamento estourado neste mês</p>
-          )}
-
-          <div style={{display:'flex',gap:10,marginTop:20}}>
-            <div style={{flex:1,background:'rgba(255,255,255,0.09)',borderRadius:16,padding:'11px 13px',backdropFilter:'blur(6px)'}}>
-              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:5}}>
-                <ArrowUpRight size={13} color="rgba(120,230,160,0.95)"/>
-                <span style={{fontSize:11,color:'rgba(255,255,255,0.6)',fontWeight:600}}>Entrou</span>
-              </div>
-              <p style={{fontSize:16,fontWeight:700,color:'#fff',margin:0,fontVariantNumeric:'tabular-nums'}}>{v(totalEntrou)}</p>
-              {totalPrevisto>0&&<p style={{fontSize:10,color:'rgba(255,255,255,0.4)',margin:'2px 0 0'}}>+{v(totalPrevisto)} previsto</p>}
-            </div>
-            <div style={{flex:1,background:'rgba(255,255,255,0.09)',borderRadius:16,padding:'11px 13px',backdropFilter:'blur(6px)'}}>
-              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:5}}>
-                <ArrowDownRight size={13} color="rgba(255,150,140,0.95)"/>
-                <span style={{fontSize:11,color:'rgba(255,255,255,0.6)',fontWeight:600}}>Gastou</span>
-              </div>
-              <p style={{fontSize:16,fontWeight:700,color:'#fff',margin:0,fontVariantNumeric:'tabular-nums'}}>{v(totalGastou)}</p>
-              <p style={{fontSize:10,color:'rgba(255,255,255,0.4)',margin:'2px 0 0'}}>{despesas.length} lançamentos</p>
-            </div>
+        <div style={{display:'flex',marginTop:16,paddingTop:14,borderTop:'1px solid rgba(255,255,255,0.12)'}}>
+          <div style={{flex:1}}>
+            <p style={{fontSize:11,color:'rgba(255,255,255,0.55)',margin:0,display:'flex',alignItems:'center',gap:5}}><ArrowUpRight size={12} color="rgba(120,230,160,0.95)"/>Entrou</p>
+            <p style={{fontSize:15,fontWeight:700,color:'#fff',margin:'3px 0 0',fontVariantNumeric:'tabular-nums'}}>{v(totalEntrou)}</p>
+            {totalPrevisto>0&&<p style={{fontSize:10.5,color:'rgba(255,255,255,0.4)',margin:'1px 0 0'}}>+{v(totalPrevisto)} previsto</p>}
           </div>
-
-          <div style={{marginTop:16}}>
-            <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'rgba(255,255,255,0.5)',marginBottom:6}}>
-              <span>{v(totalPago)} pago de {v(totalGastou)}</span>
-              <span style={{fontWeight:700,color:pctPago>=100?'rgba(120,230,160,0.95)':'rgba(255,255,255,0.8)'}}>{pctPago.toFixed(0)}%</span>
-            </div>
-            <div style={{height:5,background:'rgba(255,255,255,0.13)',borderRadius:99,overflow:'hidden'}}>
-              <div style={{height:'100%',borderRadius:99,width:`${pctPago}%`,background:'linear-gradient(90deg,rgba(120,230,160,0.7),rgba(120,230,160,1))',transition:'width 0.5s'}}/>
-            </div>
+          <div style={{flex:1,paddingLeft:16,borderLeft:'1px solid rgba(255,255,255,0.12)'}}>
+            <p style={{fontSize:11,color:'rgba(255,255,255,0.55)',margin:0,display:'flex',alignItems:'center',gap:5}}><ArrowDownRight size={12} color="rgba(255,150,140,0.95)"/>Gastou</p>
+            <p style={{fontSize:15,fontWeight:700,color:'#fff',margin:'3px 0 0',fontVariantNumeric:'tabular-nums'}}>{v(totalGastou)}</p>
+            <p style={{fontSize:10.5,color:'rgba(255,255,255,0.4)',margin:'1px 0 0'}}>{v(totalPago)} pago · {pctPago.toFixed(0)}%</p>
           </div>
+        </div>
+        <div style={{height:3,background:'rgba(255,255,255,0.14)',borderRadius:99,overflow:'hidden',marginTop:12}}>
+          <div style={{height:'100%',borderRadius:99,width:`${pctPago}%`,background:'rgba(120,230,160,0.95)',transition:'width 0.5s'}}/>
         </div>
       </div>
 
       {/* ── Atalhos rápidos ────────────────────────────────── */}
       <div style={{display:'flex',gap:8,marginBottom:14}}>
         {[
-          {href:'/lancamentos/novo',emoji:'＋',label:'Lançar'},
-          {href:'/pagamentos',emoji:'✓',label:'Pagar'},
-          {href:'/cartoes',emoji:'💳',label:'Cartões'},
-          {href:'/parcelamentos',emoji:'📄',label:'Parcelas'},
+          {href:'/lancamentos/novo',Icon:Plus,label:'Lançar'},
+          {href:'/pagamentos',Icon:Check,label:'Pagar'},
+          {href:'/cartoes',Icon:CreditCard,label:'Cartões'},
+          {href:'/parcelamentos',Icon:FileText,label:'Parcelas'},
         ].map(a=>(
-          <Link key={a.href} href={a.href} style={{flex:1,background:'#fff',borderRadius:16,padding:'12px 6px',textAlign:'center',textDecoration:'none',border:'1px solid rgba(0,0,0,0.05)',boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
-            <p style={{fontSize:17,margin:'0 0 4px',lineHeight:1,color:TERRA}}>{a.emoji}</p>
+          <Link key={a.href} href={a.href} style={{flex:1,background:'#fff',borderRadius:16,padding:'11px 6px',textAlign:'center',textDecoration:'none',border:'1px solid rgba(0,0,0,0.05)'}}>
+            <a.Icon size={19} color={TERRA} strokeWidth={2} style={{display:'block',margin:'0 auto 5px'}}/>
             <p style={{fontSize:11,fontWeight:600,color:TEXTLT,margin:0}}>{a.label}</p>
           </Link>
         ))}
@@ -537,7 +516,7 @@ export default function Dashboard() {
                   <span>{v(a.gasto)} de {v(a.lim)}</span>
                   <span style={{color:a.pct>=100?'#FF3B30':'#CC7700'}}>{a.pct>=100?'Estourou!':'Atenção'}</span>
                 </div>
-                <div style={{height:4,background:'#FF3B30',borderRadius:99,overflow:'hidden'}}>
+                <div style={{height:4,background:'rgba(0,0,0,0.07)',borderRadius:99,overflow:'hidden'}}>
                   <div style={{height:'100%',borderRadius:99,width:`${Math.min(a.pct,100)}%`,background:a.pct>=100?'#FF3B30':'#FF9500',transition:'width 0.5s'}}/>
                 </div>
               </div>
@@ -570,7 +549,7 @@ export default function Dashboard() {
                       <span style={{fontSize:12,fontWeight:600,color:TEXT}}>{g.name}</span>
                       <span style={{fontSize:11,fontWeight:700,color:g.color||TERRA}}>{pct.toFixed(0)}%</span>
                     </div>
-                    <div style={{height:4,background:'#FF3B30',borderRadius:99,overflow:'hidden'}}>
+                    <div style={{height:4,background:'rgba(0,0,0,0.07)',borderRadius:99,overflow:'hidden'}}>
                       <div style={{height:'100%',borderRadius:99,width:`${pct}%`,background:g.color||TERRA,transition:'width 0.5s'}}/>
                     </div>
                     <div style={{display:'flex',justifyContent:'space-between',marginTop:2}}>
@@ -590,7 +569,10 @@ export default function Dashboard() {
       {topCats.length>0&&(
         <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.04)',overflow:'hidden'}}>
           <button onClick={()=>togSec('gastos')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <span style={{fontSize:14,fontWeight:700,color:TEXT}}>Maiores gastos</span>
+            <span style={{textAlign:'left',minWidth:0}}>
+              <span style={{display:'block',fontSize:14,fontWeight:700,color:TEXT}}>Maiores gastos</span>
+              <span style={{display:'block',fontSize:12,color:TEXTMU,marginTop:2}}>{topCats[0][0]} · {totalGastou>0?((topCats[0][1]/totalGastou)*100).toFixed(0):0}% do total</span>
+            </span>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <Link href="/relatorios" onClick={e=>e.stopPropagation()} style={{fontSize:11,color:TERRA,fontWeight:600,textDecoration:'none'}}>Relatório</Link>
               {dashSecs.gastos?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}
@@ -609,7 +591,7 @@ export default function Dashboard() {
                     <span style={{fontSize:11,color:TEXTMU,width:28,textAlign:'right'}}>{pct.toFixed(0)}%</span>
                   </div>
                 </div>
-                <div style={{height:5,background:'#FF3B30',borderRadius:99,overflow:'hidden'}}>
+                <div style={{height:5,background:'rgba(0,0,0,0.07)',borderRadius:99,overflow:'hidden'}}>
                   <div style={{height:'100%',borderRadius:99,width:`${pct}%`,background:cores[i]||TERRA}}/>
                 </div>
               </div>
@@ -706,7 +688,10 @@ export default function Dashboard() {
       {txs.length>0&&(
         <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.04)',overflow:'hidden'}}>
           <button onClick={()=>togSec('ultimas')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <span style={{fontSize:14,fontWeight:700,color:TEXT}}>Últimas transações</span>
+            <span style={{textAlign:'left',minWidth:0}}>
+              <span style={{display:'block',fontSize:14,fontWeight:700,color:TEXT}}>Últimas transações</span>
+              <span style={{display:'block',fontSize:12,color:TEXTMU,marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{txs[0].description}</span>
+            </span>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <Link href="/lancamentos" onClick={e=>e.stopPropagation()} style={{fontSize:11,color:TERRA,fontWeight:600,textDecoration:'none'}}>Ver todas</Link>
               {dashSecs.ultimas?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}

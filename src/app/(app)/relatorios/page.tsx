@@ -17,14 +17,17 @@ const COLORS=['#1D9E75','#7F77DD','#378ADD','#C8963C','#E24B4A','#D85A30','#0F6E
 
 const v = formatCurrency
 
-function Section({title,icon,count,total,children,defaultOpen=false}:{title:string;icon?:string;count?:number;total?:number;children:React.ReactNode;defaultOpen?:boolean}) {
+function Section({title,icon,count,total,sub,children,defaultOpen=false}:{title:string;icon?:string;count?:number;total?:number;sub?:string;children:React.ReactNode;defaultOpen?:boolean}) {
   const [open,setOpen]=useState(defaultOpen)
   return (
     <div style={{background:CARD,borderRadius:20,marginBottom:10,border:'1px solid rgba(0,0,0,0.05)',overflow:'hidden'}}>
       <button onClick={()=>setOpen(!open)} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'15px 16px',textAlign:'left',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,minWidth:0}}>
-          <span style={{fontSize:14,fontWeight:600,color:TEXT}}>{title}</span>
-          {count!==undefined&&<span style={{fontSize:11,color:TEXTMU,fontWeight:600}}>{count}</span>}
+        <div style={{minWidth:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:14,fontWeight:600,color:TEXT}}>{title}</span>
+            {count!==undefined&&<span style={{fontSize:11,color:TEXTMU,fontWeight:600}}>{count}</span>}
+          </div>
+          {sub&&!open&&<p style={{fontSize:12,color:TEXTMU,margin:'2px 0 0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{sub}</p>}
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
           {total!==undefined&&<span style={{fontSize:13,fontWeight:700,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{v(total)}</span>}
@@ -369,9 +372,8 @@ export default function Relatorios() {
 
       {/* Compromissos já contratados dos próximos meses */}
       {compromissos.linhas.some(l=>l.total>0)&&(
-        <Section title="Já contratado nos próximos meses" total={compromissos.linhas[0]?.total}>
-          <p style={{fontSize:11.5,color:TEXTMU,margin:'12px 0 12px',lineHeight:1.45}}>O que já está contratado para os próximos meses: parcelas e contas que se repetem, sem compras novas.</p>
-
+        <Section title="Já contratado nos próximos meses" total={compromissos.linhas[0]?.total} sub="Parcelas e contas fixas dos próximos meses">
+          <div style={{height:12}}/>
           {/* Legenda */}
           <div style={{display:'flex',gap:14,marginBottom:12,flexWrap:'wrap'}}>
             <div style={{display:'flex',alignItems:'center',gap:5}}>
@@ -402,11 +404,6 @@ export default function Relatorios() {
                     {v(l.total)}
                   </span>
                 </div>
-                <div style={{display:'flex',gap:10,paddingLeft:58,marginTop:3,flexWrap:'wrap'}}>
-                  {l.parcelas>0&&<span style={{fontSize:10,color:TERRA}}>Parcelas {v(l.parcelas)}</span>}
-                  {l.longos>0&&<span style={{fontSize:10,color:'#1D6FA5'}}>Financiamentos {v(l.longos)}</span>}
-                  {l.recorrentes>0&&<span style={{fontSize:10,color:'#9B59B6'}}>Recorrentes {v(l.recorrentes)}{l.projetado?' (previsto)':''}</span>}
-                </div>
               </div>
             ))}
           </div>
@@ -416,7 +413,7 @@ export default function Relatorios() {
       {/* Insights — leitura pronta do mês, em vez de só números crus.
           Colapsável como as demais seções, e aberto por padrão. */}
       {insights.length>0&&(
-        <Section title="Leitura do mês" count={insights.length}>
+        <Section title="Leitura do mês" count={insights.length} sub={insights[0]?.titulo}>
           <p style={{fontSize:11.5,color:TEXTMU,margin:'12px 0 4px'}}>Comparado com {format(subMonths(date,1),"MMMM 'de' yyyy",{locale:ptBR})}</p>
           <div>
             {insights.map((ins,i)=>{
@@ -492,7 +489,7 @@ export default function Relatorios() {
       </Section>
 
       {/* Por categoria */}
-      <Section title="Por categoria" icon="📂" count={cats.length} total={totalD}>
+      <Section title="Por categoria" icon="📂" count={cats.length} total={totalD} sub={cats[0]?`${cats[0][0]} lidera · ${totalD>0?((cats[0][1].total/totalD)*100).toFixed(0):0}%`:undefined}>
         <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:10}}>
           {cats.map(([cat,{total,txs:catTxs}],i)=>{
             const pct=totalD>0?(total/totalD*100):0
