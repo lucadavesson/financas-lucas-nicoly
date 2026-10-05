@@ -193,8 +193,12 @@ export default function Parcelamentos() {
       const candidatos = g.parcelas
         .map(p=>p.amount||0)
         .filter(v=>v > valorParcela*1.5 && v < valorTotal-0.01)
-      const valorCompra = candidatos.length>0 ? Math.max(...candidatos) : null
-      const juros = valorCompra ? valorTotal - valorCompra : 0
+      // Juros gravado na compra (informado ao lançar/editar) tem prioridade;
+      // sem ele, cai na detecção antiga por uma linha com o preço cheio.
+      const jurosGravado = Math.max(0, ...g.parcelas.map((p:any)=>Number(p.installment_interest)||0))
+      const valorCompra = jurosGravado>0.004 ? Math.max(0, valorTotal - jurosGravado)
+        : (candidatos.length>0 ? Math.max(...candidatos) : null)
+      const juros = jurosGravado>0.004 ? jurosGravado : (valorCompra ? valorTotal - valorCompra : 0)
       const pctJuros = valorCompra && valorCompra>0 ? (juros/valorCompra)*100 : 0
 
       return { ...g, valorParcela, valorTotal, base1, cronograma, pagas, valorPago, valorFalta, mesQuitacao, proxima, valorCompra, juros, pctJuros }

@@ -452,3 +452,61 @@ export async function aplicarAjusteSalario(params: {
     return { ok: false, erro: e?.message || 'Erro inesperado', atualizadas: 0 }
   }
 }
+
+/* ── Exclusão e edição de UMA ocorrência (telas de Lançamentos) ─────────
+ *
+ * Conta recorrente é uma conta só, igual a compra parcelada: apagar ou mexer
+ * numa linha tem que perguntar até onde vale. E apagar uma linha solta não
+ * funciona: o gerador recria o mês que faltar. Por isso "só este mês" é PULAR
+ * (status Cancelado — a linha continua existindo e o gerador respeita).
+ */
+
+/** Despesa de conta recorrente (receita recorrente/salário tem outro fluxo). */
+export function ehDespesaRecorrente(t: any): boolean {
+  return !!t?.is_recurring && t.transaction_type !== 'receita' && t.type !== 'Receita'
+}
+
+export type EscopoExclusao = 'mes' | 'daqui' | 'todas'
+
+export async function contaDaLinha(t: any): Promise<ContaRec | null> {
+  const contas = await carregarRecorrentes()
+  return contas.find(c => c.chave === chaveConta(t.description, t.holder)) || null
+}
+
+export async function excluirRecorrente(
+  t: any, escopo: EscopoExclusao,
+): Promise<{ ok: boolean; erro?: string; afetadas: number }> {
+  const s = createClient()
+  try {
+    // Só este mês: pula. Apagar a linha faria o gerador recriá-la.
+    if (escopo === 'mes') {
+      const { error } = await s.from('transactions')
+        .update({ status: 'Cancelado', paid_date: null, paid_amount: null })
+        .eq('id', t.id)
+      return error ? { ok: false, erro: error.message, afetadas: 0 } : { ok: true, afetadas: 1 }
+    }
+
+    const apagarTudo = async () => {
+      const { data, error } = await s.from('transactions').delete()
+        .eq('is_recurring', true).eq('description', t.description).eq('holder', t.holder)
+        .select('id')
+      return error ? { ok: false, erro: error.message, afetadas: 0 } : { ok: true, afetadas: (data || []).length }
+    }
+    if (escopo === 'todas') return await apagarTudo()
+
+    // Este mês em diante: encerra a conta no mês anterior (para de gerar e
+    // remove o que vem depois), mantendo o histórico. Sem mês anterior não há
+    // histórico a preservar — vira "apagar a conta".
+    const conta = await contaDaLinha(t)
+    const anterior = somaMeses(mesDe(t.purchase_date), -1)
+    if (!conta || conta.primeiroMes > anterior) return await apagarTudo()
+
+    const r = await definirPrazo(conta, anterior)
+    if (!r.ok) return { ok: false, erro: r.erro, afetadas: 0 }
+    // Se esta linha estava paga, o encerramento a preserva; ela some junto.
+    await s.from('transactions').delete().eq('id', t.id)
+    return { ok: true, afetadas: r.removidas + 1 }
+  } catch (e: any) {
+    return { ok: false, erro: e?.message || 'Erro inesperado', afetadas: 0 }
+  }
+}

@@ -191,7 +191,7 @@ export default function Dashboard() {
 
   const v=(n:number)=>hide?'•••':formatCurrency(n)
   const isReceita=(t:Tx)=>t.transaction_type==='receita'||t.type==='Receita'
-  const despesas=txs.filter(t=>!isReceita(t))
+  const despesas=txs.filter(t=>!isReceita(t)&&t.status!=='Cancelado')
   const receitas=txs.filter(t=>isReceita(t))
   const totalEntrou=receitas.filter(t=>t.status==='Pago').reduce((s,t)=>s+t.amount,0)
   const totalPrevisto=receitas.filter(t=>t.status==='Previsto').reduce((s,t)=>s+t.amount,0)

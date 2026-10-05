@@ -8,6 +8,9 @@ import { ChevronLeft, Loader2, Trash2, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { buscarIrmas, apagarParcelamento, sufixoDaParcela } from '@/lib/utils/parcelamentoGrupo'
 import { baseConsenso, statusPorMes, pagamentoFoiAutomatico } from '@/lib/utils/parcelasCore'
+import { ehDespesaRecorrente, contaDaLinha, aplicarAjusteRecorrente, rotuloMes, mesDe, type ContaRec } from '@/lib/utils/recurrents'
+import ExcluirRecorrenteModal from '@/components/ui/ExcluirRecorrenteModal'
+import Link from 'next/link'
 
 const BG='#F5F5F7',TEXT='#1C1C1E',TEXTMU='#8E8E93',TERRA='#C4622D',GREEN='#34C759'
 
@@ -32,6 +35,12 @@ export default function EditarLancamento(){
   const [irmas,setIrmas]=useState<any[]>([])
   // Parcelamento: a data que se edita é a da COMPRA (parcela 1); as datas de cada parcela derivam dela
   const [dataCompra,setDataCompra]=useState('')
+  // Conta recorrente: a conta inteira (todos os meses) e até onde vale a mudança
+  const [contaRec,setContaRec]=useState<ContaRec|null>(null)
+  const [escopoRec,setEscopoRec]=useState<'esta'|'daqui'|'todas'>('daqui')
+  const [apagandoRec,setApagandoRec]=useState(false)
+  // Juros gravado no parcelamento (0 = nenhum informado)
+  const [jurosSalvo,setJurosSalvo]=useState(0)
   const [dataCompraInicial,setDataCompraInicial]=useState('')
   const [totalProdRaw,setTotalProdRaw]=useState('')
   const [escopo,setEscopo]=useState<'esta'|'daqui'|'todas'>('daqui')
@@ -77,6 +86,17 @@ export default function EditarLancamento(){
         if(!(data.notes||'').trim()){
           const n=ir.find((l:any)=>(l.notes||'').trim())?.notes
           if(n)setForm((f:any)=>({...f,notes:n}))
+        }
+      }
+      if(ehDespesaRecorrente(data)){ setContaRec(await contaDaLinha(data)) }
+      if(mDesc){
+        const ir2=await buscarIrmas(s,data)
+        const js=Math.max(0,...ir2.map((l:any)=>Number(l.installment_interest)||0))
+        if(js>0.004){
+          setJurosSalvo(js)
+          const soma=ir2.reduce((t:number,l:any)=>t+(l.installment_value||l.amount||0),0)
+          const prod=Math.max(0,soma-js)
+          setTotalProdRaw(maskCurrency(Math.round(prod*100).toString()))
         }
       }
       const ehParcelado=!!mDesc||data.transaction_type==='parcelada'
@@ -230,11 +250,53 @@ export default function EditarLancamento(){
         nIrmas++
       }
     }
-    toast.success(nIrmas>0?`Salvo! Nome e dados aplicados às ${nIrmas} outras parcelas${escopo==='esta'?'; o valor só nesta.':escopo==='daqui'?'; o valor daqui para frente.':'; o valor em todas.'}`:'Salvo!')
+    if(ehParcelaDeGrupo){
+      const produto=unmaskCurrency(totalProdRaw)
+      const jurosNovo=produto>0?Math.max(0,calcTotalPagar(amount)-produto):0
+      if(Math.abs(jurosNovo-jurosSalvo)>0.004){
+        const ids=[id,...irmas.map((l:any)=>l.id).filter((x:string)=>x!==id)]
+        // Melhor esforço: se a coluna não existir no banco, o resto já foi salvo.
+        await createClient().from('transactions').update({installment_interest:jurosNovo}).in('id',ids)
+      }
+    }
+
+    // ── Conta recorrente: a mudança vale para a conta toda, não só esta linha ──
+    let msgRec=''
+    if(ehRec&&contaRec){
+      const mesAqui=mesDe(tx.purchase_date)
+      const valorMudou=Math.abs(amount-(tx.amount||0))>0.004
+      const diaNovo=parseInt(form.recurring_day)||null
+      const diaMudou=!noCredito&&!!diaNovo&&diaNovo!==(tx.recurring_day||null)
+      const cadastro:any={
+        description:(form.description||'').trim(), category:form.category, subcategory:form.subcategory||null,
+        holder:form.holder, owner_name:(form.holder==='Prata'?'Lucas':form.holder)||'Lucas',
+        payment_method:form.payment_method||null, card_name:form.card_name||null,
+      }
+      const r=await aplicarAjusteRecorrente({
+        conta:contaRec,
+        aPartirDe:escopoRec==='todas'?contaRec.primeiroMes:mesAqui,
+        cadastro,
+        valor:escopoRec!=='esta'&&valorMudou?amount:undefined,
+        dia:escopoRec!=='esta'&&diaMudou?diaNovo:undefined,
+      })
+      if(!r.ok){toast.error(`Esta linha salvou, mas a conta não atualizou: ${r.erro}`);setSaving(false);return}
+      // Trocou o cartão/forma de pagamento: a fatura dos outros meses acompanha
+      if(noCredito&&(mudouCartao||tx.payment_method!==form.payment_method)){
+        const s2=createClient()
+        for(const l of contaRec.linhas){
+          if(l.id===id||l.status==='Pago')continue
+          await s2.from('transactions').update({billing_month:format(calcBillingMonth(parseISO(l.purchase_date),fechamentoDe(form.card_name)),'yyyy-MM-dd')}).eq('id',l.id)
+        }
+      }
+      msgRec=escopoRec==='esta'?' Valor só deste mês.':escopoRec==='daqui'?` Valor de ${rotuloMes(mesAqui)} em diante.`:' Valor em todos os meses.'
+    }
+
+    toast.success(msgRec?`Salva!${msgRec}`:nIrmas>0?`Salvo! Nome e dados aplicados às ${nIrmas} outras parcelas${escopo==='esta'?'; o valor só nesta.':escopo==='daqui'?'; o valor daqui para frente.':'; o valor em todas.'}`:'Salvo!')
     router.push('/lancamentos')
   }
 
   async function del(){
+    if(ehRec){setApagandoRec(true);return}
     const s=createClient()
     // Qualquer linha com "(n/total)" faz parte de um parcelamento — mesmo as
     // antigas salvas com transaction_type errado. Apagar uma só deixaria as
@@ -308,6 +370,22 @@ export default function EditarLancamento(){
     ? addMonths(parseISO(form.purchase_date),-(numParcela-1))
     : null
 
+  const ehRec=ehDespesaRecorrente(tx)
+
+  // Total a pagar do parcelamento = soma das parcelas já considerando o escopo escolhido
+  function calcTotalPagar(novo:number):number{
+    const n=totalParcelasAtual
+    let total=0
+    irmas.forEach((l:any)=>{
+      const suf=sufixoDaParcela(l.description||'')
+      const num=suf?.num||0
+      const dentro=l.id===id||escopo==='todas'||(escopo==='daqui'&&num>(numParcela||0))
+      total+=(dentro&&novo>0)?novo:(l.installment_value||l.amount||0)
+    })
+    if(irmas.length<n)total+=(n-irmas.length)*novo
+    return total
+  }
+
   return(
     <div style={{background:BG,minHeight:'100%'}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -332,6 +410,10 @@ export default function EditarLancamento(){
           <Trash2 size={17} color="#FF3B30"/>
         </button>
       </div>
+
+      {apagandoRec&&tx&&(
+        <ExcluirRecorrenteModal tx={tx} onClose={()=>setApagandoRec(false)} onDone={()=>router.push('/lancamentos')}/>
+      )}
 
       <div style={{padding:'18px 16px 160px',display:'flex',flexDirection:'column',gap:16}}>
 
@@ -421,15 +503,7 @@ export default function EditarLancamento(){
               {(()=>{
                 const novo=unmaskCurrency(valRaw)
                 const n=totalParcelasAtual
-                // Total a pagar = soma das parcelas já considerando o escopo escolhido
-                let total=0
-                irmas.forEach((l:any)=>{
-                  const suf=sufixoDaParcela(l.description||'')
-                  const num=suf?.num||0
-                  const dentro=l.id===id||escopo==='todas'||(escopo==='daqui'&&num>(numParcela||0))
-                  total+=(dentro&&novo>0)?novo:(l.installment_value||l.amount||0)
-                })
-                if(irmas.length<n)total+=(n-irmas.length)*novo
+                const total=calcTotalPagar(novo)
                 const produto=unmaskCurrency(totalProdRaw)
                 const juros=produto>0?Math.max(0,total-produto):0
                 const R=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
@@ -445,7 +519,7 @@ export default function EditarLancamento(){
                     {produto>0&&(juros>0
                       ?<p style={{fontSize:12,color:'#7B3020',margin:'8px 0 0',fontWeight:600}}>Juros: {R(juros)} ({(juros/produto*100).toFixed(1)}%)</p>
                       :<p style={{fontSize:12,color:TEXTMU,margin:'8px 0 0'}}>{total<produto-0.01?'As parcelas somam menos que o produto. Confira os valores.':'Sem juros.'}</p>)}
-                    <p style={{fontSize:10,color:TEXTMU,margin:'6px 0 0'}}>Só para conferir: este valor não é salvo.</p>
+                    <p style={{fontSize:10,color:TEXTMU,margin:'6px 0 0'}}>O juros fica salvo no parcelamento e aparece em Lançamentos e Parcelamentos.</p>
                   </div>
                 )
               })()}
@@ -605,6 +679,55 @@ export default function EditarLancamento(){
             })()}
           </div>
         )}
+
+        {/* Conta recorrente: até onde vale a mudança de valor / dia */}
+        {ehRec&&contaRec&&(
+          <div style={{background:'#fff',borderRadius:16,padding:14,border:'1px solid rgba(0,0,0,0.05)'}}>
+            <p style={{fontSize:11,color:TEXTMU,margin:'0 0 6px',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em'}}>Mudança de valor e dia vale para</p>
+            <div style={{display:'grid',gap:6}}>
+              {([
+                ['esta',`Só ${rotuloMes(mesDe(tx.purchase_date))}`],
+                ['daqui',`${rotuloMes(mesDe(tx.purchase_date))} em diante`],
+                ['todas','Todos os meses (os já pagos não mudam)'],
+              ] as const).map(([k,txt])=>(
+                <button key={k} type="button" onClick={()=>setEscopoRec(k)}
+                  style={{textAlign:'left',padding:'10px 12px',borderRadius:12,fontSize:13,cursor:'pointer',
+                    border:`1.5px solid ${escopoRec===k?TERRA:'rgba(0,0,0,0.1)'}`,
+                    background:escopoRec===k?'rgba(196,98,45,0.08)':'#fff',color:TEXT,fontWeight:escopoRec===k?700:500}}>
+                  {escopoRec===k?'● ':'○ '}{txt}
+                </button>
+              ))}
+            </div>
+            <p style={{fontSize:10.5,color:TEXTMU,margin:'8px 0 0'}}>Nome, categoria, titular e cartão sempre valem para a conta toda.</p>
+          </div>
+        )}
+
+        {/* Histórico da conta recorrente */}
+        {ehRec&&contaRec&&(()=>{
+          const linhas=[...contaRec.linhas].sort((a:any,b:any)=>b.purchase_date.localeCompare(a.purchase_date))
+          const pagas=linhas.filter((l:any)=>l.status==='Pago').length
+          const ativas=linhas.filter((l:any)=>l.status!=='Cancelado')
+          const colors:Record<string,string>={Pago:GREEN,Pendente:TERRA,Previsto:'#B37700',Atrasado:'#FF3B30',Cancelado:TEXTMU}
+          return(
+            <div style={{background:'#fff',borderRadius:16,padding:14,border:'1px solid rgba(0,0,0,0.05)'}}>
+              <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:0}}>🔄 Esta conta, mês a mês</p>
+              <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 10px'}}>{pagas} paga{pagas!==1?'s':''} de {ativas.length} · toque num mês para abrir</p>
+              <div style={{maxHeight:260,overflowY:'auto',display:'grid',gap:2}}>
+                {linhas.map((l:any)=>(
+                  <Link key={l.id} href={`/lancamentos/editar/${l.id}`}
+                    style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 10px',borderRadius:10,textDecoration:'none',
+                      background:l.id===id?'rgba(196,98,45,0.08)':'transparent'}}>
+                    <span style={{fontSize:13,color:TEXT,fontWeight:l.id===id?700:500,textTransform:'capitalize'}}>{rotuloMes(mesDe(l.purchase_date))}</span>
+                    <span style={{display:'flex',alignItems:'center',gap:10}}>
+                      <span style={{fontSize:13,color:TEXT,fontVariantNumeric:'tabular-nums',textDecoration:l.status==='Cancelado'?'line-through':'none'}}>{formatCurrency(l.status==='Pago'?(l.paid_amount||l.amount):l.amount)}</span>
+                      <span style={{fontSize:10.5,fontWeight:700,color:colors[l.status]||TEXTMU,minWidth:56,textAlign:'right'}}>{l.status==='Cancelado'?'Pulado':l.status}</span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Observações */}
         <div>

@@ -292,6 +292,7 @@ export default function NovoLancamento() {
         const dataCompra = parseISO(date)
         
         // Criar UMA transação para CADA parcela
+        const idsCriados: string[] = []
         for (let p = 1; p <= (nParcelas || 1); p++) {
           // Calcular data de cada parcela (mês a mês a partir da compra)
           const dataParcela = addMonths(dataCompra, p - 1)
@@ -309,7 +310,7 @@ export default function NovoLancamento() {
             else if (statusP === 'Pago') statusP = 'Pendente' // disse que não pagou
           }
 
-          const { error } = await supabase.from('transactions').insert({
+          const { data: inseridas, error } = await supabase.from('transactions').insert({
             owner_id:user.id, owner_name:ownerName, holder, transaction_type:'parcelada', type:'Despesa',
             description:`${desc} (${p}/${nParcelas})`, amount:iVal, category:cat, subcategory:subcat||null,
             purchase_date:purchaseDateP, notes:notes||null,
@@ -322,8 +323,16 @@ export default function NovoLancamento() {
             entry_payment_method:p===1&&hasEntry?entryMethod:null,
             entry_card_name:p===1&&hasEntry?entryCard:null,
             entry_paid:p===1&&hasEntry&&['pix','debito','dinheiro'].includes(entryMethod),
-          })
+          }).select('id')
           if (error) throw error
+          if (inseridas?.[0]?.id) idsCriados.push(inseridas[0].id)
+        }
+        // Juros informado (parcela x nº de parcelas acima do preço do produto):
+        // fica gravado em todas as parcelas para aparecer depois em Lançamentos,
+        // Parcelamentos e na edição. Melhor esforço — se a coluna não existir no
+        // banco, a compra já foi salva do mesmo jeito.
+        if (totalJuros > 0.004 && idsCriados.length > 0) {
+          await supabase.from('transactions').update({ installment_interest: totalJuros }).in('id', idsCriados)
         }
         // Entrada separada
         if (hasEntry && entryAmt > 0) {

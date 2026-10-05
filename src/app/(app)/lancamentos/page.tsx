@@ -13,9 +13,11 @@ import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
 import { buscarIrmas, apagarParcelamento, sufixoDaParcela } from '@/lib/utils/parcelamentoGrupo'
 import { baseDaDescricao } from '@/lib/utils/parcelasCore'
+import { ehDespesaRecorrente } from '@/lib/utils/recurrents'
+import ExcluirRecorrenteModal from '@/components/ui/ExcluirRecorrenteModal'
 
 
-type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;type?:string;payment_method?:string;card_name?:string;is_recurring?:boolean;notes?:string|null }
+type Tx = { id:string;holder:string;description:string;category:string;subcategory?:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;transaction_type:string;type?:string;payment_method?:string;card_name?:string;is_recurring?:boolean;notes?:string|null;installment_interest?:number|null }
 
 const BADGE: Record<string,string> = { Pago:'badge-pago',Pendente:'badge-pendente',Previsto:'badge-previsto',Atrasado:'badge-atrasado',Cancelado:'badge-previsto' }
 const BADGE_LABEL: Record<string,string> = { Pago:'Pago',Pendente:'Pendente',Previsto:'Previsto',Atrasado:'Atrasado',Cancelado:'Cancelado' }
@@ -61,6 +63,7 @@ export default function Lancamentos() {
   const [search,setSearch]=useState('')
   const [openSecs,setOpenSecs]=useState<Record<string,boolean>>(()=>{try{const s=sessionStorage.getItem('ln_open_secs');return s?JSON.parse(s):{}}catch{return {}}})
   const [sel,setSel]   = useState<Tx|null>(null)
+  const [apagandoRec,setApagandoRec] = useState<Tx|null>(null)
   // Observação de um parcelamento: compras antigas só guardaram a nota na
   // parcela 1, então as outras parcelas herdam a do grupo.
   const [notasGrupo,setNotasGrupo] = useState<Record<string,string>>({})
@@ -120,6 +123,8 @@ export default function Lancamentos() {
     loadData()
   }
   async function del(tx:Tx) {
+    // Conta recorrente: pergunta até onde vale (só o mês, daqui em diante ou tudo)
+    if(ehDespesaRecorrente(tx)){setApagandoRec(tx);return}
     const s=createClient()
     // Parcela de uma compra parcelada: apagar uma só deixaria as outras soltas
     // (e a correção de dados legados recriaria a linha). A exclusão é do
@@ -176,7 +181,7 @@ export default function Lancamentos() {
   // grouped removido - agora usa groupByDate() por seção
 
   const totalR=filtered.filter(t=>isReceita(t)).reduce((s,t)=>s+t.amount,0)
-  const totalD=filtered.filter(t=>!isReceita(t)).reduce((s,t)=>s+(t.installment_value||t.amount),0)
+  const totalD=filtered.filter(t=>!isReceita(t)&&t.status!=='Cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)
   const aConfirmar=filtered.filter(t=>isReceita(t)&&t.status==='Previsto').reduce((s,t)=>s+t.amount,0)
   const aPagar=filtered.filter(t=>!isReceita(t)&&['Pendente','Atrasado'].includes(t.status)).reduce((s,t)=>s+(t.installment_value||t.amount),0)
 
@@ -323,6 +328,10 @@ export default function Lancamentos() {
       </div>
 
       {/* Bottom sheet */}
+      {apagandoRec&&(
+        <ExcluirRecorrenteModal tx={apagandoRec} onClose={()=>setApagandoRec(null)}
+          onDone={()=>{setApagandoRec(null);setSel(null);loadData()}}/>
+      )}
       {sel&&(
         <ModalPortal>
         <div style={{ position:'fixed',inset:0,zIndex:60,display:'flex',alignItems:'flex-end' }} onClick={()=>setSel(null)}>
@@ -335,6 +344,9 @@ export default function Lancamentos() {
                 <p style={{ fontSize:15,fontWeight:600,color:TEXT }}>{sel.description}</p>
                 <p style={{ fontSize:12,color:TEXTMU }}>{sel.category} · {sel.holder}</p>
                 {notaDe(sel)&&<p style={{ fontSize:12,color:TEXTMU,margin:'4px 0 0',fontStyle:'italic' }}>📝 {notaDe(sel)}</p>}
+                {(sel.installment_interest||0)>0.004&&sufixoDaParcela(sel.description)&&(
+                  <p style={{ fontSize:12,color:'#B3261E',margin:'4px 0 0',fontWeight:600 }}>⚠️ Juros do parcelamento: {formatCurrency(sel.installment_interest||0)}</p>
+                )}
               </div>
               <div style={{ textAlign:'right' }}>
                 <p style={{ fontSize:16,fontWeight:700,color:sel.transaction_type==='receita'?GREEN:TERRA,fontVariantNumeric:'tabular-nums' as const }}>
