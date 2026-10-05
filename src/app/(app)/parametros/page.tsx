@@ -63,6 +63,7 @@ export default function Parametros() {
   const [recurrents, setRecurrents] = useState<any[]>([])
   const [recFiltro, setRecFiltro] = useState<'ativas'|'encerradas'>('ativas')
   const [recAberta, setRecAberta] = useState<string|null>(null)
+  const [vigOutro, setVigOutro] = useState(false)
   const [editingDueDay, setEditingDueDay] = useState<string|null>(null)
   const [dueDayRaw, setDueDayRaw] = useState('')
   // Conta recorrente também é lançamento: dá pra editar tudo, não só o dia
@@ -1106,157 +1107,112 @@ export default function Parametros() {
           <div onClick={e=>e.stopPropagation()} style={{position:'relative',width:'100%',maxWidth:390,margin:'0 auto',
             background:'#fff',borderRadius:'24px 24px 0 0',maxHeight:'90vh',
             display:'flex',flexDirection:'column',overflow:'hidden'}}>
-            <div style={{padding:'20px 18px 0'}}>
-              <h3 style={{fontSize:16,fontWeight:700,color:TEXT,margin:'0 0 4px'}}>Editar conta recorrente</h3>
-              <p style={{fontSize:12,color:TEXTMU,margin:'0 0 16px'}}>
-                Nome, categoria e forma de cobrança valem para todos os meses. Valor e dia valem
-                a partir do mês que você escolher lá embaixo — o passado não é reescrito.
-              </p>
+            <div style={{padding:'20px 18px 12px'}}>
+              <h3 style={{fontSize:17,fontWeight:700,color:TEXT,margin:0}}>Editar conta</h3>
+              <p style={{fontSize:12,color:TEXTMU,margin:'3px 0 0'}}>{editRec.description}</p>
             </div>
             <div style={{flex:1,overflowY:'auto',padding:'0 18px 8px',WebkitOverflowScrolling:'touch' as any}}>
-
-            <div style={{marginBottom:12}}>
-              <label style={sLbl}>Nome da conta</label>
-              <input type="text" value={editRecForm.description||''}
-                onChange={e=>setEditRecForm((f:any)=>({...f,description:e.target.value}))} style={{...sInp,...bordaErro('description')}}/>
-              <ErroCampo campo="description"/>
-            </div>
-
-            <div style={{marginBottom:12}}>
-              <label style={sLbl}>Valor mensal (R$)</label>
-              <input type="text" inputMode="numeric" value={editRecValor}
-                onChange={e=>setEditRecValor(maskCurrency(e.target.value))} placeholder="0,00" style={{...sInp,...bordaErro('valor')}}/>
-              <ErroCampo campo="valor"/>
-            </div>
-
-            <div style={{marginBottom:12}}>
-              <label style={sLbl}>Responsável</label>
-              <div style={{display:'flex',gap:8}}>
-                {['Lucas','Nicoly'].map(h=>(
-                  <button key={h} onClick={()=>setEditRecForm((f:any)=>({...f,holder:h}))}
-                    style={seg(editRecForm.holder===h)}>{h}</button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{marginBottom:12}}>
-              <label style={sLbl}>Categoria</label>
-              <select value={editRecForm.category||''} onChange={e=>setEditRecForm((f:any)=>({...f,category:e.target.value,subcategory:''}))}
-                style={{...sInp,appearance:'none' as const,...bordaErro('category')}}>
-                <option value="">Selecione...</option>
-                {mesclarCategorias('despesa',customCats).map(c=><option key={c} value={c}>{CAT_ICONS[c]||'📦'} {c}</option>)}
-              </select>
-              <ErroCampo campo="category"/>
-            </div>
-
-            {(SUBCATS[editRecForm.category]||customSubsDB.filter(x=>x.category===editRecForm.category).length>0)&&(
-              <div style={{marginBottom:12}}>
-                <label style={sLbl}>Subcategoria</label>
-                <select value={editRecForm.subcategory||''} onChange={e=>setEditRecForm((f:any)=>({...f,subcategory:e.target.value}))}
-                  style={{...sInp,appearance:'none' as const}}>
-                  <option value="">Nenhuma</option>
-                  {[...(SUBCATS[editRecForm.category]||[]),...customSubsDB.filter(x=>x.category===editRecForm.category).map(x=>x.subcategory)]
-                    .map(sc=><option key={sc} value={sc}>{sc}</option>)}
-                </select>
-              </div>
-            )}
-
-            <div style={{marginBottom:12}}>
-              <label style={sLbl}>Como é cobrada</label>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                {[{v:'debito_automatico',l:'Débito automático'},{v:'boleto',l:'Boleto'},
-                  {v:'cartao_credito',l:'Cartão de crédito'},{v:'pix',l:'PIX'}].map(m=>(
-                  <button key={m.v} onClick={()=>setEditRecForm((f:any)=>({...f,payment_method:m.v}))}
-                    style={seg(editRecForm.payment_method===m.v)}>{m.l}</button>
-                ))}
-              </div>
-            </div>
-
-            {editRecForm.payment_method==='cartao_credito'?(
-              <>
-                <div style={{marginBottom:12}}>
-                  <label style={sLbl}>Cartão</label>
-                  <select value={editRecForm.card_name||''} onChange={e=>setEditRecForm((f:any)=>({...f,card_name:e.target.value}))}
-                    style={{...sInp,appearance:'none' as const,...bordaErro('card_name')}}>
-                    <option value="">Selecione...</option>
-                    {cards.filter(c=>!c.card_type||c.card_type==='credito').map(c=>(
-                      <option key={c.id} value={`${c.name} — ${c.holder}`}>{c.name} — {c.holder}</option>
-                    ))}
-                  </select>
-                  <ErroCampo campo="card_name"/>
-                  {cards.filter(c=>!c.card_type||c.card_type==='credito').length===0&&(
-                    <p style={{fontSize:11,color:TEXTMU,margin:'5px 0 0'}}>Nenhum cartão de crédito cadastrado ainda — cadastre em Configurações &gt; Cartões.</p>
-                  )}
+            {(()=>{
+              const hojeM=mesAtual(), proxM=somaMeses(hojeM,1)
+              const vig=editRecVigencia||hojeM
+              const modoVig:'este'|'prox'|'outro'=vigOutro?'outro':vig===hojeM?'este':vig===proxM?'prox':'outro'
+              const Sec=({t}:{t:string})=>(<p style={{fontSize:11,fontWeight:700,color:TEXTMU,textTransform:'uppercase',letterSpacing:'0.06em',margin:'18px 0 8px'}}>{t}</p>)
+              const chip=(on:boolean):React.CSSProperties=>({flex:1,height:38,borderRadius:10,border:'none',fontSize:13,fontWeight:on?700:500,cursor:'pointer',background:on?TERRA:'rgba(0,0,0,0.05)',color:on?'#fff':TEXT})
+              return(<>
+                <Sec t="Conta"/>
+                <input type="text" value={editRecForm.description||''} placeholder="Nome da conta"
+                  onChange={e=>setEditRecForm((f:any)=>({...f,description:e.target.value}))} style={{...sInp,...bordaErro('description')}}/>
+                <ErroCampo campo="description"/>
+                <div style={{display:'flex',gap:8,marginTop:8}}>
+                  {['Lucas','Nicoly'].map(h=>(
+                    <button key={h} onClick={()=>setEditRecForm((f:any)=>({...f,holder:h}))} style={chip(editRecForm.holder===h)}>{h}</button>
+                  ))}
                 </div>
-                <p style={{fontSize:11,color:TERRA,margin:'0 0 16px',background:'rgba(196,98,45,0.06)',padding:'8px 12px',borderRadius:10}}>
-                  💳 Entra na fatura do cartão — o vencimento é o da fatura, não precisa de dia próprio.
+
+                <Sec t="Valor mensal"/>
+                <input type="text" inputMode="numeric" value={editRecValor}
+                  onChange={e=>setEditRecValor(maskCurrency(e.target.value))} placeholder="R$ 0,00"
+                  style={{...sInp,fontSize:20,fontWeight:700,height:54,...bordaErro('valor')}}/>
+                <ErroCampo campo="valor"/>
+                <p style={{fontSize:11,color:TEXTMU,margin:'10px 0 6px'}}>Vale a partir de</p>
+                <div style={{display:'flex',gap:6}}>
+                  <button onClick={()=>{setVigOutro(false);setEditRecVigencia(hojeM)}} style={chip(modoVig==='este')}>Este mês</button>
+                  <button onClick={()=>{setVigOutro(false);setEditRecVigencia(proxM)}} style={chip(modoVig==='prox')}>Próximo</button>
+                  <button onClick={()=>setVigOutro(true)} style={chip(modoVig==='outro')}>Outro mês</button>
+                </div>
+                {modoVig==='outro'&&(
+                  <input type="month" value={vig} onChange={e=>setEditRecVigencia(e.target.value)} style={{...sInp,marginTop:8}}/>
+                )}
+                <p style={{fontSize:11,color:TEXTMU,margin:'8px 0 0',lineHeight:1.45}}>
+                  Valor e dia mudam de {rotuloMes(vig)} em diante. Meses anteriores e já pagos ficam como estão.
                 </p>
-              </>
-            ):(
-              <div style={{marginBottom:16}}>
-                <label style={sLbl}>Dia do vencimento</label>
-                <input type="number" min={1} max={31} value={editRecForm.recurring_day||''}
-                  onChange={e=>setEditRecForm((f:any)=>({...f,recurring_day:e.target.value}))}
-                  placeholder="Ex: 10" style={{...sInp,...bordaErro('recurring_day')}}/>
-                <ErroCampo campo="recurring_day"/>
-                <p style={{fontSize:11,color:TEXTMU,margin:'5px 0 0'}}>É esse dia que o app usa para avisar no Início.</p>
-              </div>
-            )}
 
-            {/* ── Prazo da conta ───────────────────────────────── */}
-            <div style={{marginBottom:12,borderTop:'1px solid rgba(0,0,0,0.07)',paddingTop:14}}>
-              <label style={sLbl}>Por quanto tempo essa conta existe</label>
-              <div style={{display:'flex',gap:6,marginBottom:8}}>
-                {[{v:'sem',l:'Sem prazo'},{v:'meses',l:'Por X meses'},{v:'ate',l:'Até mês'}].map(o=>(
-                  <button key={o.v} onClick={()=>setEditRecPrazo(o.v as any)}
-                    style={{...seg(editRecPrazo===o.v),flex:1,fontSize:12}}>{o.l}</button>
-                ))}
-              </div>
+                <Sec t="Cobrança"/>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                  {[{v:'debito_automatico',l:'Débito automático'},{v:'boleto',l:'Boleto'},
+                    {v:'cartao_credito',l:'Cartão de crédito'},{v:'pix',l:'PIX'}].map(m=>(
+                    <button key={m.v} onClick={()=>setEditRecForm((f:any)=>({...f,payment_method:m.v}))}
+                      style={chip(editRecForm.payment_method===m.v)}>{m.l}</button>
+                  ))}
+                </div>
+                {editRecForm.payment_method==='cartao_credito'?(
+                  <div style={{marginTop:8}}>
+                    <select value={editRecForm.card_name||''} onChange={e=>setEditRecForm((f:any)=>({...f,card_name:e.target.value}))}
+                      style={{...sInp,appearance:'none' as const,...bordaErro('card_name')}}>
+                      <option value="">Escolha o cartão</option>
+                      {cards.filter(c=>!c.card_type||c.card_type==='credito').map(c=>(
+                        <option key={c.id} value={`${c.name} — ${c.holder}`}>{c.name} — {c.holder}</option>
+                      ))}
+                    </select>
+                    <ErroCampo campo="card_name"/>
+                    <p style={{fontSize:11,color:TEXTMU,margin:'6px 0 0'}}>Entra na fatura do cartão; o vencimento é o da fatura.</p>
+                  </div>
+                ):(
+                  <div style={{marginTop:8}}>
+                    <input type="number" min={1} max={31} value={editRecForm.recurring_day||''} placeholder="Dia do vencimento (1 a 31)"
+                      onChange={e=>setEditRecForm((f:any)=>({...f,recurring_day:e.target.value}))} style={{...sInp,...bordaErro('recurring_day')}}/>
+                    <ErroCampo campo="recurring_day"/>
+                  </div>
+                )}
 
-              {editRecPrazo==='sem'&&(
-                <p style={{fontSize:11,color:TEXTMU,margin:0}}>
-                  Repete todo mês, sem data para acabar. Aparece em qualquer mês que você abrir.
-                </p>
-              )}
+                <Sec t="Categoria"/>
+                <select value={editRecForm.category||''} onChange={e=>setEditRecForm((f:any)=>({...f,category:e.target.value,subcategory:''}))}
+                  style={{...sInp,appearance:'none' as const,...bordaErro('category')}}>
+                  <option value="">Selecione...</option>
+                  {mesclarCategorias('despesa',customCats).map(c=><option key={c} value={c}>{CAT_ICONS[c]||'📦'} {c}</option>)}
+                </select>
+                <ErroCampo campo="category"/>
+                {(SUBCATS[editRecForm.category]||customSubsDB.filter(x=>x.category===editRecForm.category).length>0)&&(
+                  <select value={editRecForm.subcategory||''} onChange={e=>setEditRecForm((f:any)=>({...f,subcategory:e.target.value}))}
+                    style={{...sInp,appearance:'none' as const,marginTop:8}}>
+                    <option value="">Sem subcategoria</option>
+                    {[...(SUBCATS[editRecForm.category]||[]),...customSubsDB.filter(x=>x.category===editRecForm.category).map(x=>x.subcategory)]
+                      .map(sc=><option key={sc} value={sc}>{sc}</option>)}
+                  </select>
+                )}
 
-              {editRecPrazo==='meses'&&(
-                <>
-                  <input type="number" min={1} max={MESES_FUTURO_MAX*5} value={editRecMeses}
-                    onChange={e=>setEditRecMeses(e.target.value)}
-                    placeholder="Ex: 12" style={{...sInp,...bordaErro('prazo')}}/>
-                  <p style={{fontSize:11,color:TEXTMU,margin:'5px 0 0'}}>
-                    Contando a partir de {rotuloMes(mesAtual())}.
-                    {mesFinalEscolhido()&&<> Termina em <strong>{rotuloMes(mesFinalEscolhido()!)}</strong>.</>}
-                  </p>
-                </>
-              )}
-
-              {editRecPrazo==='ate'&&(
-                <>
+                <Sec t="Prazo"/>
+                <div style={{display:'flex',gap:6}}>
+                  {[{v:'sem',l:'Sem prazo'},{v:'meses',l:'Por X meses'},{v:'ate',l:'Até um mês'}].map(o=>(
+                    <button key={o.v} onClick={()=>setEditRecPrazo(o.v as any)} style={chip(editRecPrazo===o.v)}>{o.l}</button>
+                  ))}
+                </div>
+                {editRecPrazo==='meses'&&(
+                  <>
+                    <input type="number" min={1} max={MESES_FUTURO_MAX*5} value={editRecMeses}
+                      onChange={e=>setEditRecMeses(e.target.value)} placeholder="Quantos meses? Ex: 12" style={{...sInp,marginTop:8,...bordaErro('prazo')}}/>
+                    {mesFinalEscolhido()&&<p style={{fontSize:11,color:TEXTMU,margin:'6px 0 0'}}>Termina em <strong>{rotuloMes(mesFinalEscolhido()!)}</strong>.</p>}
+                  </>
+                )}
+                {editRecPrazo==='ate'&&(
                   <input type="month" value={editRecAte} min={mesAtual()}
-                    onChange={e=>setEditRecAte(e.target.value)}
-                    style={{...sInp,...bordaErro('prazo')}}/>
-                  <p style={{fontSize:11,color:TEXTMU,margin:'5px 0 0'}}>
-                    Último mês em que ela aparece. Depois disso, some das telas — sem apagar o histórico.
-                  </p>
-                </>
-              )}
-              <ErroCampo campo="prazo"/>
-            </div>
-
-            {/* ── Vigência do ajuste ───────────────────────────── */}
-            <div style={{marginBottom:16,background:'rgba(196,98,45,0.06)',borderRadius:12,padding:'12px 14px'}}>
-              <label style={{...sLbl,marginBottom:6}}>O novo valor e dia valem a partir de</label>
-              <input type="month" value={editRecVigencia}
-                onChange={e=>setEditRecVigencia(e.target.value)}
-                style={{...sInp,background:'#fff'}}/>
-              <p style={{fontSize:11,color:TEXTLT,margin:'7px 0 0',lineHeight:1.45}}>
-                Os meses anteriores a <strong>{rotuloMes(editRecVigencia||mesAtual())}</strong> ficam
-                exatamente como estão — inclusive os que ainda não foram pagos. Para agendar um reajuste
-                (ex.: sobe em janeiro), é só escolher o mês futuro.
-              </p>
-            </div>
-
+                    onChange={e=>setEditRecAte(e.target.value)} style={{...sInp,marginTop:8,...bordaErro('prazo')}}/>
+                )}
+                {editRecPrazo==='sem'&&<p style={{fontSize:11,color:TEXTMU,margin:'8px 0 0'}}>Repete todo mês, sem data para acabar.</p>}
+                <ErroCampo campo="prazo"/>
+                <div style={{height:8}}/>
+              </>)
+            })()}
             </div>
 
             <div style={{display:'flex',gap:8,padding:'12px 18px calc(16px + env(safe-area-inset-bottom, 12px))',
