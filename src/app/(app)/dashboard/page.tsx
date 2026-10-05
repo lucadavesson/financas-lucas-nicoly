@@ -43,7 +43,7 @@ function BadgeInline({status}: {status:string}) {
 
 export default function Dashboard() {
   const [txs,setTxs]=useState<Tx[]>([]); const [loading,setLoad]=useState(true); const [hide,setHide]=useState(false)
-  const [dashSecs,setDashSecs]=useState<Record<string,boolean>>(()=>{try{const s=sessionStorage.getItem('ln_dash_secs');return s?JSON.parse(s):{resumo:false,pessoas:false,alertas:true,metas:false,gastos:false,ultimas:false}}catch{return {}}})
+  const [dashSecs,setDashSecs]=useState<Record<string,boolean>>(()=>{const padrao={contas:false,alertas:true,metas:false,gastos:false,ultimas:false};try{const s=localStorage.getItem('ln_dash_secs_v2');return s?{...padrao,...JSON.parse(s)}:padrao}catch{return padrao}})
   const [curMonth, setCurMonth] = useState(new Date())
   const [settings,setSettings]=useState<any>(null)
   const [catLimits,setCatLimits]=useState<Record<string,number>>({})
@@ -57,7 +57,7 @@ export default function Dashboard() {
   const [abaContas,setAbaContas]=useState<'a_pagar'|'vencidas'|'pagas'>('a_pagar')
   const [contasExp,setContasExp]=useState(false)
   useEffect(()=>{load()}, [curMonth])
-  useEffect(()=>{try{sessionStorage.setItem('ln_dash_secs',JSON.stringify(dashSecs))}catch{}},[dashSecs])
+  useEffect(()=>{try{localStorage.setItem('ln_dash_secs_v2',JSON.stringify(dashSecs))}catch{}},[dashSecs])
   const togSec=(k:string)=>setDashSecs(p=>({...p,[k]:!p[k]}))
 
   async function load() {
@@ -364,17 +364,16 @@ export default function Dashboard() {
       </div>
 
       {/* Por pessoa */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-        {['Lucas','Nicoly'].map(p=>{
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.05)',overflow:'hidden'}}>
+        {['Lucas','Nicoly'].map((p,i)=>{
           const r=txs.filter(t=>t.holder===p&&isReceita(t)).reduce((s,t)=>s+t.amount,0)
-          const d=txs.filter(t=>t.holder===p&&!isReceita(t)).reduce((s,t)=>s+(t.installment_value||t.amount),0)
+          const d=txs.filter(t=>t.holder===p&&!isReceita(t)&&t.status!=='Cancelado').reduce((s,t)=>s+(t.installment_value||t.amount),0)
           return(
-            <div key={p} style={{...card({marginBottom:0})}}>
-              <div style={{width:28,height:28,borderRadius:'50%',background:TERRABG,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:TERRA,marginBottom:8}}>{p[0]}</div>
-              <p style={{fontSize:14,fontWeight:600,color:TEXT,margin:'0 0 4px'}}>{p}</p>
-              <p style={{fontSize:18,fontWeight:700,color:r-d>=0?GREEN:RED,fontVariantNumeric:'tabular-nums',margin:'0 0 4px'}}>{v(r-d)}</p>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:TEXTMU}}>
-                <span style={{color:GREEN}}>↑{v(r)}</span><span style={{color:RED}}>↓{v(d)}</span>
+            <div key={p} style={{padding:'14px 16px',borderLeft:i===1?'1px solid rgba(0,0,0,0.06)':'none'}}>
+              <p style={{fontSize:12,fontWeight:600,color:TEXTMU,margin:0}}>{p}</p>
+              <p style={{fontSize:18,fontWeight:700,color:r-d>=0?TEXT:RED,fontVariantNumeric:'tabular-nums',margin:'4px 0 6px'}}>{v(r-d)}</p>
+              <div style={{display:'flex',gap:10,fontSize:11,color:TEXTMU,fontVariantNumeric:'tabular-nums'}}>
+                <span>↑ {v(r)}</span><span>↓ {v(d)}</span>
               </div>
             </div>
           )
@@ -420,30 +419,38 @@ export default function Dashboard() {
 
       {/* ── Central de Contas ──────────────────────────────── */}
       {(()=>{
-        const aberta=dashSecs.contas!==false
-        const LIMITE=5
+        const aberta=dashSecs.contas===true
+        const LIMITE=4
         const lista=contasExp?contasVisiveis:contasVisiveis.slice(0,LIMITE)
         const sobra=contasVisiveis.length-lista.length
+        const proxima=contasAPagar[0]
+        const stProx=proxima?labelVencimento(proxima):null
         return(
-        <div style={{background:'#fff',borderRadius:20,marginBottom:14,border:'1px solid rgba(0,0,0,0.05)',overflow:'hidden'}}>
+        <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.05)',overflow:'hidden'}}>
           {/* Cabeçalho: toca para ocultar/abrir */}
-          <button onClick={()=>setDashSecs(p=>({...p,contas:p.contas===false}))}
-            style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'15px 16px',background:'transparent',border:'none',cursor:'pointer',textAlign:'left'}}>
+          <button onClick={()=>setDashSecs(p=>({...p,contas:!p.contas}))}
+            style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'14px 16px',background:'transparent',border:'none',cursor:'pointer',textAlign:'left'}}>
             <span style={{flex:1,minWidth:0}}>
-              <span style={{display:'block',fontSize:15,fontWeight:700,color:TEXT}}>Contas do mês</span>
-              <span style={{display:'block',fontSize:12,color:TEXTMU,marginTop:2}}>
+              <span style={{display:'block',fontSize:14,fontWeight:700,color:TEXT}}>Contas do mês</span>
+              <span style={{display:'block',fontSize:12,marginTop:2,color:TEXTMU,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                 {contasAPagar.length===0
                   ?'Tudo pago'
-                  :<>{contasAPagar.length} a pagar · <strong style={{color:TEXT,fontWeight:700}}>{v(totalAPagar)}</strong>
-                    {contasVencidas.length>0&&<span style={{color:RED,fontWeight:600}}> · {contasVencidas.length} vencida{contasVencidas.length>1?'s':''}</span>}</>}
+                  :contasVencidas.length>0
+                    ?<span style={{color:RED,fontWeight:600}}>{contasVencidas.length} vencida{contasVencidas.length>1?'s':''}</span>
+                    :<>{contasAPagar.length} a pagar</>}
+                {proxima&&stProx&&<> · {proxima.titulo}, <span style={{color:stProx.cor,fontWeight:600}}>{stProx.txt.toLowerCase()}</span></>}
               </span>
             </span>
-            {aberta?<ChevronUp size={18} color={TEXTMU}/>:<ChevronDown size={18} color={TEXTMU}/>}
+            <span style={{textAlign:'right',flexShrink:0}}>
+              <span style={{display:'block',fontSize:15,fontWeight:700,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{v(totalAPagar)}</span>
+              <span style={{display:'block',fontSize:10.5,color:TEXTMU,marginTop:1}}>a pagar</span>
+            </span>
+            {aberta?<ChevronUp size={17} color={TEXTMU}/>:<ChevronDown size={17} color={TEXTMU}/>}
           </button>
 
           {aberta&&(<>
             {/* Abas */}
-            <div style={{display:'flex',background:'rgba(0,0,0,0.05)',borderRadius:11,padding:3,margin:'0 16px 6px'}}>
+            <div style={{display:'flex',background:'rgba(0,0,0,0.05)',borderRadius:10,padding:2,margin:'0 16px 8px'}}>
               {([
                 {k:'a_pagar' as const, label:'A pagar', n:contasAPagar.length},
                 {k:'vencidas' as const,label:'Vencidas',n:contasVencidas.length},
@@ -452,15 +459,15 @@ export default function Dashboard() {
                 const on=abaContas===t.k
                 return(
                   <button key={t.k} onClick={()=>{setAbaContas(t.k);setContasExp(false)}}
-                    style={{flex:1,height:32,border:'none',borderRadius:9,fontSize:12.5,fontWeight:on?700:600,cursor:'pointer',
+                    style={{flex:1,height:30,border:'none',borderRadius:8,fontSize:12,fontWeight:on?700:600,cursor:'pointer',
                       background:on?'#fff':'transparent',color:on?(t.k==='vencidas'&&t.n>0?RED:TEXT):TEXTMU,
-                      boxShadow:on?'0 1px 3px rgba(0,0,0,0.08)':'none'}}>{t.label} {t.n}</button>
+                      boxShadow:on?'0 1px 3px rgba(0,0,0,0.08)':'none'}}>{t.label} · {t.n}</button>
                 )
               })}
             </div>
 
             {contasVisiveis.length===0?(
-              <p style={{fontSize:13,color:TEXTMU,textAlign:'center',padding:'22px 16px 26px',margin:0}}>
+              <p style={{fontSize:13,color:TEXTMU,textAlign:'center',padding:'18px 16px 22px',margin:0}}>
                 {abaContas==='vencidas'?'Nenhuma conta vencida':abaContas==='pagas'?'Nada pago ainda neste mês':'Nenhuma conta a pagar'}
               </p>
             ):(
@@ -468,34 +475,33 @@ export default function Dashboard() {
                 {lista.map(c=>{
                   const st=labelVencimento(c)
                   return(
-                    <div key={c.key} style={{display:'flex',alignItems:'center',gap:12,padding:'11px 16px',borderTop:'1px solid rgba(0,0,0,0.06)'}}>
-                      <span style={{width:36,height:36,borderRadius:11,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,background:'#F5F5F7'}}>
+                    <div key={c.key} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px',borderTop:'1px solid rgba(0,0,0,0.06)'}}>
+                      <span style={{width:34,height:34,borderRadius:10,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,background:'#F5F5F7'}}>
                         {c.tipo==='fatura'?'💳':(CAT_ICONS[c.categoria||'']||'📦')}
                       </span>
                       <span style={{flex:1,minWidth:0}}>
-                        <span style={{display:'block',fontSize:14,fontWeight:600,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.titulo}</span>
-                        <span style={{display:'block',fontSize:11.5,color:st.cor,fontWeight:c.pago?500:600,marginTop:2}}>{st.txt}</span>
+                        <span style={{display:'block',fontSize:13.5,fontWeight:600,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.titulo}</span>
+                        <span style={{display:'block',fontSize:11.5,color:st.cor,fontWeight:c.pago?500:600,marginTop:1}}>{st.txt}</span>
                       </span>
                       <span style={{textAlign:'right',flexShrink:0}}>
-                        <span style={{display:'block',fontSize:14,fontWeight:700,color:c.pago?GREEN:TEXT,fontVariantNumeric:'tabular-nums'}}>{v(c.valor)}</span>
+                        <span style={{display:'block',fontSize:13.5,fontWeight:700,color:c.pago?GREEN:TEXT,fontVariantNumeric:'tabular-nums'}}>{v(c.valor)}</span>
                         {!c.pago&&(c.tipo==='fatura'?(
-                          <Link href="/pagamentos" style={{fontSize:12,fontWeight:700,color:TERRA,textDecoration:'none'}}>Pagar</Link>
+                          <Link href="/pagamentos" style={{fontSize:11.5,fontWeight:700,color:TERRA,textDecoration:'none'}}>Pagar</Link>
                         ):(
                           <button onClick={()=>openPayModal(c.txId!,c.titulo,c.valor)}
-                            style={{fontSize:12,fontWeight:700,color:TERRA,background:'none',border:'none',cursor:'pointer',padding:0}}>Pagar</button>
+                            style={{fontSize:11.5,fontWeight:700,color:TERRA,background:'none',border:'none',cursor:'pointer',padding:0}}>Pagar</button>
                         ))}
                       </span>
                     </div>
                   )
                 })}
-                <div style={{display:'flex',borderTop:'1px solid rgba(0,0,0,0.06)'}}>
-                  {sobra>0&&(
-                    <button onClick={()=>setContasExp(true)} style={{flex:1,height:42,background:'transparent',border:'none',fontSize:12.5,fontWeight:600,color:TEXTLT,cursor:'pointer'}}>Mostrar mais {sobra}</button>
-                  )}
-                  {contasExp&&contasVisiveis.length>LIMITE&&(
-                    <button onClick={()=>setContasExp(false)} style={{flex:1,height:42,background:'transparent',border:'none',fontSize:12.5,fontWeight:600,color:TEXTLT,cursor:'pointer'}}>Mostrar menos</button>
-                  )}
-                  <Link href="/pagamentos" style={{flex:1,height:42,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12.5,fontWeight:700,color:TERRA,textDecoration:'none'}}>Abrir Pagamentos</Link>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',borderTop:'1px solid rgba(0,0,0,0.06)',padding:'0 16px',height:40}}>
+                  {sobra>0
+                    ?<button onClick={()=>setContasExp(true)} style={{background:'transparent',border:'none',fontSize:12,fontWeight:600,color:TEXTLT,cursor:'pointer',padding:0}}>Mostrar mais {sobra}</button>
+                    :contasExp&&contasVisiveis.length>LIMITE
+                      ?<button onClick={()=>setContasExp(false)} style={{background:'transparent',border:'none',fontSize:12,fontWeight:600,color:TEXTLT,cursor:'pointer',padding:0}}>Mostrar menos</button>
+                      :<span/>}
+                  <Link href="/pagamentos" style={{fontSize:12,fontWeight:700,color:TERRA,textDecoration:'none'}}>Pagamentos →</Link>
                 </div>
               </div>
             )}
@@ -506,9 +512,18 @@ export default function Dashboard() {
 
       {/* Alertas de limite */}
       {catAlertas.length>0&&(
-        <div style={{...card({marginBottom:12})}}>
-          <p style={{fontSize:14,fontWeight:700,color:'#FF3B30',margin:'0 0 12px'}}>⚠️ Alertas de limite</p>
-          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.05)',overflow:'hidden'}}>
+          <button onClick={()=>togSec('alertas')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'14px 16px',display:'flex',alignItems:'center',gap:10,textAlign:'left'}}>
+            <span style={{flex:1}}>
+              <span style={{display:'block',fontSize:14,fontWeight:700,color:TEXT}}>Limites por categoria</span>
+              <span style={{display:'block',fontSize:12,color:catAlertas.some(a=>a.pct>=100)?RED:'#CC7700',fontWeight:600,marginTop:2}}>
+                {catAlertas.length} em atenção{catAlertas.some(a=>a.pct>=100)?' · há limite estourado':''}
+              </span>
+            </span>
+            {dashSecs.alertas?<ChevronUp size={17} color={TEXTMU}/>:<ChevronDown size={17} color={TEXTMU}/>}
+          </button>
+          {dashSecs.alertas&&(<div style={{padding:'0 16px 14px'}}>
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {catAlertas.map(a=>(
               <div key={a.cat}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
@@ -528,17 +543,23 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+          </div>)}
         </div>
       )}
 
       {/* Metas ativas */}
       {goals.length>0&&(
-        <div style={{...card({marginBottom:12})}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-            <p style={{fontSize:14,fontWeight:700,color:TEXT,margin:0}}>🎯 Metas</p>
-            <Link href="/metas" style={{fontSize:11,color:TERRA,fontWeight:600,textDecoration:'none'}}>Ver todas →</Link>
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.05)',overflow:'hidden'}}>
+          <button onClick={()=>togSec('metas')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'14px 16px',display:'flex',alignItems:'center',gap:10,textAlign:'left'}}>
+            <span style={{flex:1}}>
+              <span style={{display:'block',fontSize:14,fontWeight:700,color:TEXT}}>Metas</span>
+              <span style={{display:'block',fontSize:12,color:TEXTMU,marginTop:2}}>{goals.length} {goals.length===1?'meta ativa':'metas ativas'}</span>
+            </span>
+            <Link href="/metas" onClick={e=>e.stopPropagation()} style={{fontSize:12,color:TERRA,fontWeight:700,textDecoration:'none'}}>Ver todas</Link>
+            {dashSecs.metas?<ChevronUp size={17} color={TEXTMU}/>:<ChevronDown size={17} color={TEXTMU}/>}
+          </button>
+          {dashSecs.metas&&(<div style={{padding:'0 16px 14px'}}>
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {goals.slice(0,3).map((g:any)=>{
               const pct=g.target_amount>0?Math.min(100,g.current_amount/g.target_amount*100):0
               return (
@@ -561,14 +582,15 @@ export default function Dashboard() {
               )
             })}
           </div>
+          </div>)}
         </div>
       )}
 
       {/* Maiores gastos */}
       {topCats.length>0&&(
         <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.04)',overflow:'hidden'}}>
-          <button onClick={()=>togSec('gastos')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <span style={{fontSize:14,fontWeight:700,color:TEXT}}>📊 Maiores gastos</span>
+          <button onClick={()=>togSec('gastos')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <span style={{fontSize:14,fontWeight:700,color:TEXT}}>Maiores gastos</span>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <Link href="/relatorios" onClick={e=>e.stopPropagation()} style={{fontSize:11,color:TERRA,fontWeight:600,textDecoration:'none'}}>Relatório</Link>
               {dashSecs.gastos?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}
@@ -683,8 +705,8 @@ export default function Dashboard() {
       {/* Últimas transações */}
       {txs.length>0&&(
         <div style={{background:'#fff',borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.04)',overflow:'hidden'}}>
-          <button onClick={()=>togSec('ultimas')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <span style={{fontSize:14,fontWeight:700,color:TEXT}}>🕐 Últimas transações</span>
+          <button onClick={()=>togSec('ultimas')} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <span style={{fontSize:14,fontWeight:700,color:TEXT}}>Últimas transações</span>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <Link href="/lancamentos" onClick={e=>e.stopPropagation()} style={{fontSize:11,color:TERRA,fontWeight:600,textDecoration:'none'}}>Ver todas</Link>
               {dashSecs.ultimas?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}
