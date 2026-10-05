@@ -9,6 +9,7 @@ import { loadCustomCategorias, mesclarCategorias, criarCategoria, renomearCatego
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
 import { registrarFaceId, esquecerFaceId, faceIdAtivo, biometriaDisponivel } from '@/lib/utils/passkey'
+import { LIMITES_MIN, limiteMin, definirLimiteMin } from '@/lib/utils/bloqueio'
 import { auditarParcelas, corrigirDatas, descreverProblema, auditarDuplicatas, removerDuplicatas, type Auditoria, type AuditoriaDup } from '@/lib/utils/auditoriaParcelas'
 import { receitasPorTitular, trocarTitular, type GrupoReceita } from '@/lib/utils/titularReceitas'
 import {
@@ -103,6 +104,8 @@ export default function Parametros() {
   const [titEscolhidos, setTitEscolhidos] = useState<string[]>([])
   // Segurança
   const [faceIdEnabled, setFaceIdEnabled] = useState(false)
+  const [lockMin, setLockMin] = useState(5)
+  useEffect(()=>{ setLockMin(limiteMin()) },[])
   const [userId, setUserId] = useState('')
   const [userEmail, setUserEmail] = useState('')
   // Categorias/Subcategorias
@@ -1375,6 +1378,18 @@ export default function Parametros() {
               <div style={{width:26,height:26,borderRadius:13,background:'#fff',position:'absolute',top:2,left:faceIdEnabled?24:2,transition:'left 0.2s',boxShadow:'0 1px 3px rgba(0,0,0,0.2)'}}/>
             </button>
           </div>
+          {faceIdEnabled&&(
+            <div style={{marginTop:14,paddingTop:14,borderTop:'1px solid rgba(0,0,0,0.06)'}}>
+              <p style={{fontSize:12,color:TEXTMU,margin:'0 0 8px'}}>Pedir Face ID depois de ficar sem usar por</p>
+              <div style={{display:'flex',gap:6}}>
+                {LIMITES_MIN.map(m=>(
+                  <button key={m} onClick={()=>{definirLimiteMin(m);setLockMin(m)}}
+                    style={{flex:1,height:36,border:'none',borderRadius:10,fontSize:13,fontWeight:lockMin===m?700:500,cursor:'pointer',
+                      background:lockMin===m?TERRA:'rgba(0,0,0,0.05)',color:lockMin===m?'#fff':TEXT}}>{m} min</button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Info da conta */}

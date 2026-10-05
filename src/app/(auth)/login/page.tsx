@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Loader2, Eye, EyeOff } from 'lucide-react'
 import { pedirFaceId, registrarFaceId } from '@/lib/utils/passkey'
+import { marcarAtividade } from '@/lib/utils/bloqueio'
 
 const KNOWN_USERS: Record<string, string> = {
   'lucasdavesson@gmail.com': 'Lucas Davisson',
@@ -76,7 +77,7 @@ function LoginContent() {
         const savedPw = localStorage.getItem('ln_saved_pw')
         if (savedPw) {
           const { error } = await createClient().auth.signInWithPassword({ email: savedEmail, password: atob(savedPw) })
-          if (!error) { sessionStorage.removeItem('ln_locked'); router.push('/dashboard'); router.refresh(); return }
+          if (!error) { sessionStorage.removeItem('ln_locked'); marcarAtividade(); router.push('/dashboard'); router.refresh(); return }
         }
         toast.info('Face ID reconhecido! Digite sua senha para confirmar.')
       }
@@ -120,7 +121,7 @@ function LoginContent() {
       const reg = await registrarFaceId(uid, savedEmail)
       if (reg.ok) toast.success('Face ID configurado! Na próxima vez use o Face ID para entrar. 🔒')
     }
-    sessionStorage.removeItem('ln_locked')
+    sessionStorage.removeItem('ln_locked'); marcarAtividade()
     router.push('/dashboard'); router.refresh()
   }
 

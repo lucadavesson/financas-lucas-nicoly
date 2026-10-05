@@ -55,6 +55,7 @@ export default function Dashboard() {
   const [confirmandoFatura,setConfirmandoFatura]=useState<{cardId:string;cardName:string;ciclo:string;total:number}|null>(null)
   const [confirmValorRaw,setConfirmValorRaw]=useState('')
   const [abaContas,setAbaContas]=useState<'a_pagar'|'vencidas'|'pagas'>('a_pagar')
+  const [contasExp,setContasExp]=useState(false)
   useEffect(()=>{load()}, [curMonth])
   useEffect(()=>{try{sessionStorage.setItem('ln_dash_secs',JSON.stringify(dashSecs))}catch{}},[dashSecs])
   const togSec=(k:string)=>setDashSecs(p=>({...p,[k]:!p[k]}))
@@ -264,11 +265,12 @@ export default function Dashboard() {
   // Rótulo de status no estilo do extrato de boletos do banco
   function labelVencimento(c:Conta){
     const dias=Math.round((parseISO(c.dueDate).getTime()-parseISO(hojeStr).getTime())/86400000)
-    if(c.pago)return {txt:`Pago · ${format(parseISO(c.dueDate),'dd/MM/yy')}`,cor:GREEN,icone:'✓'}
-    if(dias<0)return {txt:`Venceu em ${format(parseISO(c.dueDate),'dd/MM/yy')}`,cor:RED,icone:'⚠️'}
-    if(dias===0)return {txt:`Vence hoje, ${format(parseISO(c.dueDate),'dd/MM/yy')}`,cor:'#CC7700',icone:'🔔'}
-    if(dias<=3)return {txt:`Vence em ${format(parseISO(c.dueDate),'dd/MM/yy')}`,cor:'#CC7700',icone:'⏰'}
-    return {txt:`Vence em ${format(parseISO(c.dueDate),'dd/MM/yy')}`,cor:TEXTLT,icone:'📅'}
+    const dd=format(parseISO(c.dueDate),'dd/MM')
+    if(c.pago)return {txt:`Pago · ${dd}`,cor:GREEN,icone:''}
+    if(dias<0)return {txt:`Venceu em ${dd}`,cor:RED,icone:''}
+    if(dias===0)return {txt:'Vence hoje',cor:'#CC7700',icone:''}
+    if(dias<=3)return {txt:`Vence em ${dd}`,cor:'#CC7700',icone:''}
+    return {txt:`Vence em ${dd}`,cor:TEXTMU,icone:''}
   }
 
   const catMap:Record<string,number>={}
@@ -417,99 +419,90 @@ export default function Dashboard() {
       )}
 
       {/* ── Central de Contas ──────────────────────────────── */}
-      <div style={{marginBottom:14}}>
-        <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:10}}>
-          <h3 style={{fontSize:16,fontWeight:800,color:TEXT,margin:0}}>Central de Contas</h3>
-          <Link href="/pagamentos" style={{fontSize:11,color:TERRA,fontWeight:700,textDecoration:'none'}}>Ver todas →</Link>
-        </div>
-
-        {/* Abas */}
-        <div style={{display:'flex',gap:6,marginBottom:12,borderBottom:'1px solid rgba(0,0,0,0.06)'}}>
-          {([
-            {k:'a_pagar' as const, label:'A pagar', n:contasAPagar.length},
-            {k:'vencidas' as const,label:'Vencidas',n:contasVencidas.length},
-            {k:'pagas' as const,   label:'Pagas',   n:contasPagas.length},
-          ]).map(t=>{
-            const on=abaContas===t.k
-            const cor=t.k==='vencidas'&&t.n>0?RED:t.k==='pagas'?GREEN:TERRA
-            return (
-              <button key={t.k} onClick={()=>setAbaContas(t.k)}
-                style={{background:'none',border:'none',cursor:'pointer',padding:'8px 12px 10px',position:'relative',
-                  fontSize:13,fontWeight:on?800:600,color:on?cor:TEXTMU}}>
-                {t.label} ({t.n})
-                {on&&<div style={{position:'absolute',left:8,right:8,bottom:-1,height:2.5,borderRadius:99,background:cor}}/>}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Resumo da aba */}
-        {abaContas!=='pagas'&&contasVisiveis.length>0&&(
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'0 2px 10px'}}>
-            <span style={{fontSize:11,color:TEXTMU,fontWeight:600}}>
-              {abaContas==='vencidas'
-                ?'Total vencido'
-                :contasVencidas.length>0
-                  ?`Total a pagar · ${contasVencidas.length} já vencida${contasVencidas.length>1?'s':''}`
-                  :'Total a pagar'}
+      {(()=>{
+        const aberta=dashSecs.contas!==false
+        const LIMITE=5
+        const lista=contasExp?contasVisiveis:contasVisiveis.slice(0,LIMITE)
+        const sobra=contasVisiveis.length-lista.length
+        return(
+        <div style={{background:'#fff',borderRadius:20,marginBottom:14,border:'1px solid rgba(0,0,0,0.05)',overflow:'hidden'}}>
+          {/* Cabeçalho: toca para ocultar/abrir */}
+          <button onClick={()=>setDashSecs(p=>({...p,contas:p.contas===false}))}
+            style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'15px 16px',background:'transparent',border:'none',cursor:'pointer',textAlign:'left'}}>
+            <span style={{flex:1,minWidth:0}}>
+              <span style={{display:'block',fontSize:15,fontWeight:700,color:TEXT}}>Contas do mês</span>
+              <span style={{display:'block',fontSize:12,color:TEXTMU,marginTop:2}}>
+                {contasAPagar.length===0
+                  ?'Tudo pago'
+                  :<>{contasAPagar.length} a pagar · <strong style={{color:TEXT,fontWeight:700}}>{v(totalAPagar)}</strong>
+                    {contasVencidas.length>0&&<span style={{color:RED,fontWeight:600}}> · {contasVencidas.length} vencida{contasVencidas.length>1?'s':''}</span>}</>}
+              </span>
             </span>
-            <span style={{fontSize:15,fontWeight:800,color:abaContas==='vencidas'?RED:TEXT,fontVariantNumeric:'tabular-nums'}}>
-              {v(abaContas==='vencidas'?totalVencidas:totalAPagar)}
-            </span>
-          </div>
-        )}
+            {aberta?<ChevronUp size={18} color={TEXTMU}/>:<ChevronDown size={18} color={TEXTMU}/>}
+          </button>
 
-        {contasVisiveis.length===0?(
-          <div style={{background:'#fff',borderRadius:18,padding:'28px 20px',textAlign:'center',border:'1px solid rgba(0,0,0,0.05)'}}>
-            <p style={{fontSize:26,margin:'0 0 8px'}}>{abaContas==='vencidas'?'🎉':abaContas==='pagas'?'📭':'✨'}</p>
-            <p style={{fontSize:13,fontWeight:600,color:abaContas==='vencidas'?GREEN:TEXTMU,margin:0}}>
-              {abaContas==='vencidas'?'Nenhuma conta vencida!':abaContas==='pagas'?'Nada pago ainda neste mês':'Nenhuma conta a pagar'}
-            </p>
-          </div>
-        ):(
-          <div style={{display:'flex',flexDirection:'column',gap:10}}>
-            {contasVisiveis.map(c=>{
-              const st=labelVencimento(c)
-              const linha={display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 15px'}
-              return (
-                <div key={c.key} style={{background:'#fff',borderRadius:18,overflow:'hidden',border:'1px solid rgba(0,0,0,0.05)',boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
-                  {/* Cabeçalho: nome + ação */}
-                  <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'13px 15px 11px'}}>
-                    <div style={{width:34,height:34,borderRadius:11,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,
-                      background:c.tipo==='fatura'?'rgba(196,98,45,0.1)':'rgba(0,0,0,0.035)'}}>
-                      {c.tipo==='fatura'?'💳':(CAT_ICONS[c.categoria||'']||'📦')}
+          {aberta&&(<>
+            {/* Abas */}
+            <div style={{display:'flex',background:'rgba(0,0,0,0.05)',borderRadius:11,padding:3,margin:'0 16px 6px'}}>
+              {([
+                {k:'a_pagar' as const, label:'A pagar', n:contasAPagar.length},
+                {k:'vencidas' as const,label:'Vencidas',n:contasVencidas.length},
+                {k:'pagas' as const,   label:'Pagas',   n:contasPagas.length},
+              ]).map(t=>{
+                const on=abaContas===t.k
+                return(
+                  <button key={t.k} onClick={()=>{setAbaContas(t.k);setContasExp(false)}}
+                    style={{flex:1,height:32,border:'none',borderRadius:9,fontSize:12.5,fontWeight:on?700:600,cursor:'pointer',
+                      background:on?'#fff':'transparent',color:on?(t.k==='vencidas'&&t.n>0?RED:TEXT):TEXTMU,
+                      boxShadow:on?'0 1px 3px rgba(0,0,0,0.08)':'none'}}>{t.label} {t.n}</button>
+                )
+              })}
+            </div>
+
+            {contasVisiveis.length===0?(
+              <p style={{fontSize:13,color:TEXTMU,textAlign:'center',padding:'22px 16px 26px',margin:0}}>
+                {abaContas==='vencidas'?'Nenhuma conta vencida':abaContas==='pagas'?'Nada pago ainda neste mês':'Nenhuma conta a pagar'}
+              </p>
+            ):(
+              <div>
+                {lista.map(c=>{
+                  const st=labelVencimento(c)
+                  return(
+                    <div key={c.key} style={{display:'flex',alignItems:'center',gap:12,padding:'11px 16px',borderTop:'1px solid rgba(0,0,0,0.06)'}}>
+                      <span style={{width:36,height:36,borderRadius:11,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,background:'#F5F5F7'}}>
+                        {c.tipo==='fatura'?'💳':(CAT_ICONS[c.categoria||'']||'📦')}
+                      </span>
+                      <span style={{flex:1,minWidth:0}}>
+                        <span style={{display:'block',fontSize:14,fontWeight:600,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.titulo}</span>
+                        <span style={{display:'block',fontSize:11.5,color:st.cor,fontWeight:c.pago?500:600,marginTop:2}}>{st.txt}</span>
+                      </span>
+                      <span style={{textAlign:'right',flexShrink:0}}>
+                        <span style={{display:'block',fontSize:14,fontWeight:700,color:c.pago?GREEN:TEXT,fontVariantNumeric:'tabular-nums'}}>{v(c.valor)}</span>
+                        {!c.pago&&(c.tipo==='fatura'?(
+                          <Link href="/pagamentos" style={{fontSize:12,fontWeight:700,color:TERRA,textDecoration:'none'}}>Pagar</Link>
+                        ):(
+                          <button onClick={()=>openPayModal(c.txId!,c.titulo,c.valor)}
+                            style={{fontSize:12,fontWeight:700,color:TERRA,background:'none',border:'none',cursor:'pointer',padding:0}}>Pagar</button>
+                        ))}
+                      </span>
                     </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <p style={{fontSize:14,fontWeight:700,color:TEXT,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.titulo}</p>
-                      <p style={{fontSize:11.5,color:TEXTMU,margin:'2px 0 0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.subtitulo}</p>
-                    </div>
-                    {!c.pago&&(c.tipo==='fatura'?(
-                      <Link href="/pagamentos" style={{fontSize:12.5,fontWeight:700,color:TERRA,textDecoration:'none',flexShrink:0,paddingTop:2}}>Pagar</Link>
-                    ):(
-                      <button onClick={()=>openPayModal(c.txId!,c.titulo,c.valor)}
-                        style={{fontSize:12.5,fontWeight:700,color:TERRA,background:'none',border:'none',cursor:'pointer',flexShrink:0,padding:'2px 0 0'}}>Pagar</button>
-                    ))}
-                  </div>
-
-                  {/* Status */}
-                  <div style={{...linha,background:'rgba(0,0,0,0.018)',borderTop:'1px solid rgba(0,0,0,0.04)'}}>
-                    <span style={{fontSize:12,color:TEXTMU}}>Status</span>
-                    <span style={{fontSize:12,fontWeight:700,color:st.cor,display:'flex',alignItems:'center',gap:5}}>
-                      <span style={{fontSize:11}}>{st.icone}</span>{st.txt}
-                    </span>
-                  </div>
-
-                  {/* Valor */}
-                  <div style={{...linha,background:'rgba(0,0,0,0.018)',borderTop:'1px solid rgba(0,0,0,0.04)'}}>
-                    <span style={{fontSize:12,color:TEXTMU}}>Valor</span>
-                    <span style={{fontSize:14,fontWeight:800,color:c.pago?GREEN:TEXT,fontVariantNumeric:'tabular-nums'}}>{v(c.valor)}</span>
-                  </div>
+                  )
+                })}
+                <div style={{display:'flex',borderTop:'1px solid rgba(0,0,0,0.06)'}}>
+                  {sobra>0&&(
+                    <button onClick={()=>setContasExp(true)} style={{flex:1,height:42,background:'transparent',border:'none',fontSize:12.5,fontWeight:600,color:TEXTLT,cursor:'pointer'}}>Mostrar mais {sobra}</button>
+                  )}
+                  {contasExp&&contasVisiveis.length>LIMITE&&(
+                    <button onClick={()=>setContasExp(false)} style={{flex:1,height:42,background:'transparent',border:'none',fontSize:12.5,fontWeight:600,color:TEXTLT,cursor:'pointer'}}>Mostrar menos</button>
+                  )}
+                  <Link href="/pagamentos" style={{flex:1,height:42,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12.5,fontWeight:700,color:TERRA,textDecoration:'none'}}>Abrir Pagamentos</Link>
                 </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+              </div>
+            )}
+          </>)}
+        </div>
+        )
+      })()}
 
       {/* Alertas de limite */}
       {catAlertas.length>0&&(

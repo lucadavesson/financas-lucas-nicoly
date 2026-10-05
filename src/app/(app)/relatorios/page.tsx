@@ -17,22 +17,21 @@ const COLORS=['#1D9E75','#7F77DD','#378ADD','#C8963C','#E24B4A','#D85A30','#0F6E
 
 const v = formatCurrency
 
-function Section({title,icon,count,total,children,defaultOpen=false}:{title:string;icon:string;count?:number;total?:number;children:React.ReactNode;defaultOpen?:boolean}) {
+function Section({title,icon,count,total,children,defaultOpen=false}:{title:string;icon?:string;count?:number;total?:number;children:React.ReactNode;defaultOpen?:boolean}) {
   const [open,setOpen]=useState(defaultOpen)
   return (
-    <div style={{background:CARD,borderRadius:20,marginBottom:12,border:'1px solid rgba(0,0,0,0.04)',overflow:'hidden'}}>
-      <button onClick={()=>setOpen(!open)} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'14px 18px',textAlign:'left',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <span style={{fontSize:16}}>{icon}</span>
-          <span style={{fontSize:14,fontWeight:700,color:TEXT}}>{title}</span>
-          {count!==undefined&&<span style={{fontSize:11,color:TEXTMU,background:'rgba(0,0,0,0.04)',borderRadius:8,padding:'1px 7px',fontWeight:600}}>{count}</span>}
+    <div style={{background:CARD,borderRadius:20,marginBottom:10,border:'1px solid rgba(0,0,0,0.05)',overflow:'hidden'}}>
+      <button onClick={()=>setOpen(!open)} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'15px 16px',textAlign:'left',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,minWidth:0}}>
+          <span style={{fontSize:14,fontWeight:600,color:TEXT}}>{title}</span>
+          {count!==undefined&&<span style={{fontSize:11,color:TEXTMU,fontWeight:600}}>{count}</span>}
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          {total!==undefined&&<span style={{fontSize:13,fontWeight:700,color:RED,fontVariantNumeric:'tabular-nums'}}>{v(total)}</span>}
+        <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+          {total!==undefined&&<span style={{fontSize:13,fontWeight:700,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{v(total)}</span>}
           {open?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}
         </div>
       </button>
-      {open&&<div style={{padding:'0 18px 16px',borderTop:'1px solid rgba(0,0,0,0.04)'}}>{children}</div>}
+      {open&&<div style={{padding:'0 16px 16px',borderTop:'1px solid rgba(0,0,0,0.06)'}}>{children}</div>}
     </div>
   )
 }
@@ -288,52 +287,46 @@ export default function Relatorios() {
 
       {/* Header + navegação */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-        <h1 style={{fontSize:20,fontWeight:800,color:TEXT,margin:0}}>Relatórios</h1>
-        <div style={{display:'flex',alignItems:'center',gap:6}}>
-          <button onClick={()=>setDate(d=>subMonths(d,1))} style={{width:30,height:30,background:'rgba(0,0,0,0.04)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <h1 style={{fontSize:20,fontWeight:700,color:TEXT,margin:0}}>Relatórios</h1>
+        <div style={{display:'flex',alignItems:'center',gap:4,background:'#fff',borderRadius:12,padding:3,border:'1px solid rgba(0,0,0,0.05)'}}>
+          <button onClick={()=>setDate(d=>subMonths(d,1))} style={{width:30,height:30,background:'transparent',borderRadius:9,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
             <ChevronLeft size={16} color={TEXTLT}/>
           </button>
-          <span style={{fontSize:13,fontWeight:700,color:TEXT,minWidth:60,textAlign:'center',textTransform:'capitalize'}}>{format(date,'MMM/yy',{locale:ptBR})}</span>
-          <button onClick={()=>setDate(d=>subMonths(d,-1))} style={{width:30,height:30,background:'rgba(0,0,0,0.04)',borderRadius:10,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <span style={{fontSize:13,fontWeight:600,color:TEXT,minWidth:62,textAlign:'center',textTransform:'capitalize'}}>{format(date,'MMM/yy',{locale:ptBR})}</span>
+          <button onClick={()=>setDate(d=>subMonths(d,-1))} style={{width:30,height:30,background:'transparent',borderRadius:9,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
             <ChevronRight size={16} color={TEXTLT}/>
           </button>
-          {!isNow&&<button onClick={()=>setDate(new Date())} style={{fontSize:10,color:TERRA,background:'rgba(196,98,45,0.08)',border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer',fontWeight:600}}>Hoje</button>}
         </div>
       </div>
+      {!isNow&&<button onClick={()=>setDate(new Date())} style={{fontSize:12,color:TERRA,background:'transparent',border:'none',padding:'0 2px 10px',cursor:'pointer',fontWeight:600}}>Voltar para o mês atual</button>}
 
       {/* Filtro pessoa */}
-      <div style={{display:'flex',gap:6,marginBottom:14}}>
+      <div style={{display:'flex',background:'rgba(0,0,0,0.05)',borderRadius:12,padding:3,marginBottom:12}}>
         {['Todos','Lucas','Nicoly','Prata'].map(h=>(
-          <button key={h} onClick={()=>setHolder(h)} style={{flex:1,height:32,borderRadius:16,border:holder===h?'none':`1px solid rgba(0,0,0,0.08)`,background:holder===h?TERRA:'transparent',color:holder===h?'#fff':TEXTLT,fontSize:12,fontWeight:holder===h?700:500,cursor:'pointer'}}>{h}</button>
+          <button key={h} onClick={()=>setHolder(h)} style={{flex:1,height:32,borderRadius:10,border:'none',background:holder===h?'#fff':'transparent',color:holder===h?TEXT:TEXTMU,fontSize:12.5,fontWeight:holder===h?700:600,cursor:'pointer',boxShadow:holder===h?'0 1px 3px rgba(0,0,0,0.08)':'none'}}>{h}</button>
         ))}
       </div>
 
-      {/* Cards receita / despesa */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-        <div style={{background:'rgba(34,199,89,0.06)',borderRadius:18,padding:'14px 16px',border:'1px solid rgba(34,199,89,0.15)'}}>
-          <p style={{fontSize:10,color:'#1B8A3A',margin:'0 0 3px',fontWeight:600}}>Receitas</p>
-          <p style={{fontSize:22,fontWeight:800,color:GREEN,margin:0,fontVariantNumeric:'tabular-nums'}}>{v(totalR)}</p>
+      {/* Resumo do mês: um cartão só */}
+      <div style={{background:CARD,borderRadius:20,padding:'18px 18px 16px',marginBottom:10,border:'1px solid rgba(0,0,0,0.05)'}}>
+        <p style={{fontSize:11,fontWeight:600,color:TEXTMU,margin:0,textTransform:'uppercase',letterSpacing:'0.06em'}}>Saldo do mês</p>
+        <p style={{fontSize:30,fontWeight:700,color:saldo>=0?TEXT:RED,margin:'6px 0 0',fontVariantNumeric:'tabular-nums',letterSpacing:'-0.02em'}}>{saldo>=0?'':'−'}{v(Math.abs(saldo))}</p>
+        <div style={{display:'flex',marginTop:16,paddingTop:14,borderTop:'1px solid rgba(0,0,0,0.06)'}}>
+          <div style={{flex:1}}>
+            <p style={{fontSize:11,color:TEXTMU,margin:0,display:'flex',alignItems:'center',gap:6}}><span style={{width:6,height:6,borderRadius:3,background:GREEN}}/>Receitas</p>
+            <p style={{fontSize:16,fontWeight:700,color:TEXT,margin:'4px 0 0',fontVariantNumeric:'tabular-nums'}}>{v(totalR)}</p>
+          </div>
+          <div style={{flex:1,paddingLeft:16,borderLeft:'1px solid rgba(0,0,0,0.06)'}}>
+            <p style={{fontSize:11,color:TEXTMU,margin:0,display:'flex',alignItems:'center',gap:6}}><span style={{width:6,height:6,borderRadius:3,background:RED}}/>Despesas</p>
+            <p style={{fontSize:16,fontWeight:700,color:TEXT,margin:'4px 0 0',fontVariantNumeric:'tabular-nums'}}>{v(totalD)}</p>
+          </div>
         </div>
-        <div style={{background:'rgba(255,59,48,0.05)',borderRadius:18,padding:'14px 16px',border:'1px solid rgba(255,59,48,0.12)'}}>
-          <p style={{fontSize:10,color:'#C4622D',margin:'0 0 3px',fontWeight:600}}>Despesas</p>
-          <p style={{fontSize:22,fontWeight:800,color:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{v(totalD)}</p>
-        </div>
-      </div>
-
-      {/* Saldo */}
-      <div style={{background:CARD,borderRadius:16,padding:'12px 18px',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center',border:'1px solid rgba(0,0,0,0.04)'}}>
-        <p style={{fontSize:12,color:TEXTMU,margin:0}}>Saldo do mês</p>
-        <p style={{fontSize:20,fontWeight:800,color:saldo>=0?GREEN:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{saldo>=0?'+':''}{v(saldo)}</p>
       </div>
 
       {/* Compromissos já contratados dos próximos meses */}
       {compromissos.linhas.some(l=>l.total>0)&&(
-        <Section title="O que já está contratado" icon="📅" total={compromissos.linhas[0]?.total}>
-          <p style={{fontSize:11,color:TEXTMU,margin:'12px 0 12px',lineHeight:1.45}}>
-            Gastos que já existem e vão acontecer nos próximos meses, sem contar compras novas:
-            parcelas em andamento e contas que se repetem. Inclui os financiamentos longos —
-            eles saem da conta todo mês, então ficam à vista aqui, só separados por cor.
-          </p>
+        <Section title="Já contratado nos próximos meses" total={compromissos.linhas[0]?.total}>
+          <p style={{fontSize:11.5,color:TEXTMU,margin:'12px 0 12px',lineHeight:1.45}}>O que já está contratado para os próximos meses: parcelas e contas que se repetem, sem compras novas.</p>
 
           {/* Legenda */}
           <div style={{display:'flex',gap:14,marginBottom:12,flexWrap:'wrap'}}>
@@ -379,18 +372,17 @@ export default function Relatorios() {
       {/* Insights — leitura pronta do mês, em vez de só números crus.
           Colapsável como as demais seções, e aberto por padrão. */}
       {insights.length>0&&(
-        <Section title="O que os números dizem" icon="💡" count={insights.length}>
-          <p style={{fontSize:11,color:TEXTMU,margin:'12px 0 14px'}}>Comparado com {format(subMonths(date,1),"MMMM 'de' yyyy",{locale:ptBR})}</p>
-          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        <Section title="Leitura do mês" count={insights.length}>
+          <p style={{fontSize:11.5,color:TEXTMU,margin:'12px 0 4px'}}>Comparado com {format(subMonths(date,1),"MMMM 'de' yyyy",{locale:ptBR})}</p>
+          <div>
             {insights.map((ins,i)=>{
-              const cor=ins.tom==='bom'?GREEN:ins.tom==='ruim'?RED:TEXTLT
-              const bg=ins.tom==='bom'?'rgba(52,199,89,0.06)':ins.tom==='ruim'?'rgba(255,59,48,0.05)':'rgba(0,0,0,0.025)'
+              const cor=ins.tom==='bom'?GREEN:ins.tom==='ruim'?RED:TEXTMU
               return (
-                <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',background:bg,borderRadius:12,padding:'10px 12px'}}>
-                  <span style={{fontSize:16,lineHeight:1.2,flexShrink:0}}>{ins.icone}</span>
+                <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'10px 0',borderTop:i===0?'none':'1px solid rgba(0,0,0,0.06)'}}>
+                  <span style={{width:6,height:6,borderRadius:3,background:cor,marginTop:6,flexShrink:0}}/>
                   <div style={{minWidth:0}}>
-                    <p style={{fontSize:12.5,fontWeight:700,color:cor,margin:0,lineHeight:1.3}}>{ins.titulo}</p>
-                    <p style={{fontSize:11.5,color:TEXTMU,margin:'3px 0 0',lineHeight:1.4}}>{ins.texto}</p>
+                    <p style={{fontSize:13,fontWeight:600,color:TEXT,margin:0,lineHeight:1.3}}>{ins.titulo}</p>
+                    <p style={{fontSize:12,color:TEXTMU,margin:'2px 0 0',lineHeight:1.4}}>{ins.texto}</p>
                   </div>
                 </div>
               )
@@ -399,32 +391,32 @@ export default function Relatorios() {
         </Section>
       )}
 
-      {/* Breakdown de despesas */}
-      <div style={{background:CARD,borderRadius:18,padding:'16px 18px',marginBottom:12,border:'1px solid rgba(0,0,0,0.04)'}}>
-        <p style={{fontSize:13,fontWeight:700,color:TEXT,margin:'0 0 12px'}}>Composição das despesas</p>
+      {/* Composição das despesas */}
+      <Section title="Composição das despesas" total={totalD} defaultOpen>
+        <div style={{paddingTop:14}}>
         {[
-          {label:'Compras à vista / avulsas',val:totalAv,count:avista.length,color:'#378ADD'},
+          {label:'À vista e avulsas',val:totalAv,count:avista.length,color:'#378ADD'},
           {label:'Parcelas do mês',val:totalParc,count:parceladas.length,color:TERRA},
           {label:'Contas recorrentes',val:totalRec,count:recorrentes.length,color:'#9B59B6'},
         ].map((item,i)=>{
           const pct=totalD>0?(item.val/totalD)*100:0
           return (
-            <div key={i} style={{marginBottom:i<2?10:0}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
-                <div style={{display:'flex',alignItems:'center',gap:6}}>
-                  <div style={{width:8,height:8,borderRadius:2,background:item.color}}/>
-                  <span style={{fontSize:12,color:TEXT,fontWeight:500}}>{item.label}</span>
-                  <span style={{fontSize:10,color:TEXTMU}}>({item.count})</span>
-                </div>
-                <span style={{fontSize:12,fontWeight:700,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{v(item.val)}</span>
+            <div key={i} style={{marginBottom:i<2?12:0}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}>
+                <span style={{fontSize:13,color:TEXT,display:'flex',alignItems:'center',gap:7}}>
+                  <span style={{width:7,height:7,borderRadius:2,background:item.color}}/>{item.label}
+                  <span style={{fontSize:11,color:TEXTMU}}>{item.count}</span>
+                </span>
+                <span style={{fontSize:13,fontWeight:600,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{v(item.val)}</span>
               </div>
-              <div style={{height:4,background:'rgba(0,0,0,0.04)',borderRadius:99,overflow:'hidden'}}>
+              <div style={{height:3,background:'rgba(0,0,0,0.05)',borderRadius:99,overflow:'hidden'}}>
                 <div style={{height:'100%',borderRadius:99,width:`${pct}%`,background:item.color,transition:'width 0.4s'}}/>
               </div>
             </div>
           )
         })}
-      </div>
+        </div>
+      </Section>
 
       {/* SEÇÕES COLAPSÁVEIS */}
 

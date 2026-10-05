@@ -1,20 +1,19 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { pedirFaceId, faceIdAtivo, credencialSalva, esquecerCredencial } from '@/lib/utils/passkey'
+import { marcarAtividade, esquecerAtividade, expirou } from '@/lib/utils/bloqueio'
 
 /**
- * Trava o app atrás do Face ID.
+ * Trava o app atrás do Face ID — só depois de um tempo SEM USO (padrão 5 min,
+ * configurável em Configurações > Segurança), como app de banco.
  *
- * O hook antigo só bloqueava depois de 30s em segundo plano e mandava para a
- * tela de login — na prática o Face ID nunca era pedido. Aqui a regra é a que o
- * usuário espera de um app financeiro: pede biometria SEMPRE que o app é aberto
- * e sempre que volta do segundo plano.
- *
- * A verificação usa a passkey criada em Configurações > Segurança (residente,
- * com userVerification obrigatória), então quem destrava é o Face ID do
- * aparelho — a senha da conta nunca passa por aqui.
+ * Antes tinha duas falhas: trancava na hora em qualquer ida ao segundo plano
+ * (olhar uma mensagem e voltar já pedia Face ID) e, ao trancar, a tela de
+ * bloqueio SUBSTITUÍA o app — os formulários eram desmontados e o que estava
+ * sendo digitado se perdia. Agora o app continua montado por baixo e a tela de
+ * bloqueio é só uma camada por cima: destravou, está tudo onde estava.
  */
 export default function LockGate({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -39,9 +38,9 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
         setUid(user.id)
 
         const ativo = faceIdAtivo(user.id)
-        // Já desbloqueou nesta sessão? Não repete a cada troca de tela.
-        const liberadoNaSessao = sessionStorage.getItem('ln_unlocked') === '1'
-        setEstado(ativo && !liberadoNaSessao ? 'travado' : 'liberado')
+        // Abriu o app: só pede Face ID se ficou parado além do limite
+        if (ativo && expirou()) setEstado('travado')
+        else { marcarAtividade(); setEstado('liberado') }
       } catch {
         if (vivo) setEstado('liberado')
       }
@@ -49,24 +48,45 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
     return () => { vivo = false }
   }, [])
 
-  // Voltou do segundo plano → tranca de novo
+  const estadoRef = useRef(estado)
+  const uidRef = useRef(uid)
+  useEffect(() => { estadoRef.current = estado }, [estado])
+  useEffect(() => { uidRef.current = uid }, [uid])
+
+  // Tranca só quando o tempo sem uso passa do limite — ao voltar do segundo
+  // plano, ao ficar parado com o app aberto, ou ao reabrir depois de descartado.
   useEffect(() => {
-    function aoEsconder() {
+    function conferir() {
+      if (estadoRef.current !== 'liberado' || !uidRef.current) return
+      if (faceIdAtivo(uidRef.current) && expirou()) setEstado('travado')
+    }
+    function aoMudarVisibilidade() {
       if (document.visibilityState === 'hidden') {
-        sessionStorage.removeItem('ln_unlocked')
+        if (estadoRef.current === 'liberado') marcarAtividade() // o relógio começa ao sair
+      } else {
+        conferir()
       }
     }
-    async function aoVoltar() {
-      if (document.visibilityState !== 'visible') return
-      if (sessionStorage.getItem('ln_unlocked') === '1') return
-      const { data: { user } } = await createClient().auth.getUser()
-      if (user && faceIdAtivo(user.id)) setEstado('travado')
+    // Atividade: só conta com o app destravado (senão tocar na tela de bloqueio
+    // zeraria o relógio e liberaria o app sem Face ID depois).
+    let ultimo = 0
+    function aoInteragir() {
+      if (estadoRef.current !== 'liberado') return
+      const agora = Date.now()
+      if (agora - ultimo < 10_000) return
+      ultimo = agora
+      marcarAtividade()
     }
-    document.addEventListener('visibilitychange', aoEsconder)
-    document.addEventListener('visibilitychange', aoVoltar)
+    const eventos = ['pointerdown', 'keydown', 'scroll', 'touchstart'] as const
+    eventos.forEach(e => document.addEventListener(e, aoInteragir, { passive: true, capture: true }))
+    document.addEventListener('visibilitychange', aoMudarVisibilidade)
+    window.addEventListener('pagehide', aoMudarVisibilidade)
+    const timer = setInterval(conferir, 20_000)
     return () => {
-      document.removeEventListener('visibilitychange', aoEsconder)
-      document.removeEventListener('visibilitychange', aoVoltar)
+      eventos.forEach(e => document.removeEventListener(e, aoInteragir, { capture: true } as any))
+      document.removeEventListener('visibilitychange', aoMudarVisibilidade)
+      window.removeEventListener('pagehide', aoMudarVisibilidade)
+      clearInterval(timer)
     }
   }, [])
 
@@ -76,7 +96,7 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
     const r = await pedirFaceId(uid, mirado)
     setAutenticando(false)
     if (r.ok) {
-      sessionStorage.setItem('ln_unlocked', '1')
+      marcarAtividade()
       setEstado('liberado')
       return
     }
@@ -106,6 +126,7 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
   async function sairDaConta() {
     await createClient().auth.signOut()
     sessionStorage.clear()
+    esquecerAtividade()
     router.push('/login')
   }
 
@@ -119,9 +140,10 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
   }
 
   if (estado === 'travado') {
-    return (
+    return (<>
+      {children}
       <div style={{
-        height: '100dvh', position: 'relative', overflow: 'hidden',
+        position: 'fixed', inset: 0, zIndex: 9999, overflow: 'hidden',
         background: 'linear-gradient(165deg,#4A2A1C 0%,#7A4526 45%,#2A1610 100%)',
         display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
       }}>
@@ -204,7 +226,7 @@ export default function LockGate({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </div>
-    )
+    </>)
   }
 
   return <>{children}</>
