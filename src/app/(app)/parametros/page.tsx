@@ -61,6 +61,8 @@ export default function Parametros() {
   const [savingSal, setSavingSal] = useState(false)
   // Recorrentes
   const [recurrents, setRecurrents] = useState<any[]>([])
+  const [recFiltro, setRecFiltro] = useState<'ativas'|'encerradas'>('ativas')
+  const [recAberta, setRecAberta] = useState<string|null>(null)
   const [editingDueDay, setEditingDueDay] = useState<string|null>(null)
   const [dueDayRaw, setDueDayRaw] = useState('')
   // Conta recorrente também é lançamento: dá pra editar tudo, não só o dia
@@ -970,75 +972,128 @@ export default function Parametros() {
   // ────────────────────────────────────────────────────────────
   if(sec==='recorrentes') return (
     <div style={{background:BG,minHeight:'100%',padding:'14px 14px 160px'}}>
-      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
         {backBtn()}
-        <h2 style={{fontSize:17,fontWeight:700,color:TEXT,flex:1}}>Contas Recorrentes</h2>
+        <h2 style={{fontSize:17,fontWeight:700,color:TEXT,flex:1}}>Contas recorrentes</h2>
       </div>
-      <p style={{fontSize:12,color:TEXTMU,marginBottom:16,paddingLeft:4}}>Lançamentos marcados como recorrentes. Eles serão gerados automaticamente todo mês. Contas no cartão de crédito não precisam de dia de vencimento próprio — elas entram na fatura e o alerta é feito por lá. Cada conta pode ser <strong>sem prazo</strong> (repete para sempre) ou <strong>com prazo</strong> (por X meses, ou até um mês específico) — e só aparece nos meses da janela dela. Ao mudar valor ou dia você escolhe <strong>a partir de qual mês</strong> vale, e os meses anteriores ficam intocados. <strong>Encerrar</strong> para de gerar e mantém o histórico; <strong>Apagar</strong> remove o histórico também.</p>
-      <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        {recurrents.map(tx=>{
-          const isCartaoRec = tx.payment_method==='cartao_credito'
-          const semVencimento = !isCartaoRec && !tx.recurring_day
-          const isEditing = editingDueDay===tx.id
-          return (
-          <div key={tx.id} style={{...sCard,padding:'14px 16px',display:'flex',flexDirection:'column',gap:8,border:semVencimento?'1px solid rgba(255,149,0,0.35)':undefined}}>
-            <div style={{display:'flex',alignItems:'center',gap:12}}>
-              <span style={{fontSize:18}}>{CAT_ICONS[tx.category]||'📦'}</span>
-              <div style={{flex:1,minWidth:0}}>
-                <p style={{fontSize:13,fontWeight:600,color:TEXT,margin:0}}>{tx.description}</p>
-                <p style={{fontSize:11,color:TEXTMU,margin:'2px 0 0'}}>
-                  {tx.holder} · {isCartaoRec?'Fatura do cartão':`Vence dia ${tx.recurring_day||'?'}`} · {tx.payment_method}
-                </p>
-                {(()=>{
-                  // O prazo é a informação que faltava: dá para ver de bate-pronto
-                  // se a conta é para sempre, se tem data para acabar, ou se já acabou.
-                  const pz=tx._prazo
-                  if(!pz) return null
-                  const estilo=(cor:string,fundo:string)=>({display:'inline-block',marginTop:4,fontSize:10,fontWeight:700,color:cor,background:fundo,borderRadius:6,padding:'2px 7px'})
-                  if(pz.tipo==='sem_prazo') return <span style={estilo(TEXTMU,'rgba(0,0,0,0.05)')}>Todo mês · sem prazo</span>
-                  if(pz.tipo==='com_prazo') return <span style={estilo('#B37700','rgba(255,170,0,0.12)')}>Até {rotuloMes(pz.ultimoMes)} · {pz.restantes} {pz.restantes===1?'mês restante':'meses restantes'}</span>
-                  return <span style={estilo(TEXTMU,'rgba(0,0,0,0.05)')}>Encerrada em {rotuloMes(pz.ultimoMes)} · histórico mantido</span>
-                })()}
-              </div>
-              <p style={{fontSize:14,fontWeight:700,color:RED,margin:0}}>{formatCurrency(tx.expected_amount||tx.amount)}</p>
+      {(()=>{
+        // ── Dados da tela: tudo derivado das linhas reais de cada conta ──
+        const hoje=mesAtual()
+        const linhaDoMes=(tx:any)=>(tx._conta?.linhas||[]).find((l:any)=>(l.purchase_date||'').slice(0,7)===hoje)
+        const valorDe=(tx:any)=>{const l=linhaDoMes(tx);return Number(l?.amount ?? tx.expected_amount ?? tx.amount) || 0}
+        const ativas=recurrents.filter(t=>!t._encerrada)
+        const encerradas=recurrents.filter(t=>t._encerrada)
+        const doMes=ativas.map(t=>({t,l:linhaDoMes(t)})).filter(x=>x.l&&x.l.status!=='Cancelado')
+        const totalMes=doMes.reduce((sum,x)=>sum+Number(x.l.amount||0),0)
+        const pagoMes=doMes.filter(x=>x.l.status==='Pago').reduce((sum,x)=>sum+Number(x.l.paid_amount||x.l.amount||0),0)
+        const pct=totalMes>0?Math.min(100,(pagoMes/totalMes)*100):0
+        const lista=recFiltro==='ativas'?ativas:encerradas
+
+        const STATUS:Record<string,{txt:string;cor:string}>={
+          Pago:{txt:'Pago',cor:GREEN}, Pendente:{txt:'A pagar',cor:TERRA}, Previsto:{txt:'Previsto',cor:'#B37700'},
+          Atrasado:{txt:'Atrasado',cor:RED}, Cancelado:{txt:'Pulado',cor:TEXTMU},
+        }
+
+        return(<>
+          {/* Resumo */}
+          <div style={{background:'#fff',borderRadius:20,padding:'18px 18px 16px',marginBottom:14,border:'1px solid rgba(0,0,0,0.05)'}}>
+            <p style={{fontSize:11,fontWeight:600,color:TEXTMU,margin:0,textTransform:'uppercase',letterSpacing:'0.06em'}}>Compromissos de {rotuloMes(hoje)}</p>
+            <p style={{fontSize:28,fontWeight:700,color:TEXT,margin:'6px 0 0',fontVariantNumeric:'tabular-nums',letterSpacing:'-0.02em'}}>{formatCurrency(totalMes)}</p>
+            <div style={{height:4,background:'rgba(0,0,0,0.06)',borderRadius:2,margin:'14px 0 8px',overflow:'hidden'}}>
+              <div style={{width:`${pct}%`,height:'100%',background:GREEN,borderRadius:2}}/>
             </div>
-            <div style={{display:'flex',gap:8,paddingLeft:30,flexWrap:'wrap'}}>
-              <button onClick={()=>abrirEditorRec(tx)}
-                style={{fontSize:11,fontWeight:700,color:TERRA,background:'rgba(196,98,45,0.1)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
-                ✏️ Editar
-              </button>
-              <button onClick={()=>encerrarRecorrencia(tx,!tx._encerrada)}
-                style={{fontSize:11,fontWeight:600,color:tx._encerrada?GREEN:TEXTLT,background:tx._encerrada?'rgba(52,199,89,0.1)':'rgba(0,0,0,0.04)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
-                {tx._encerrada?'▶ Reativar':'⏹ Encerrar'}
-              </button>
-              <button onClick={()=>removeRecurrent(tx)}
-                style={{fontSize:11,fontWeight:600,color:RED,background:'rgba(255,59,48,0.08)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
-                🗑 Apagar
-              </button>
-              {tx._ocorrencias>1&&(
-                <span style={{fontSize:10,color:TEXTMU,alignSelf:'center'}}>{tx._ocorrencias} lançamentos</span>
-              )}
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:TEXTMU}}>
+              <span>{formatCurrency(pagoMes)} pago</span>
+              <span>{formatCurrency(Math.max(0,totalMes-pagoMes))} a pagar</span>
             </div>
-            {!isCartaoRec&&(isEditing?(
-              <div style={{display:'flex',gap:8,alignItems:'center',paddingLeft:30}}>
-                <input type="number" min={1} max={31} value={dueDayRaw} onChange={e=>setDueDayRaw(e.target.value)}
-                  placeholder="Dia" autoFocus
-                  style={{width:70,height:34,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:8,padding:'0 10px',fontSize:13,color:TEXT,outline:'none'}}/>
-                <button onClick={()=>saveDueDay(tx)} style={{height:34,padding:'0 12px',background:TERRA,color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>Salvar</button>
-                <button onClick={()=>{setEditingDueDay(null);setDueDayRaw('')}} style={{height:34,padding:'0 12px',background:'rgba(0,0,0,0.04)',color:TEXTMU,border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>Cancelar</button>
-              </div>
-            ):(
-              <div style={{paddingLeft:30}}>
-                <button onClick={()=>{setEditingDueDay(tx.id);setDueDayRaw(tx.recurring_day?String(tx.recurring_day):'')}}
-                  style={{fontSize:11,fontWeight:700,color:semVencimento?'#B37700':TERRA,background:semVencimento?'rgba(255,149,0,0.1)':'rgba(196,98,45,0.08)',border:'none',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>
-                  {semVencimento?'⚠️ Definir dia de vencimento':'✏️ Editar dia de vencimento'}
-                </button>
-              </div>
+          </div>
+
+          {/* Filtro */}
+          <div style={{display:'flex',background:'rgba(0,0,0,0.05)',borderRadius:12,padding:3,marginBottom:12}}>
+            {([['ativas',`Ativas (${ativas.length})`],['encerradas',`Encerradas (${encerradas.length})`]] as const).map(([k,t])=>(
+              <button key={k} onClick={()=>{setRecFiltro(k);setRecAberta(null)}}
+                style={{flex:1,height:34,border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',
+                  background:recFiltro===k?'#fff':'transparent',color:recFiltro===k?TEXT:TEXTMU,
+                  boxShadow:recFiltro===k?'0 1px 3px rgba(0,0,0,0.08)':'none'}}>{t}</button>
             ))}
           </div>
-        )})}
-        {recurrents.length===0&&<p style={{fontSize:13,color:TEXTMU,textAlign:'center',padding:20}}>Nenhuma conta recorrente cadastrada. Crie um lançamento do tipo "Recorrente".</p>}
-      </div>
+
+          {/* Lista */}
+          <div style={{background:'#fff',borderRadius:20,border:'1px solid rgba(0,0,0,0.05)',overflow:'hidden'}}>
+            {lista.map((tx,i)=>{
+              const isCartaoRec=tx.payment_method==='cartao_credito'
+              const semVencimento=!isCartaoRec&&!tx.recurring_day
+              const aberta=recAberta===tx.id
+              const isEditing=editingDueDay===tx.id
+              const l=linhaDoMes(tx)
+              const st=l?STATUS[l.status]:null
+              const pz=tx._prazo
+              const forma=isCartaoRec?'Fatura do cartão':(tx.recurring_day?`Vence dia ${tx.recurring_day}`:'Sem vencimento')
+              return(
+                <div key={tx.id} style={{borderTop:i===0?'none':'1px solid rgba(0,0,0,0.06)'}}>
+                  <button onClick={()=>setRecAberta(aberta?null:tx.id)}
+                    style={{width:'100%',display:'flex',alignItems:'center',gap:12,padding:'14px 16px',background:'transparent',border:'none',cursor:'pointer',textAlign:'left'}}>
+                    <span style={{width:38,height:38,borderRadius:12,background:'#F5F5F7',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>{CAT_ICONS[tx.category]||'📦'}</span>
+                    <span style={{flex:1,minWidth:0}}>
+                      <span style={{display:'block',fontSize:14,fontWeight:600,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.description}</span>
+                      <span style={{display:'block',fontSize:12,color:semVencimento?'#B37700':TEXTMU,marginTop:2}}>{forma} · {tx.holder}</span>
+                    </span>
+                    <span style={{textAlign:'right',flexShrink:0}}>
+                      <span style={{display:'block',fontSize:14,fontWeight:700,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(valorDe(tx))}</span>
+                      {st&&<span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,color:st.cor,marginTop:2}}>
+                        <span style={{width:6,height:6,borderRadius:3,background:st.cor}}/>{st.txt}
+                      </span>}
+                    </span>
+                  </button>
+
+                  {aberta&&(
+                    <div style={{padding:'2px 16px 16px 66px'}}>
+                      <div style={{display:'grid',gap:6,fontSize:12,color:TEXTLT,marginBottom:12}}>
+                        <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:TEXTMU}}>Prazo</span><span>
+                          {pz?.tipo==='sem_prazo'?'Todo mês, sem prazo':pz?.tipo==='com_prazo'?`Até ${rotuloMes(pz.ultimoMes)} · ${pz.restantes} ${pz.restantes===1?'mês':'meses'}`:`Encerrada em ${rotuloMes(pz?.ultimoMes||hoje)}`}
+                        </span></div>
+                        <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:TEXTMU}}>Desde</span><span>{rotuloMes(tx._conta?.primeiroMes||hoje)} · {tx._ocorrencias} {tx._ocorrencias===1?'lançamento':'lançamentos'}</span></div>
+                        {!isCartaoRec&&(
+                          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                            <span style={{color:TEXTMU}}>Vencimento</span>
+                            {isEditing?(
+                              <span style={{display:'flex',gap:6,alignItems:'center'}}>
+                                <input type="number" min={1} max={31} value={dueDayRaw} onChange={e=>setDueDayRaw(e.target.value)} placeholder="Dia" autoFocus
+                                  style={{width:56,height:30,background:'#F5F5F7',border:'1px solid rgba(0,0,0,0.08)',borderRadius:8,padding:'0 8px',fontSize:13,color:TEXT,outline:'none'}}/>
+                                <button onClick={()=>saveDueDay(tx)} style={{height:30,padding:'0 10px',background:TERRA,color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>OK</button>
+                                <button onClick={()=>{setEditingDueDay(null);setDueDayRaw('')}} style={{height:30,padding:'0 10px',background:'rgba(0,0,0,0.05)',color:TEXTMU,border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>Cancelar</button>
+                              </span>
+                            ):(
+                              <button onClick={()=>{setEditingDueDay(tx.id);setDueDayRaw(tx.recurring_day?String(tx.recurring_day):'')}}
+                                style={{background:'transparent',border:'none',padding:0,fontSize:12,fontWeight:600,color:semVencimento?'#B37700':TERRA,cursor:'pointer'}}>
+                                {semVencimento?'Definir dia':`Dia ${tx.recurring_day} · alterar`}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{display:'flex',gap:8}}>
+                        <button onClick={()=>abrirEditorRec(tx)}
+                          style={{flex:1,height:38,background:TERRA,color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Editar</button>
+                        <button onClick={()=>encerrarRecorrencia(tx,!tx._encerrada)}
+                          style={{flex:1,height:38,background:'rgba(0,0,0,0.05)',color:tx._encerrada?GREEN:TEXT,border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>{tx._encerrada?'Reativar':'Encerrar'}</button>
+                        <button onClick={()=>removeRecurrent(tx)}
+                          style={{height:38,padding:'0 14px',background:'transparent',color:RED,border:'1px solid rgba(255,59,48,0.25)',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>Apagar</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {lista.length===0&&(
+              <p style={{fontSize:13,color:TEXTMU,textAlign:'center',padding:'28px 20px',margin:0}}>
+                {recFiltro==='ativas'?'Nenhuma conta ativa. Crie um lançamento do tipo Conta recorrente.':'Nenhuma conta encerrada.'}
+              </p>
+            )}
+          </div>
+          <p style={{fontSize:11,color:TEXTMU,margin:'12px 4px 0',lineHeight:1.5}}>Encerrar para de gerar e mantém o histórico. Apagar remove também os meses anteriores.</p>
+        </>)
+      })()}
 
       {/* Editor completo da conta recorrente */}
       {editRec&&(
