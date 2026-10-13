@@ -235,7 +235,7 @@ export default function NovoLancamento() {
     // lançamentos órfãos que aparecem errado nas outras telas.
     if (!desc.trim()) { toast.error('Informe a descrição'); return }
     if (!temValor) { toast.error(tipo === 'parcelada' ? 'Informe o valor da parcela ou o total do produto' : 'Informe o valor'); return }
-    if (!cat && tipo !== 'recorrente') { toast.error('Escolha a categoria'); return }
+    if (!cat) { toast.error('Escolha a categoria'); return }
     if (!date) { toast.error('Informe a data'); return }
 
     if (tipo === 'parcelada') {
@@ -361,14 +361,14 @@ export default function NovoLancamento() {
         if (error) throw error
 
       } else if (tipo === 'recorrente') {
-        const finalCat  = cat || (recTipo==='contas_casa'?'Moradia':recTipo==='assinatura'?'Lazer e Entretenimento':'Dívidas e Financiamentos')
+        const finalCat  = cat
         const finalDesc = desc || recItem
         const bm = recMethod==='cartao_credito'
           ? format(calcBillingMonth(parseISO(date),cardClosing[recCard]||1),'yyyy-MM-dd') : null
         const { error } = await supabase.from('transactions').insert({
           owner_id:user.id, owner_name:ownerName, holder, transaction_type:'recorrente', type:'Despesa',
           description:finalDesc, amount, category:finalCat,
-          subcategory:recItem||subcat||null,
+          subcategory:subcat||recItem||null,
           purchase_date:date, notes:notes||null,
           payment_method:recMethod, card_name:recContaTipo!=='nenhum'?recCard:null,
           billing_month:bm, is_recurring:true, recurring_active:true,
@@ -824,7 +824,10 @@ export default function NovoLancamento() {
                 {v:'outros',      emoji:'🔄', l:'Outros recorrentes',d:'Qualquer outra recorrência'},
               ].map(rt=>(
                 <button key={rt.v} type="button"
-                  onClick={()=>{setRecTipo(rt.v);setRecItem('')}}
+                  onClick={()=>{
+                    setRecTipo(rt.v);setRecItem('');setSubcat('')
+                    setCat(rt.v==='contas_casa'?'Moradia':rt.v==='assinatura'?'Lazer e Entretenimento':rt.v==='debito_bancario'?'Dívidas e Financiamentos':'')
+                  }}
                   style={{
                     textAlign:'left',padding:'12px 14px',borderRadius:14,
                     border:`0.5px solid ${recTipo===rt.v?'#C4622D':'rgba(255,255,255,0.1)'}`,
@@ -871,6 +874,8 @@ export default function NovoLancamento() {
               </div>
             </div>
           )}
+
+          {recTipo && CampoCat}
 
           <div>
             <label style={S.lbl}>Dia do vencimento</label>
