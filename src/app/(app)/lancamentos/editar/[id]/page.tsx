@@ -3,7 +3,8 @@ import { format, parseISO, addMonths } from 'date-fns'
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { CATS_DESPESA, CATS_RECEITA, SUBCATS, maskCurrency, unmaskCurrency, formatCurrency, calcBillingMonth } from '@/lib/utils'
+import SeletorCategoria from '@/components/ui/SeletorCategoria'
+import { maskCurrency, unmaskCurrency, formatCurrency, calcBillingMonth } from '@/lib/utils'
 import { ChevronLeft, Loader2, Trash2, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { buscarIrmas, apagarParcelamento, sufixoDaParcela } from '@/lib/utils/parcelamentoGrupo'
@@ -338,8 +339,6 @@ export default function EditarLancamento(){
   )
 
   const isReceita=form.transaction_type==='receita'||form.type==='Receita'
-  const cats=isReceita?CATS_RECEITA:CATS_DESPESA
-  const subs=SUBCATS[form.category]||[]
   const isCredito=form.payment_method==='cartao_credito'&&form.transaction_type!=='parcelada'
   // Qualquer coisa no crédito (à vista OU parcelada) entra na fatura e não tem
   // status próprio: quem paga é a fatura inteira, no vencimento do cartão.
@@ -552,33 +551,14 @@ export default function EditarLancamento(){
           </div>
         )}
 
-        {/* Categoria */}
-        <div>
-          <label style={lbl}>Categoria</label>
-          <div style={{position:'relative'}}>
-            <select value={form.category||''} onChange={e=>{sf('category',e.target.value);sf('subcategory','')}}
-              style={{...inp,appearance:'none' as const}}>
-              <option value="">Selecione...</option>
-              {cats.map(c=><option key={c} value={c}>{c}</option>)}
-            </select>
-            <ChevronDown size={14} color={TEXTMU} style={{position:'absolute',right:14,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
-          </div>
-        </div>
-
-        {/* Subcategoria */}
-        {form.category&&subs.length>0&&(
-          <div>
-            <label style={lbl}>Subcategoria</label>
-            <div style={{position:'relative'}}>
-              <select value={form.subcategory||''} onChange={e=>sf('subcategory',e.target.value)}
-                style={{...inp,appearance:'none' as const}}>
-                <option value="">Selecione...</option>
-                {subs.map(s=><option key={s} value={s}>{s}</option>)}
-              </select>
-              <ChevronDown size={14} color={TEXTMU} style={{position:'absolute',right:14,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
-            </div>
-          </div>
-        )}
+        {/* Categoria e subcategoria — seletor único (as criadas e as escondidas depois também aparecem) */}
+        <SeletorCategoria
+          kind={isReceita?'receita':'despesa'}
+          categoria={form.category||''} subcategoria={form.subcategory||''}
+          onChange={(c,sc)=>{sf('category',c);sf('subcategory',sc)}}
+          estilos={{lbl, sel:{...inp,appearance:'none' as const}, inp}}
+          obrigatorio={false}
+        />
 
         {/* Como pagou */}
         {!isReceita&&(

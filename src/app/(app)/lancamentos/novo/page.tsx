@@ -2,10 +2,11 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { calcBillingMonth, CATS_RECEITA, CATS_DESPESA, SUBCATS } from '@/lib/utils'
-import { loadCustomCategorias, mesclarCategorias, criarCategoria, type CustomCategoria } from '@/lib/utils/categorias'
+import { calcBillingMonth } from '@/lib/utils'
+import { useCatalogo, categoriasAtivas } from '@/lib/utils/catalogo'
+import SeletorCategoria from '@/components/ui/SeletorCategoria'
 import { toast } from 'sonner'
-import { ChevronLeft, Loader2, Plus, X, ChevronDown } from 'lucide-react'
+import { ChevronLeft, Loader2, ChevronDown } from 'lucide-react'
 import { format, parseISO, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Simulador from './simulador'
@@ -92,21 +93,6 @@ export default function NovoLancamento() {
     }
     loadCards()
 
-    // Carregar subcategorias customizadas persistidas (compartilhadas entre Lucas e Nicoly)
-    async function loadCustomSubs() {
-      try {
-        const { data, error } = await createClient().from('custom_subcategories').select('category,subcategory')
-        if (error || !data) return // tabela pode não existir ainda - falha silenciosa
-        const grouped: Record<string,string[]> = {}
-        data.forEach((r:any) => {
-          if (!grouped[r.category]) grouped[r.category] = []
-          if (!grouped[r.category].includes(r.subcategory)) grouped[r.category].push(r.subcategory)
-        })
-        setCustomSubs(grouped)
-      } catch { /* silencioso - tabela ainda não criada */ }
-    }
-    loadCustomSubs()
-    loadCustomCategorias().then(setCustomCats)
   }, [])
 
   const CARDS_CREDITO = cardsCredito.length > 0 ? cardsCredito : CARDS_CREDITO_FALLBACK
@@ -142,13 +128,8 @@ export default function NovoLancamento() {
   const [recIsRec, setRecIsRec]   = useState(false)
   const [recAccount, setRecAccount] = useState('')
 
-  // Subcategoria customizada
-  const [customSubs, setCustomSubs] = useState<Record<string,string[]>>({})
-  const [showAddSub, setShowAddSub] = useState(false)
-  const [newSubName, setNewSubName] = useState('')
-  const [customCats, setCustomCats] = useState<CustomCategoria[]>([])
-  const [showAddCat, setShowAddCat] = useState(false)
-  const [newCatName, setNewCatName] = useState('')
+  // Categorias/subcategorias vêm do catálogo único (mesmo de todas as telas)
+  const { catalogo } = useCatalogo()
 
   // Reseta campos ao trocar tipo
   function changeTipo(t: TipoLanc) {
@@ -183,40 +164,6 @@ export default function NovoLancamento() {
     : tipo === 'avista' && method === 'cartao_credito' && date && debitCard
     ? calcBillingMonth(parseISO(date), cardClosing[debitCard] || 1)
     : null
-
-  const allCats = mesclarCategorias(tipo === 'receita' ? 'receita' : 'despesa', customCats)
-  const baseSubs   = SUBCATS[cat] || []
-  const extraSubs  = customSubs[cat] || []
-  const allSubs    = [...baseSubs, ...extraSubs]
-
-  async function addCustomCat() {
-    const nome = newCatName.trim()
-    if (!nome) return
-    const r = await criarCategoria(nome, tipo === 'receita' ? 'receita' : 'despesa')
-    if (!r.ok) { toast.error(r.erro || 'Erro ao criar categoria'); return }
-    // Recarrega do banco para a categoria continuar existindo nas próximas vezes
-    setCustomCats(await loadCustomCategorias())
-    setCat(nome); setSubcat('')
-    setNewCatName(''); setShowAddCat(false)
-    toast.success('Categoria criada!')
-  }
-
-  async function addCustomSub() {
-    if (!newSubName.trim() || !cat) return
-    const subName = newSubName.trim()
-    // Atualiza o estado local imediatamente (feedback instantâneo)
-    setCustomSubs(p => ({ ...p, [cat]: [...(p[cat]||[]), subName] }))
-    setSubcat(subName)
-    setNewSubName(''); setShowAddSub(false)
-    toast.success('Subcategoria criada!')
-    // Persiste no Supabase para não sumir depois (compartilhado com Nicoly)
-    try {
-      const { data: { user } } = await createClient().auth.getUser()
-      if (user) {
-        await createClient().from('custom_subcategories').insert({ owner_id: user.id, category: cat, subcategory: subName })
-      }
-    } catch { /* silencioso - se a tabela não existir ainda, ao menos funciona nesta sessão */ }
-  }
 
   // Qual tipo de conta mostrar baseado na forma de pagamento
   const contaTipo = METODO_CONTA[method] || 'conta_debito'
@@ -549,68 +496,15 @@ export default function NovoLancamento() {
     </>
   )
 
-  // Categoria + Subcategoria — para tipos que precisam
+  // Categoria + Subcategoria — seletor único, igual em todas as telas
   const CampoCat = (
-    <>
-      <div>
-        <label style={S.lbl}>Categoria<Obrig/></label>
-        <div style={{position:'relative'}}>
-          <select value={cat} onChange={e=>{
-            if(e.target.value==='__nova_cat__'){setShowAddCat(true)}
-            else{setCat(e.target.value);setSubcat('')}
-          }} style={S.sel} required>
-            <option value="">Selecione...</option>
-            {allCats.map(c=><option key={c} value={c}>{c}</option>)}
-            <option value="__nova_cat__">+ Criar nova categoria...</option>
-          </select>
-          <ChevronDown size={14} color="#C4622D" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
-        </div>
-        {showAddCat && (
-          <div style={{display:'flex',gap:8,marginTop:8}}>
-            <input type="text" value={newCatName} onChange={e=>setNewCatName(e.target.value)}
-              placeholder="Nome da nova categoria" style={{...S.inp,flex:1,height:40,fontSize:13}} autoFocus/>
-            <button type="button" onClick={addCustomCat}
-              style={{height:40,padding:'0 14px',background:'#C4622D',color:'#fff',borderRadius:10,border:'none',cursor:'pointer',fontSize:13,fontWeight:600}}>
-              OK
-            </button>
-            <button type="button" onClick={()=>{setShowAddCat(false);setNewCatName('')}}
-              style={{height:40,padding:'0 10px',background:'#FFFFFF',borderRadius:10,border:'none',cursor:'pointer'}}>
-              <X size={14} color="#C4622D"/>
-            </button>
-          </div>
-        )}
-      </div>
-      {cat && (
-        <div>
-          <label style={S.lbl}>Subcategoria</label>
-          <div style={{position:'relative'}}>
-            <select value={subcat} onChange={e=>{
-              if(e.target.value==='__nova__'){setShowAddSub(true)}
-              else{setSubcat(e.target.value)}
-            }} style={S.sel}>
-              <option value="">Selecione...</option>
-              {allSubs.map(s=><option key={s} value={s}>{s}</option>)}
-              <option value="__nova__">+ Criar nova subcategoria...</option>
-            </select>
-            <ChevronDown size={14} color="#C4622D" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
-          </div>
-          {showAddSub && (
-            <div style={{display:'flex',gap:8,marginTop:8}}>
-              <input type="text" value={newSubName} onChange={e=>setNewSubName(e.target.value)}
-                placeholder="Nome da nova subcategoria" style={{...S.inp,flex:1,height:40,fontSize:13}} autoFocus/>
-              <button type="button" onClick={addCustomSub}
-                style={{height:40,padding:'0 14px',background:'#C4622D',color:'#1C1C1E',borderRadius:10,border:'none',cursor:'pointer',fontSize:13,fontWeight:600}}>
-                OK
-              </button>
-              <button type="button" onClick={()=>setShowAddSub(false)}
-                style={{height:40,padding:'0 10px',background:'#FFFFFF',borderRadius:10,border:'none',cursor:'pointer'}}>
-                <X size={14} color="#C4622D"/>
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </>
+    <SeletorCategoria
+      kind={tipo === 'receita' ? 'receita' : 'despesa'}
+      categoria={cat} subcategoria={subcat}
+      onChange={(c, sc) => { setCat(c); setSubcat(sc) }}
+      estilos={{ lbl: S.lbl, sel: S.sel, inp: S.inp }}
+      required
+    />
   )
 
   // ── FORMULÁRIO PRINCIPAL ────────────────────────────
@@ -826,7 +720,8 @@ export default function NovoLancamento() {
                 <button key={rt.v} type="button"
                   onClick={()=>{
                     setRecTipo(rt.v);setRecItem('');setSubcat('')
-                    setCat(rt.v==='contas_casa'?'Moradia':rt.v==='assinatura'?'Lazer e Entretenimento':rt.v==='debito_bancario'?'Dívidas e Financiamentos':'')
+                    const sug = rt.v==='contas_casa'?'Moradia':rt.v==='assinatura'?'Lazer e Entretenimento':rt.v==='debito_bancario'?'Dívidas e Financiamentos':''
+                    setCat(sug && categoriasAtivas(catalogo,'despesa').includes(sug) ? sug : '')
                   }}
                   style={{
                     textAlign:'left',padding:'12px 14px',borderRadius:14,
