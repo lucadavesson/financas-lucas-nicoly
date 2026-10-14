@@ -10,10 +10,17 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import ModalPortal from '@/components/ui/ModalPortal'
 import { statusPorMes } from '@/lib/utils/parcelasCore'
+import { carregarRecorrentes, mesAtual as mesCorrente, rotuloMes, distanciaMeses, type ContaRec } from '@/lib/utils/recurrents'
+import { grupoDeConta, agendaPorMes, marcosDeQuitacao, valorDaContaNoMes } from '@/lib/utils/compromissos'
 
 // A partir de quantas parcelas um parcelamento conta como "financiamento longo"
 // (imóvel, consórcio). 24 = 2 anos.
 const LIMITE_LONGO = 24
+
+// Quantas parcelas/meses ainda faltam. Para conta com prazo vale o cronograma
+// (uma conta tem uma linha por mês, sem número na descrição).
+const restamDe = (g:any):number =>
+  g.tipo==='conta' ? g.totalParcelas-g.pagas : g.parcelas.filter((p:Tx)=>p.status!=='Pago').length
 
 const BG='#F5F5F7',TEXT='#1C1C1E',TEXTLT='#48484A',TEXTMU='#8E8E93',TERRA='#C4622D',GREEN='#34C759',RED='#FF3B30'
 
@@ -33,6 +40,8 @@ export default function Parcelamentos() {
   const [expanded, setExpanded] = useState<string|null>(null)
   const [antecipando, setAntecipando] = useState<any|null>(null)
   const [recalculando, setRecalculando] = useState<string|null>(null)
+  // Contas recorrentes: as que têm data para acabar entram aqui como compromissos
+  const [contasRec, setContasRec] = useState<ContaRec[]>([])
 
   useEffect(()=>{load()},[])
 
@@ -76,7 +85,7 @@ export default function Parcelamentos() {
     await autoCorrigirStatusVencido()
     const from = format(subMonths(new Date(), 36), 'yyyy-MM-dd')
     const s = createClient()
-    const [{ data }, { data: cardsData }] = await Promise.all([
+    const [{ data }, { data: cardsData }, contas] = await Promise.all([
       // Só compras parceladas de verdade. Antes vinha TUDO, e qualquer
       // lançamento com "(3/12)" na descrição ou installment_total > 1 — mesmo
       // sendo à vista — era contado como financiamento, inflando os totais do
@@ -86,13 +95,15 @@ export default function Parcelamentos() {
         .gte('purchase_date', from)
         .order('purchase_date', { ascending: false }),
       s.from('cards').select('name,holder,closing_day'),
+      carregarRecorrentes(),
     ])
     setTxs(data || [])
     setCards(cardsData || [])
+    setContasRec(contas || [])
     setLoading(false)
   }
 
-  const [filtro, setFiltro] = useState<'todos'|'abertos'|'quitados'>('todos')
+  const [filtro, setFiltro] = useState<'todos'|'abertos'|'quitados'|'so_parcelas'|'so_contas'>('todos')
   const [ordenacao, setOrdenacao] = useState<'menos_faltam'|'mais_faltam'|'az'|'recentes'>('menos_faltam')
   // Financiamentos muito longos (imóvel, consórcio) somam centenas de milhares e
   // achatam todo o resto na tela. Este toggle tira eles da lista E dos totais.
@@ -107,7 +118,7 @@ export default function Parcelamentos() {
     })
   }
 
-  const gruposBase = useMemo(() => {
+  const gruposParcelas = useMemo(() => {
     const map = new Map<string, { base:string; parcelas:Tx[]; holder:string; card:string; category:string; totalParcelas:number; valorParcela:number; valorTotal:number }>()
 
     for (const tx of txs) {
@@ -201,9 +212,21 @@ export default function Parcelamentos() {
       const juros = jurosGravado>0.004 ? jurosGravado : (valorCompra ? valorTotal - valorCompra : 0)
       const pctJuros = valorCompra && valorCompra>0 ? (juros/valorCompra)*100 : 0
 
-      return { ...g, valorParcela, valorTotal, base1, cronograma, pagas, valorPago, valorFalta, mesQuitacao, proxima, valorCompra, juros, pctJuros }
+      return { ...g, tipo:'parcela' as 'parcela'|'conta', forma:'', valorParcela, valorTotal, base1, cronograma, pagas, valorPago, valorFalta, mesQuitacao, proxima, valorCompra, juros, pctJuros }
     })
   }, [txs])
+
+  // Conta recorrente COM PRAZO (vestido, fotógrafo, financiamento...) é um compromisso
+  // igual a uma parcela: tem quantos meses faltam, quanto sai e quando acaba.
+  const gruposContas = useMemo(() => {
+    const agora = mesCorrente()
+    return contasRec.map(c => grupoDeConta(c, agora)).filter((g): g is NonNullable<typeof g> => !!g)
+  }, [contasRec])
+
+  const gruposBase = useMemo(
+    () => [...gruposParcelas, ...(gruposContas as unknown as typeof gruposParcelas)],
+    [gruposParcelas, gruposContas],
+  )
 
   // Só faz sentido oferecer o toggle se existir algum financiamento longo
   const longos = gruposBase.filter(g=>g.totalParcelas>=LIMITE_LONGO)
@@ -213,7 +236,9 @@ export default function Parcelamentos() {
 
   const grupos = useMemo(() => {
     let arr = gruposNoEscopo.filter(g=>{
-      const restam = g.parcelas.filter(p=>p.status!=='Pago').length
+      if (filtro==='so_parcelas') return g.tipo!=='conta'
+      if (filtro==='so_contas') return g.tipo==='conta'
+      const restam = restamDe(g)
       const finalizada = restam<=0
       if (filtro==='abertos') return !finalizada
       if (filtro==='quitados') return finalizada
@@ -221,8 +246,8 @@ export default function Parcelamentos() {
     })
 
     arr = arr.sort((a,b)=>{
-      const aRestam=a.parcelas.filter(p=>p.status!=='Pago').length
-      const bRestam=b.parcelas.filter(p=>p.status!=='Pago').length
+      const aRestam=restamDe(a)
+      const bRestam=restamDe(b)
       const aFinal=aRestam<=0
       const bFinal=bRestam<=0
       // Quitados sempre vão pro final, exceto quando o filtro é só "Quitados"
@@ -261,8 +286,8 @@ export default function Parcelamentos() {
     const agora=somaDoMes(mesAtual)
     const daquiSeis=somaDoMes(format(addMonths(new Date(),5),'yyyy-MM'))
     if(agora>0){
-      out.push({icone:'💸',titulo:`${formatCurrency(agora)} de parcelas neste mês`,
-        texto:`${abertos.length} parcelamento${abertos.length>1?'s':''} em andamento.`,tom:'neutro'})
+      out.push({icone:'💸',titulo:`${formatCurrency(agora)} ${gruposContas.length>0?'de compromissos':'de parcelas'} neste mês`,
+        texto:`${abertos.length} ${gruposContas.length>0?'compromisso':'parcelamento'}${abertos.length>1?'s':''} em andamento.`,tom:'neutro'})
     }
     if(agora-daquiSeis>0.01){
       out.push({icone:'📉',titulo:`Alivia ${formatCurrency(agora-daquiSeis)}/mês em 5 meses`,
@@ -306,25 +331,27 @@ export default function Parcelamentos() {
     return out
   })()
 
-  const totalPendente=gruposNoEscopo.reduce((s,g)=>s+g.parcelas.filter(p=>p.status!=='Pago').reduce((ss,p)=>ss+(p.installment_value||p.amount),0),0)
+  const pendParcelas=gruposNoEscopo.filter(g=>g.tipo!=='conta').reduce((s,g)=>s+g.parcelas.filter(p=>p.status!=='Pago').reduce((ss,p)=>ss+(p.installment_value||p.amount),0),0)
+  const pendContas=gruposNoEscopo.filter(g=>g.tipo==='conta').reduce((s,g)=>s+g.valorFalta,0)
+  const totalPendente=pendParcelas+pendContas
   const totalGeral=gruposNoEscopo.reduce((s,g)=>s+g.valorTotal,0)
 
   return (
     <div style={{background:BG,minHeight:'100%',padding:'14px 14px 160px'}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <h2 style={{fontSize:20,fontWeight:800,color:TEXT,margin:'0 0 4px'}}>Parcelamentos</h2>
-      <p style={{fontSize:12,color:TEXTMU,margin:'0 0 16px'}}>Todas as compras parceladas em um só lugar</p>
+      <p style={{fontSize:12,color:TEXTMU,margin:'0 0 16px'}}>Parcelas e contas com data para acabar — tudo que ainda vai sair</p>
 
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
         <div style={{background:'#fff',borderRadius:16,padding:'14px 16px',border:'1px solid rgba(0,0,0,0.05)'}}>
           <p style={{fontSize:10,color:TEXTMU,margin:'0 0 3px',fontWeight:600,textTransform:'uppercase'}}>Ainda falta pagar</p>
           <p style={{fontSize:18,fontWeight:800,color:RED,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalPendente)}</p>
-          <p style={{fontSize:10,color:TEXTMU,margin:'3px 0 0'}}>parcelas em aberto</p>
+          <p style={{fontSize:10,color:TEXTMU,margin:'3px 0 0'}}>{pendContas>0?`${formatCurrency(pendParcelas)} em parcelas · ${formatCurrency(pendContas)} em contas com prazo`:'parcelas em aberto'}</p>
         </div>
         {/* "Total comprometido" parecia dívida, mas é o valor CHEIO das compras,
             incluindo o que já foi pago — daí a diferença grande entre os dois */}
         <div style={{background:'#fff',borderRadius:16,padding:'14px 16px',border:'1px solid rgba(0,0,0,0.05)'}}>
-          <p style={{fontSize:10,color:TEXTMU,margin:'0 0 3px',fontWeight:600,textTransform:'uppercase'}}>Valor total das compras</p>
+          <p style={{fontSize:10,color:TEXTMU,margin:'0 0 3px',fontWeight:600,textTransform:'uppercase'}}>{gruposContas.length>0?'Valor total dos compromissos':'Valor total das compras'}</p>
           <p style={{fontSize:18,fontWeight:800,color:TEXT,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalGeral)}</p>
           <p style={{fontSize:10,color:TEXTMU,margin:'3px 0 0'}}>já pagou {formatCurrency(Math.max(0,totalGeral-totalPendente))}</p>
         </div>
@@ -337,6 +364,89 @@ export default function Parcelamentos() {
           Não inclui {longos.length===1?longos[0].base:`${longos.length} financiamentos longos`}. Em Relatórios, o quadro de compromissos mostra tudo.
         </p>
       )}
+
+      {/* Noção do todo: quanto sai por mês e em que mês cada compromisso acaba */}
+      {(()=>{
+        const abertosTodos=gruposNoEscopo.filter(g=>g.pagas<g.totalParcelas)
+        if(abertosTodos.length===0) return null
+        const agora=mesCorrente()
+        const ultimoMes=abertosTodos.reduce((m,g)=>{const x=g.cronograma[g.cronograma.length-1]?.mes||agora;return x>m?x:m},agora)
+        const nMeses=Math.min(12,Math.max(6,distanciaMeses(agora,ultimoMes)+1))
+        const agenda=agendaPorMes(abertosTodos,agora,nMeses)
+        const maior=Math.max(1,...agenda.map(a=>a.total))
+        const marcos=marcosDeQuitacao(abertosTodos,agora,5)
+        const fixas=contasRec.filter(c=>c.ativa)
+        const fixoMensal=fixas.reduce((sum,c)=>sum+valorDaContaNoMes(c,agora),0)
+        const temContas=abertosTodos.some(g=>g.tipo==='conta')
+        const compacto=(v:number)=>v<=0?'–':v>=1000?`${(v/1000).toFixed(1).replace('.',',')}k`:String(Math.round(v))
+        const NOMES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']
+        const abrev=(mes:string)=>{const [a,m]=mes.split('-').map(Number);return m===1?`${NOMES[0]}/${String(a).slice(2)}`:NOMES[m-1]}
+        const primeiro=agenda[0], ultimo=agenda[agenda.length-1]
+        const INDIGO='#5E5CE6'
+        return (
+          <div style={{background:'#fff',borderRadius:16,padding:'14px 16px',marginBottom:16,border:'1px solid rgba(0,0,0,0.05)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:8}}>
+              <p style={{fontSize:13.5,fontWeight:700,color:TEXT,margin:0}}>🗓️ Mês a mês</p>
+              <p style={{fontSize:10.5,color:TEXTMU,margin:0}}>{abertosTodos.length} compromisso{abertosTodos.length>1?'s':''} · termina em {rotuloMes(ultimoMes)}</p>
+            </div>
+            <p style={{fontSize:12,color:TEXTLT,margin:'6px 0 0',lineHeight:1.4}}>
+              Este mês saem <b>{formatCurrency(primeiro.total)}</b>
+              {ultimo.total<primeiro.total-0.01?<> · em {rotuloMes(ultimo.mes)} cai para <b style={{color:GREEN}}>{formatCurrency(ultimo.total)}</b></>:null}
+            </p>
+
+            <div style={{display:'flex',alignItems:'flex-end',gap:4,height:96,marginTop:12}}>
+              {agenda.map((a,i)=>{
+                const h=a.total>0?Math.max(4,Math.round((a.total/maior)*68)):0
+                const hp=a.total>0?Math.round(h*(a.parcelas/a.total)):0
+                return (
+                  <div key={a.mes} style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-end'}}>
+                    <span style={{fontSize:8.5,color:i===0?TEXT:TEXTMU,fontWeight:i===0?700:500,marginBottom:3,fontVariantNumeric:'tabular-nums'}}>{compacto(a.total)}</span>
+                    <div style={{width:'100%',maxWidth:22,height:h,borderRadius:5,overflow:'hidden',display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
+                      <div style={{height:h-hp,background:INDIGO}}/>
+                      <div style={{height:hp,background:TERRA}}/>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{display:'flex',gap:4,marginTop:4}}>
+              {agenda.map((a,i)=>(
+                <span key={a.mes} style={{flex:1,minWidth:0,textAlign:'center',fontSize:9,color:i===0?TERRA:TEXTMU,fontWeight:i===0?700:500}}>{abrev(a.mes)}</span>
+              ))}
+            </div>
+            {temContas&&(
+              <div style={{display:'flex',gap:12,marginTop:8}}>
+                <span style={{fontSize:10,color:TEXTMU,display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:TERRA}}/>Parcelas</span>
+                <span style={{fontSize:10,color:TEXTMU,display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:INDIGO}}/>Contas com prazo</span>
+              </div>
+            )}
+
+            {marcos.length>0&&(
+              <div style={{marginTop:14,borderTop:'1px solid rgba(0,0,0,0.05)',paddingTop:10}}>
+                <p style={{fontSize:11,fontWeight:700,color:TEXTMU,margin:'0 0 6px',textTransform:'uppercase',letterSpacing:'0.04em'}}>🏁 Quando alivia</p>
+                {marcos.map(m=>(
+                  <div key={m.mes} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,padding:'6px 0'}}>
+                    <div style={{minWidth:0}}>
+                      <p style={{fontSize:12,fontWeight:600,color:TEXT,margin:0}}>Acaba em {rotuloMes(m.mes)}</p>
+                      <p style={{fontSize:10.5,color:TEXTMU,margin:'1px 0 0',lineHeight:1.35}}>
+                        {m.nomes.slice(0,2).join(', ')}{m.nomes.length>2?` e +${m.nomes.length-2}`:''}
+                      </p>
+                    </div>
+                    <p style={{fontSize:12,fontWeight:700,color:GREEN,margin:0,flexShrink:0,fontVariantNumeric:'tabular-nums'}}>libera {formatCurrency(m.libera)}/mês</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {fixas.length>0&&(
+              <p style={{fontSize:10.5,color:TEXTMU,margin:'10px 0 0',lineHeight:1.4,borderTop:'1px solid rgba(0,0,0,0.05)',paddingTop:10}}>
+                Fora isso, {fixas.length} conta{fixas.length>1?'s':''} fixa{fixas.length>1?'s':''} sem data de fim somam <b>{formatCurrency(fixoMensal)}/mês</b>.
+                Para uma delas aparecer aqui, defina o prazo em Configurações → Contas recorrentes.
+              </p>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Insights — recolhido por padrão */}
       {insights.length>0&&(
@@ -378,6 +488,8 @@ export default function Parcelamentos() {
             <option value="todos">Todos</option>
             <option value="abertos">Em aberto</option>
             <option value="quitados">Quitados</option>
+            {gruposContas.length>0&&<option value="so_parcelas">Só compras parceladas</option>}
+            {gruposContas.length>0&&<option value="so_contas">Só contas com prazo</option>}
           </select>
         </div>
         <div style={{flex:1.4,position:'relative'}}>
@@ -418,7 +530,7 @@ export default function Parcelamentos() {
         <div style={{textAlign:'center',padding:'48px 0'}}>
           <p style={{fontSize:32,margin:'0 0 12px'}}>{gruposBase.length===0?'🎉':'🔎'}</p>
           <p style={{fontSize:14,fontWeight:600,color:gruposBase.length===0?GREEN:TEXTMU}}>
-            {gruposBase.length===0?'Nenhuma compra parcelada!':'Nenhum resultado para esse filtro'}
+            {gruposBase.length===0?'Nenhuma compra parcelada ou conta com prazo!':'Nenhum resultado para esse filtro'}
           </p>
         </div>
       ):(
@@ -427,10 +539,11 @@ export default function Parcelamentos() {
             const pagas=g.pagas
             const total=g.totalParcelas
             const pct=total>0?Math.round((pagas/total)*100):0
-            const isOpen=expanded===g.base+g.holder
+            const isOpen=expanded===(((g.tipo==='conta')?'c|':'p|')+g.base+g.holder)
             const finalizada=pagas>=total
             const mesHoje=format(new Date(),'yyyy-MM')
-            const precisaRecalcular=g.parcelas.some(p=>{
+            const ehConta=g.tipo==='conta'
+            const precisaRecalcular=!ehConta&&g.parcelas.some(p=>{
               const mesP=p.purchase_date.slice(0,7)
               return mesP<mesHoje && p.status!=='Pago' && p.status!=='Cancelado'
             })
@@ -446,7 +559,7 @@ export default function Parcelamentos() {
                     </button>
                   </div>
                 )}
-                <button onClick={()=>setExpanded(isOpen?null:g.base+g.holder)}
+                <button onClick={()=>setExpanded(isOpen?null:(((g.tipo==='conta')?'c|':'p|')+g.base+g.holder))}
                   style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'16px 18px',textAlign:'left'}}>
                   <div style={{display:'flex',alignItems:'center',gap:12}}>
                     <span style={{fontSize:22}}>{CAT_ICONS[g.category]||'📦'}</span>
@@ -456,10 +569,12 @@ export default function Parcelamentos() {
                         {isOpen?<ChevronUp size={16} color={TEXTMU}/>:<ChevronDown size={16} color={TEXTMU}/>}
                       </div>
                       <p style={{fontSize:11,color:TEXTMU,margin:'3px 0 0'}}>
-                        {g.holder} · {g.card||'Sem cartão'} · {formatCurrency(g.valorParcela)}/mês
+                        {g.holder} · {g.tipo==='conta'?g.forma:(g.card||'Sem cartão')} · {formatCurrency(g.valorParcela)}/mês
                       </p>
                       <p style={{fontSize:10,color:TEXTMU,margin:'2px 0 0',opacity:0.8}}>
-                        {format(parseISO(g.parcelas[0].purchase_date),'MM/yyyy')} → {format(addMonths(parseISO(g.parcelas[0].purchase_date),g.totalParcelas-1),'MM/yyyy')}
+                        {g.tipo==='conta'
+                          ? <>📅 conta com prazo · {format(g.cronograma[0].data,'MM/yyyy')} → {format(g.mesQuitacao,'MM/yyyy')}</>
+                          : <>{format(parseISO(g.parcelas[0].purchase_date),'MM/yyyy')} → {format(addMonths(parseISO(g.parcelas[0].purchase_date),g.totalParcelas-1),'MM/yyyy')}</>}
                       </p>
                       <div style={{display:'flex',alignItems:'center',gap:8,marginTop:6}}>
                         <div style={{flex:1,height:4,background:'rgba(0,0,0,0.04)',borderRadius:99,overflow:'hidden'}}>
@@ -500,7 +615,38 @@ export default function Parcelamentos() {
                     </div>
                   </div>
                 </button>
-                {isOpen&&(
+                {isOpen&&g.tipo==='conta'&&(
+                  <div style={{padding:'0 18px 16px'}}>
+                    <div style={{borderTop:'1px solid rgba(0,0,0,0.04)',paddingTop:12}}>
+                      {g.cronograma.map((c,i)=>{
+                        const futura=c.mes>mesHoje
+                        const cor=c.pago?GREEN:futura?TEXTMU:RED
+                        return (
+                          <div key={c.mes} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:i<g.cronograma.length-1?'0.5px solid rgba(0,0,0,0.04)':undefined}}>
+                            <div style={{width:24,height:24,borderRadius:12,background:c.pago?'rgba(34,199,89,0.12)':futura?'rgba(0,0,0,0.03)':'rgba(255,59,48,0.12)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                              <span style={{fontSize:10,fontWeight:700,color:cor}}>{c.pago?'✓':c.num}</span>
+                            </div>
+                            <div style={{flex:1}}>
+                              <p style={{fontSize:12,fontWeight:500,color:TEXT,margin:0}}>Mês {c.num}/{g.totalParcelas}</p>
+                              <p style={{fontSize:10,color:TEXTMU,margin:'1px 0 0'}}>
+                                {format(c.data,'dd/MM/yyyy')}{c.pago?' · Pago':''}{futura?' · Futuro':''}{!c.temLinha?' · prevista':''}
+                              </p>
+                            </div>
+                            <p style={{fontSize:12,fontWeight:600,color:cor,margin:0,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(c.valor)}</p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0 0',marginTop:4}}>
+                      <p style={{fontSize:12,fontWeight:600,color:TEXTMU,margin:0}}>Restam {total-pagas} {total-pagas!==1?'meses':'mês'}</p>
+                      <p style={{fontSize:13,fontWeight:700,color:RED,margin:0}}>{formatCurrency(g.valorFalta)}</p>
+                    </div>
+                    <p style={{fontSize:10.5,color:TEXTMU,margin:'10px 0 0',lineHeight:1.4}}>
+                      Conta recorrente com prazo. Para mudar valor, dia ou prazo: Configurações → Contas recorrentes.
+                    </p>
+                  </div>
+                )}
+                {isOpen&&g.tipo!=='conta'&&(
                   <div style={{padding:'0 18px 16px'}}>
                     <div style={{borderTop:'1px solid rgba(0,0,0,0.04)',paddingTop:12}}>
                       {(()=>{
