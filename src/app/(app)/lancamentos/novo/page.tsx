@@ -13,7 +13,8 @@ import Simulador from './simulador'
 import { statusPorMes } from '@/lib/utils/parcelasCore'
 import { useBackGuard } from '@/lib/hooks/useBackGuard'
 import {
-  carregarRecorrentes, definirPrazo, mesAtual, mesDe, somaMeses, rotuloMes, chaveConta,
+  carregarRecorrentes, definirPrazo, mesAtual, mesDe, somaMeses, rotuloMes, chaveConta, dataNoMes,
+  preencherMesesFaltando,
 } from '@/lib/utils/recurrents'
 
 type TipoLanc = 'escolha' | 'parcelada' | 'avista' | 'recorrente' | 'receita'
@@ -116,6 +117,7 @@ export default function NovoLancamento() {
   // Recorrente
   const [recTipo, setRecTipo]   = useState('')
   const [recItem, setRecItem]   = useState('')
+  const [recMostrarPrazo, setRecMostrarPrazo] = useState(false)
   const [recDay, setRecDay]     = useState('')
   const [recMethod, setRecMethod] = useState('debito_automatico')
   const [recCard, setRecCard]   = useState('')
@@ -137,7 +139,7 @@ export default function NovoLancamento() {
     setAmountRaw(''); setDesc(''); setCat(''); setSubcat('')
     setDate(format(new Date(),'yyyy-MM-dd')); setNotes('')
     setInst(''); setInstRaw(''); setHasEntry(false); setEntryRaw('')
-    setRecTipo(''); setRecItem(''); setRecDay('')
+    setRecTipo(''); setRecItem(''); setRecDay(''); setRecMostrarPrazo(false)
     setRecIsRec(false)
   }
 
@@ -193,7 +195,6 @@ export default function NovoLancamento() {
     }
 
     if (tipo === 'recorrente') {
-      if (!recTipo) { toast.error('Escolha o tipo de conta recorrente'); return }
       if (recContaTipo === 'conta_debito' && !recCard) { toast.error('Escolha a conta de débito'); return }
     }
 
@@ -221,8 +222,10 @@ export default function NovoLancamento() {
     if (tipo === 'recorrente' && recPrazo === 'ate' && !recPrazoAte) {
       toast.error('Escolha até que mês a conta vai existir'); return
     }
-    if (tipo === 'recorrente' && recMethod !== 'cartao_credito' && !recDay) {
-      toast.error('Informe o dia de vencimento (para o app te avisar quando estiver perto)')
+    if (tipo === 'recorrente' && !recDay) {
+      toast.error(recMethod === 'cartao_credito'
+        ? 'Informe o dia em que a cobrança cai no cartão (decide a fatura)'
+        : 'Informe o dia de vencimento (para o app te avisar quando estiver perto)')
       return
     }
     setLoading(true)
@@ -310,13 +313,15 @@ export default function NovoLancamento() {
       } else if (tipo === 'recorrente') {
         const finalCat  = cat
         const finalDesc = desc || recItem
+        // O dia informado manda: a primeira cobrança cai no dia certo do mês escolhido
+        const dataEf = dataNoMes(mesDe(date), parseInt(recDay) || Number(date.slice(8, 10)) || 1)
         const bm = recMethod==='cartao_credito'
-          ? format(calcBillingMonth(parseISO(date),cardClosing[recCard]||1),'yyyy-MM-dd') : null
+          ? format(calcBillingMonth(parseISO(dataEf),cardClosing[recCard]||1),'yyyy-MM-dd') : null
         const { error } = await supabase.from('transactions').insert({
           owner_id:user.id, owner_name:ownerName, holder, transaction_type:'recorrente', type:'Despesa',
           description:finalDesc, amount, category:finalCat,
           subcategory:subcat||recItem||null,
-          purchase_date:date, notes:notes||null,
+          purchase_date:dataEf, notes:notes||null,
           payment_method:recMethod, card_name:recContaTipo!=='nenhum'?recCard:null,
           billing_month:bm, is_recurring:true, recurring_active:true,
           recurring_day:recDay?parseInt(recDay):null,
@@ -324,12 +329,30 @@ export default function NovoLancamento() {
         })
         if (error) throw error
 
+        // Começou em mês que já passou: lança também os meses até hoje, senão
+        // o app só geraria do mês atual em diante e a conta ficaria com buraco
+        // (e a fatura do cartão desses meses, menor que a real).
+        const inicioRec = mesDe(dataEf)
+        if (inicioRec < mesAtual()) {
+          const contasNovas = await carregarRecorrentes()
+          const nova = contasNovas.find(x => x.chave === chaveConta(finalDesc, holder))
+          if (nova) {
+            const ate = recPrazo === 'sem' ? mesAtual() : (recPrazo === 'meses'
+              ? somaMeses(inicioRec, Math.max(1, parseInt(recPrazoMeses)) - 1) : (recPrazoAte || mesAtual()))
+            const meses: string[] = []
+            for (let m = somaMeses(inicioRec, 1); m <= mesAtual() && m <= ate; m = somaMeses(m, 1)) meses.push(m)
+            const rp = await preencherMesesFaltando(nova, meses)
+            if (rp.ok && rp.criados > 0) toast.success(`${rp.criados} ${rp.criados > 1 ? 'meses anteriores lançados' : 'mês anterior lançado'} até hoje`, { position:'top-center' })
+            else if (!rp.ok) toast.error(`Conta criada, mas os meses anteriores falharam: ${rp.erro}`)
+          }
+        }
+
         // Conta com prazo: em vez de guardar a data-fim numa coluna, as
         // ocorrências do prazo passam a existir de verdade e a conta para de
         // gerar. Assim ela aparece exatamente nos meses dela — nem antes, nem
         // depois — e toda tela lê a mesma coisa.
         if (recPrazo !== 'sem') {
-          const inicio = mesDe(date)
+          const inicio = mesDe(dataEf)
           const ateMes = recPrazo === 'meses'
             ? somaMeses(inicio, Math.max(1, parseInt(recPrazoMeses)) - 1)
             : recPrazoAte
@@ -488,11 +511,13 @@ export default function NovoLancamento() {
           style={S.inp} required/>
       </div>
 
-      {/* Data */}
-      <div>
-        <label style={S.lbl}>{tipo==='receita'?'Data do recebimento':'Data da compra'}<Obrig/></label>
-        <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={S.inp}/>
-      </div>
+      {/* Data — conta recorrente não tem "data da compra": tem dia do mês e mês de início */}
+      {tipo!=='recorrente'&&(
+        <div>
+          <label style={S.lbl}>{tipo==='receita'?'Data do recebimento':'Data da compra'}<Obrig/></label>
+          <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={S.inp}/>
+        </div>
+      )}
     </>
   )
 
@@ -708,152 +733,124 @@ export default function NovoLancamento() {
 
         {/* ── RECORRENTE ── */}
         {tipo === 'recorrente' && (<>
+          {/* 1. COMO É COBRADA — a pergunta que define o resto (fatura ou vencimento) */}
           <div>
-            <label style={S.lbl}>Tipo de conta recorrente<Obrig/></label>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              {[
-                {v:'contas_casa', emoji:'🏠', l:'Contas de casa',    d:'Energia, água, internet, condomínio...'},
-                {v:'assinatura',  emoji:'📺', l:'Assinaturas',       d:'Netflix, Spotify, academia...'},
-                {v:'debito_bancario',emoji:'🏦',l:'Débito bancário', d:'Financiamento, empréstimo...'},
-                {v:'outros',      emoji:'🔄', l:'Outros recorrentes',d:'Qualquer outra recorrência'},
-              ].map(rt=>(
-                <button key={rt.v} type="button"
+            <label style={S.lbl}>Como é cobrada<Obrig/></label>
+            <div style={{display:'flex',gap:8}}>
+              {[{ok:recMethod==='cartao_credito',l:'💳 Cartão de crédito',v:'cartao_credito'},
+                {ok:recMethod!=='cartao_credito',l:'🏦 Boleto, débito ou PIX',v:'debito_automatico'}].map(o=>(
+                <button key={o.v} type="button"
                   onClick={()=>{
-                    setRecTipo(rt.v);setRecItem('');setSubcat('')
-                    const sug = rt.v==='contas_casa'?'Moradia':rt.v==='assinatura'?'Lazer e Entretenimento':rt.v==='debito_bancario'?'Dívidas e Financiamentos':''
-                    setCat(sug && categoriasAtivas(catalogo,'despesa').includes(sug) ? sug : '')
+                    if(o.v==='cartao_credito' && recMethod!=='cartao_credito'){ setRecMethod('cartao_credito'); setRecCard(CARDS_CREDITO[0]||'') }
+                    else if(o.v!=='cartao_credito' && recMethod==='cartao_credito'){ setRecMethod('debito_automatico'); setRecCard(CONTAS_DEBITO[0]||'') }
                   }}
-                  style={{
-                    textAlign:'left',padding:'12px 14px',borderRadius:14,
-                    border:`0.5px solid ${recTipo===rt.v?'#C4622D':'rgba(255,255,255,0.1)'}`,
-                    background:recTipo===rt.v?'rgba(196,98,45,0.2)':'rgba(255,255,255,0.05)',cursor:'pointer'
-                  }}>
-                  <p style={{fontSize:13,fontWeight:600,color:'#1C1C1E'}}>{rt.emoji} {rt.l}</p>
-                  <p style={{fontSize:11,color:'#8E8E93',marginTop:2}}>{rt.d}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {recTipo==='contas_casa' && (
-            <div>
-              <label style={S.lbl}>Qual conta?</label>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                {CONTAS_CASA_ITEMS.map(i=>(
-                  <button key={i} type="button"
-                    onClick={()=>{setRecItem(i);if(!desc)setDesc(i)}}
-                    style={S.seg(recItem===i,'#C4622D')}>
-                    {i}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {recTipo==='assinatura' && (
-            <div>
-              <label style={S.lbl}>Qual assinatura?</label>
-              <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
-                {ASSINATURAS_ITEMS.map(i=>(
-                  <button key={i} type="button"
-                    onClick={()=>{setRecItem(i);if(!desc)setDesc(i)}}
-                    style={{
-                      padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:500,cursor:'pointer',
-                      border:`0.5px solid ${recItem===i?'#C4622D':'rgba(0,0,0,0.15)'}`,
-                      background:recItem===i?'#C4622D':'rgba(0,0,0,0.03)',
-                      color:recItem===i?'#fff':'#8E8E93'
-                    }}>
-                    {i}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {recTipo && CampoCat}
-
-          <div>
-            <label style={S.lbl}>Dia do vencimento</label>
-            <input type="number" value={recDay} onChange={e=>setRecDay(e.target.value)}
-              placeholder="Ex: 15" style={S.inp} min="1" max="31"/>
-            <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
-              {recMethod==='cartao_credito'
-                ? 'Se for no cartão de crédito, o vencimento é o da fatura — pode deixar em branco.'
-                : 'É esse dia que o app usa para te avisar no Início quando estiver perto de vencer.'}
-            </p>
-          </div>
-
-          {/* ── Por quanto tempo ─────────────────────────────── */}
-          <div>
-            <label style={S.lbl}>Por quanto tempo essa conta existe<Obrig/></label>
-            <div style={{display:'flex',gap:6,marginBottom:8}}>
-              {[{v:'sem',l:'Sem prazo'},{v:'meses',l:'Por X meses'},{v:'ate',l:'Até mês'}].map(o=>(
-                <button key={o.v} type="button" onClick={()=>setRecPrazo(o.v as any)}
-                  style={{...S.seg(recPrazo===o.v,'#C4622D'),flex:1}}>{o.l}</button>
+                  style={{...S.seg(o.ok),height:46,fontSize:13}}>{o.l}</button>
               ))}
             </div>
 
-            {recPrazo==='sem'&&(
-              <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
-                Repete todo mês, sem data para acabar — água, luz, internet, assinatura.
-                Aparece em qualquer mês que você abrir.
-              </p>
-            )}
-
-            {recPrazo==='meses'&&(
-              <>
-                <input type="number" min="1" max="120" value={recPrazoMeses}
-                  onChange={e=>setRecPrazoMeses(e.target.value)}
-                  placeholder="Ex: 12" style={S.inp}/>
-                <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
-                  Contando a partir de {rotuloMes(mesDe(date))}.
-                  {parseInt(recPrazoMeses)>0&&(
-                    <> Termina em <strong>{rotuloMes(somaMeses(mesDe(date), parseInt(recPrazoMeses)-1))}</strong>,
-                    e os {recPrazoMeses} meses já ficam criados.</>
-                  )}
-                </p>
-              </>
-            )}
-
-            {recPrazo==='ate'&&(
-              <>
-                <input type="month" value={recPrazoAte} min={mesDe(date)}
-                  onChange={e=>setRecPrazoAte(e.target.value)} style={S.inp}/>
-                <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
-                  Último mês em que ela aparece. Depois disso ela some das telas sozinha —
-                  bom para contrato de aluguel, financiamento e assinatura anual.
-                </p>
-              </>
-            )}
-          </div>
-
-          <div>
-            <label style={S.lbl}>Como é cobrado</label>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-              {[
-                {v:'debito_automatico',l:'Débito automático'},
-                {v:'boleto',l:'Boleto'},
-                {v:'cartao_credito',l:'Cartão de crédito'},
-                {v:'pix',l:'PIX'},
-              ].map(m=>(
-                <button key={m.v} type="button" onClick={()=>setRecMethod(m.v)}
-                  style={S.seg(recMethod===m.v)}>
-                  {m.l}
-                </button>
-              ))}
-            </div>
-            {recContaTipo !== 'nenhum' && (
-              <div>
-                <label style={S.lbl}>{recContaTipo==='cartao_credito'?'Cartão':'Conta'}</label>
+            {recMethod==='cartao_credito' ? (
+              <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:10}}>
                 <div style={{position:'relative'}}>
                   <select value={recCard} onChange={e=>setRecCard(e.target.value)} style={S.sel}>
-                    {(recContaTipo==='cartao_credito'?CARDS_CREDITO:CONTAS_DEBITO).map(c=><option key={c} value={c}>{c}</option>)}
+                    {CARDS_CREDITO.map(c=><option key={c} value={c}>{c}</option>)}
                   </select>
                   <ChevronDown size={14} color="#C4622D" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
+                </div>
+                <div>
+                  <label style={S.lbl}>Dia da cobrança no cartão<Obrig/></label>
+                  <input type="number" value={recDay} onChange={e=>setRecDay(e.target.value)}
+                    placeholder="Ex: 15" style={S.inp} min="1" max="31"/>
+                  <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
+                    É o dia em que ela aparece no cartão. Ele decide em qual fatura entra — quem paga é a fatura inteira.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:10}}>
+                <div style={{display:'flex',gap:8}}>
+                  {[{v:'debito_automatico',l:'Débito automático'},{v:'boleto',l:'Boleto'},{v:'pix',l:'PIX'}].map(m=>(
+                    <button key={m.v} type="button" onClick={()=>setRecMethod(m.v)}
+                      style={{...S.seg(recMethod===m.v),fontSize:12}}>{m.l}</button>
+                  ))}
+                </div>
+                {recContaTipo !== 'nenhum' && (
+                  <div style={{position:'relative'}}>
+                    <select value={recCard} onChange={e=>setRecCard(e.target.value)} style={S.sel}>
+                      {CONTAS_DEBITO.map(c=><option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <ChevronDown size={14} color="#C4622D" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
+                  </div>
+                )}
+                <div>
+                  <label style={S.lbl}>Dia do vencimento<Obrig/></label>
+                  <input type="number" value={recDay} onChange={e=>setRecDay(e.target.value)}
+                    placeholder="Ex: 10" style={S.inp} min="1" max="31"/>
+                  <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
+                    O app usa esse dia para te avisar no Início quando estiver perto de vencer.
+                  </p>
                 </div>
               </div>
             )}
           </div>
+
+          {/* 2. CATEGORIA — uma escolha só (antes eram tipo + "qual conta" + categoria) */}
+          {CampoCat}
+
+          {/* 3. A PARTIR DE QUANDO */}
+          <div>
+            <label style={S.lbl}>Primeira cobrança em<Obrig/></label>
+            <input type="month" value={mesDe(date)}
+              onChange={e=>{ if(e.target.value) setDate(dataNoMes(e.target.value, parseInt(recDay)||1)) }}
+              style={S.inp}/>
+            <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
+              {mesDe(date) < mesAtual()
+                ? 'Mês que já passou: os meses entre ele e hoje também são lançados.'
+                : 'A partir daí ela aparece todo mês sozinha.'}
+            </p>
+          </div>
+
+          {/* 4. PRAZO — escondido por padrão: a maioria não tem fim */}
+          {!recMostrarPrazo && recPrazo==='sem' ? (
+            <p style={{fontSize:12,color:'#8E8E93',margin:0}}>
+              Repete todo mês, sem data para acabar.{' '}
+              <button type="button" onClick={()=>setRecMostrarPrazo(true)}
+                style={{background:'none',border:'none',padding:0,color:'#C4622D',fontWeight:700,fontSize:12,cursor:'pointer'}}>
+                Tem prazo para acabar?
+              </button>
+            </p>
+          ) : (
+            <div>
+              <label style={S.lbl}>Por quanto tempo existe</label>
+              <div style={{display:'flex',gap:6,marginBottom:8}}>
+                {[{v:'sem',l:'Sem prazo'},{v:'meses',l:'Por X meses'},{v:'ate',l:'Até mês'}].map(o=>(
+                  <button key={o.v} type="button" onClick={()=>setRecPrazo(o.v as any)}
+                    style={{...S.seg(recPrazo===o.v,'#C4622D'),flex:1}}>{o.l}</button>
+                ))}
+              </div>
+              {recPrazo==='meses'&&(
+                <>
+                  <input type="number" min="1" max="120" value={recPrazoMeses}
+                    onChange={e=>setRecPrazoMeses(e.target.value)} placeholder="Ex: 12" style={S.inp}/>
+                  <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
+                    Contando a partir de {rotuloMes(mesDe(date))}.
+                    {parseInt(recPrazoMeses)>0&&(
+                      <> Termina em <strong>{rotuloMes(somaMeses(mesDe(date), parseInt(recPrazoMeses)-1))}</strong>,
+                      e os {recPrazoMeses} meses já ficam criados.</>
+                    )}
+                  </p>
+                </>
+              )}
+              {recPrazo==='ate'&&(
+                <>
+                  <input type="month" value={recPrazoAte} min={mesDe(date)}
+                    onChange={e=>setRecPrazoAte(e.target.value)} style={S.inp}/>
+                  <p style={{fontSize:11,color:'#8E8E93',marginTop:5}}>
+                    Último mês em que ela aparece. Depois disso ela some das telas sozinha.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
         </>)}
 
         {/* ── RECEITA ── */}

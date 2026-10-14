@@ -17,6 +17,7 @@ import { receitasPorTitular, trocarTitular, type GrupoReceita } from '@/lib/util
 import {
   carregarRecorrentes, prazoDaConta, aplicarAjusteRecorrente, aplicarAjusteSalario,
   definirPrazo, mesAtual, somaMeses, rotuloMes, chaveConta, MESES_FUTURO_MAX,
+  mesesFaltando, preencherMesesFaltando,
   type ContaRec,
 } from '@/lib/utils/recurrents'
 
@@ -271,6 +272,36 @@ export default function Parametros() {
     setRecurrents(cards.sort((a,b)=>(a.description||'').localeCompare(b.description||'')))
   }
 
+  // Meses que uma conta pulou: preencher devolve a conta ao histórico (e à fatura do cartão)
+  const [desdeBuraco, setDesdeBuraco] = useState<Record<string,string>>({})
+  const [preenchendo, setPreenchendo] = useState<string|null>(null)
+
+  async function preencherContaRec(tx:any, meses:string[]){
+    if(preenchendo) return
+    setPreenchendo(tx.id)
+    const r=await preencherMesesFaltando(tx._conta, meses)
+    setPreenchendo(null)
+    if(!r.ok){ toast.error(`Não foi possível preencher: ${r.erro}`); return }
+    toast.success(r.criados>0 ? `${tx.description}: ${r.criados} ${r.criados>1?'meses preenchidos':'mês preenchido'}` : 'Nada para preencher')
+    setDesdeBuraco(p=>({...p,[tx.id]:''}))
+    loadRecurrents()
+  }
+  async function preencherTodasRec(){
+    if(preenchendo) return
+    setPreenchendo('todas')
+    let total=0, contas=0
+    for(const tx of recurrents.filter(t=>!t._encerrada && t._conta)){
+      const meses=mesesFaltando(tx._conta)
+      if(meses.length===0) continue
+      const r=await preencherMesesFaltando(tx._conta, meses)
+      if(!r.ok){ toast.error(`${tx.description}: ${r.erro}`); continue }
+      total+=r.criados; contas++
+    }
+    setPreenchendo(null)
+    toast.success(total>0 ? `${total} ${total>1?'meses preenchidos':'mês preenchido'} em ${contas} ${contas>1?'contas':'conta'}` : 'Nada para preencher')
+    loadRecurrents()
+  }
+
   function removeRecurrent(tx:any){
     const n=tx._ocorrencias||1
     setConfirmar({
@@ -355,7 +386,7 @@ export default function Parametros() {
 
     const r=await aplicarAjusteRecorrente({
       conta, aPartirDe:vigencia, cadastro,
-      valor, dia:noCartao?null:dia,
+      valor, dia:noCartao?(dia??undefined):dia,
     })
     if(!r.ok){ toast.error(`Não foi possível salvar: ${r.erro}`); setSavingRec(false); return }
 
@@ -953,6 +984,25 @@ export default function Parametros() {
             ))}
           </div>
 
+          {recFiltro==='ativas'&&(()=>{
+            const comBuraco=ativas.filter(t=>t._conta&&mesesFaltando(t._conta).length>0)
+            if(comBuraco.length===0) return null
+            const totalMeses=comBuraco.reduce((n,t)=>n+mesesFaltando(t._conta).length,0)
+            return(
+              <div style={{background:'rgba(255,170,0,0.1)',border:'1px solid rgba(255,170,0,0.3)',borderRadius:16,padding:'12px 14px',marginBottom:14}}>
+                <p style={{margin:0,fontSize:13,fontWeight:700,color:'#8A6D00'}}>⚠️ {comBuraco.length} {comBuraco.length>1?'contas estão':'conta está'} com meses sem lançamento</p>
+                <p style={{margin:'4px 0 10px',fontSize:12,color:'#8A6D00',lineHeight:1.4}}>
+                  Quando uma recorrente pula um mês, a fatura do cartão e os relatórios daquele mês ficam menores que o real.
+                  Toque na conta para ver quais meses faltam, ou preencha tudo de uma vez.
+                </p>
+                <button onClick={preencherTodasRec} disabled={!!preenchendo}
+                  style={{width:'100%',height:38,background:TERRA,color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>
+                  {preenchendo==='todas'?'Preenchendo...':`Preencher tudo (${totalMeses} ${totalMeses>1?'meses':'mês'})`}
+                </button>
+              </div>
+            )
+          })()}
+
           {/* Lista */}
           <div style={{background:'#fff',borderRadius:20,border:'1px solid rgba(0,0,0,0.05)',overflow:'hidden'}}>
             {lista.map((tx,i)=>{
@@ -961,9 +1011,17 @@ export default function Parametros() {
               const aberta=recAberta===tx.id
               const isEditing=editingDueDay===tx.id
               const l=linhaDoMes(tx)
-              const st=l?STATUS[l.status]:null
+              // Conta no cartão não tem "a pagar" própria: quem se paga é a fatura inteira
+              const stBase=l?STATUS[l.status]:null
+              const st=(stBase&&isCartaoRec&&l?.status==='Pendente')?{txt:'Na fatura',cor:TERRA}:stBase
               const pz=tx._prazo
-              const forma=isCartaoRec?'Fatura do cartão':(tx.recurring_day?`Vence dia ${tx.recurring_day}`:'Sem vencimento')
+              const cartaoNome=(tx.card_name||'').replace(' — ',' ')
+              const diaCobranca=tx.recurring_day||Number((l?.purchase_date||tx.purchase_date||'').slice(8,10))||null
+              const METODO:Record<string,string>={boleto:'Boleto',debito_automatico:'Débito automático',pix:'PIX'}
+              const forma=isCartaoRec
+                ? `💳 ${cartaoNome||'Cartão'}${diaCobranca?` · dia ${diaCobranca}`:''}`
+                : `${METODO[tx.payment_method]||'Conta'} · ${tx.recurring_day?`vence dia ${tx.recurring_day}`:'sem vencimento'}`
+              const faltam=(recFiltro==='ativas'&&tx._conta)?mesesFaltando(tx._conta,desdeBuraco[tx.id]||undefined):[]
               return(
                 <div key={tx.id} style={{borderTop:i===0?'none':'1px solid rgba(0,0,0,0.06)'}}>
                   <button onClick={()=>setRecAberta(aberta?null:tx.id)}
@@ -971,7 +1029,8 @@ export default function Parametros() {
                     <span style={{width:38,height:38,borderRadius:12,background:'#F5F5F7',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>{CAT_ICONS[tx.category]||'📦'}</span>
                     <span style={{flex:1,minWidth:0}}>
                       <span style={{display:'block',fontSize:14,fontWeight:600,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.description}</span>
-                      <span style={{display:'block',fontSize:12,color:semVencimento?'#B37700':TEXTMU,marginTop:2}}>{forma} · {tx.holder}</span>
+                      <span style={{display:'block',fontSize:12,color:semVencimento?'#B37700':TEXTMU,marginTop:2}}>{forma} · de {tx.holder}</span>
+                      {faltam.length>0&&<span style={{display:'block',fontSize:11,color:'#B37700',marginTop:2}}>⚠️ Sem lançamento em {faltam.slice(0,3).map(rotuloMes).join(', ')}{faltam.length>3?` e +${faltam.length-3}`:''}</span>}
                     </span>
                     <span style={{textAlign:'right',flexShrink:0}}>
                       <span style={{display:'block',fontSize:14,fontWeight:700,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(valorDe(tx))}</span>
@@ -988,6 +1047,32 @@ export default function Parametros() {
                           {pz?.tipo==='sem_prazo'?'Todo mês, sem prazo':pz?.tipo==='com_prazo'?`Até ${rotuloMes(pz.ultimoMes)} · ${pz.restantes} ${pz.restantes===1?'mês':'meses'}`:`Encerrada em ${rotuloMes(pz?.ultimoMes||hoje)}`}
                         </span></div>
                         <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:TEXTMU}}>Desde</span><span>{rotuloMes(tx._conta?.primeiroMes||hoje)} · {tx._ocorrencias} {tx._ocorrencias===1?'lançamento':'lançamentos'}</span></div>
+                        {isCartaoRec&&(<>
+                          <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:TEXTMU}}>Cartão</span><span>{cartaoNome||'—'}</span></div>
+                          <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:TEXTMU}}>Cobrança</span><span>{diaCobranca?`todo dia ${diaCobranca}`:'—'} · entra na fatura</span></div>
+                        </>)}
+                        {recFiltro==='ativas'&&tx._conta&&(
+                          <div style={{background:faltam.length>0?'rgba(255,170,0,0.1)':'#F5F5F7',borderRadius:12,padding:'10px 12px',marginTop:2}}>
+                            {faltam.length>0?(<>
+                              <p style={{margin:'0 0 8px',fontSize:12,color:'#8A6D00',lineHeight:1.4}}>
+                                <b>Meses sem lançamento:</b> {faltam.map(rotuloMes).join(', ')}.
+                                {isCartaoRec?' A fatura do cartão desses meses está menor que a real.':''}
+                              </p>
+                              <button onClick={()=>preencherContaRec(tx,faltam)} disabled={!!preenchendo}
+                                style={{width:'100%',height:36,background:TERRA,color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>
+                                {preenchendo===tx.id?'Preenchendo...':`Preencher ${faltam.length} ${faltam.length>1?'meses':'mês'}`}
+                              </button>
+                            </>):(
+                              <p style={{margin:'0 0 6px',fontSize:12,color:TEXTMU}}>✓ Nenhum mês faltando desde {rotuloMes(tx._conta.primeiroMes)}.</p>
+                            )}
+                            <label style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,fontSize:11,color:TEXTMU,marginTop:faltam.length>0?8:0}}>
+                              Começou antes? Incluir a partir de
+                              <input type="month" max={tx._conta.primeiroMes} value={desdeBuraco[tx.id]||''}
+                                onChange={e=>setDesdeBuraco(p=>({...p,[tx.id]:e.target.value}))}
+                                style={{height:30,background:'#fff',border:'1px solid rgba(0,0,0,0.08)',borderRadius:8,padding:'0 6px',fontSize:12,color:TEXT}}/>
+                            </label>
+                          </div>
+                        )}
                         {!isCartaoRec&&(
                           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                             <span style={{color:TEXTMU}}>Vencimento</span>
@@ -1099,7 +1184,9 @@ export default function Parametros() {
                       ))}
                     </select>
                     <ErroCampo campo="card_name"/>
-                    <p style={{fontSize:11,color:TEXTMU,margin:'6px 0 0'}}>Entra na fatura do cartão; o vencimento é o da fatura.</p>
+                    <input type="number" min={1} max={31} value={editRecForm.recurring_day||''} placeholder="Dia da cobrança no cartão (1 a 31)"
+                      onChange={e=>setEditRecForm((f:any)=>({...f,recurring_day:e.target.value}))} style={{...sInp,marginTop:8}}/>
+                    <p style={{fontSize:11,color:TEXTMU,margin:'6px 0 0',lineHeight:1.4}}>O dia em que a cobrança cai no cartão decide em qual fatura ela entra. Quem paga é a fatura inteira.</p>
                   </div>
                 ):(
                   <div style={{marginTop:8}}>

@@ -3,13 +3,14 @@ import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns'
 import { calcBillingMonth } from '@/lib/utils'
 import {
   mesKey, mesDe, mesAtual, somaMeses, distanciaMeses, dataNoMes,
-  chaveConta, resumirRecorrentes, prazoDaConta,
+  chaveConta, resumirRecorrentes, prazoDaConta, mesesFaltando, valorMaisProximo,
   type ContaRec, type Prazo,
 } from '@/lib/utils/mesUtils'
 
 export {
   mesKey, mesDe, mesAtual, mesParaData, somaMeses, distanciaMeses,
   ultimoDiaDoMes, dataNoMes, rotuloMes, chaveConta, resumirRecorrentes, prazoDaConta,
+  mesesFaltando, valorMaisProximo,
 } from '@/lib/utils/mesUtils'
 export type { ContaRec, Prazo } from '@/lib/utils/mesUtils'
 
@@ -324,6 +325,32 @@ export type AjusteRecorrente = {
 }
 
 /**
+ * Acerta em que fatura cada ocorrência da conta cai.
+ *
+ * O mês da fatura (billing_month) é gravado na linha. Quando a conta muda de
+ * forma de cobrança, de cartão ou de dia, ele precisa ser recalculado — senão a
+ * conta fica "no cartão" mas fora da fatura certa (ou presa numa fatura antiga
+ * depois de sair do cartão). Só grava onde o valor realmente muda.
+ */
+export async function recalcularFaturaDaConta(descricao: string, holder: string): Promise<number> {
+  const s = createClient()
+  const fechamento = await fechamentoDosCartoes()
+  const { data } = await s.from('transactions')
+    .select('id,purchase_date,payment_method,card_name,billing_month')
+    .eq('is_recurring', true).eq('description', descricao).eq('holder', holder)
+  let alteradas = 0
+  for (const l of data || []) {
+    const esperado = l.payment_method === 'cartao_credito' && l.card_name
+      ? format(calcBillingMonth(parseISO(l.purchase_date), fechamento[l.card_name] || 1), 'yyyy-MM-dd')
+      : null
+    if ((l.billing_month || null) === esperado) continue
+    const { error } = await s.from('transactions').update({ billing_month: esperado }).eq('id', l.id)
+    if (!error) alteradas++
+  }
+  return alteradas
+}
+
+/**
  * Aplica uma mudança de conta recorrente respeitando a vigência.
  *
  * O que muda de antes: o update de valor pegava TODA ocorrência não paga,
@@ -339,6 +366,12 @@ export async function aplicarAjusteRecorrente(a: AjusteRecorrente): Promise<{ ok
   const s = createClient()
   const { conta, aPartirDe } = a
 
+  // Foto de como a conta ERA, antes de qualquer gravação — é com ela que se
+  // descobre se a cobrança mudou (depois do update, o "antes" já não existe).
+  const metodoAntes = conta.template.payment_method || null
+  const cartaoAntes = conta.template.card_name || null
+  const diaAntes = conta.template.recurring_day ?? null
+
   try {
     // 1. Cadastro vale para todas as ocorrências (identidade da conta).
     if (Object.keys(a.cadastro).length > 0) {
@@ -349,6 +382,12 @@ export async function aplicarAjusteRecorrente(a: AjusteRecorrente): Promise<{ ok
 
     const nomeAtual = a.cadastro.description || conta.descricao
     const titularAtual = a.cadastro.holder || conta.holder
+
+    // Mudou cobrança, cartão ou dia? Então a fatura de cada mês precisa ser refeita.
+    const cartaoNovo = a.cadastro.card_name !== undefined ? (a.cadastro.card_name || null) : cartaoAntes
+    const metodoNovo = a.cadastro.payment_method !== undefined ? (a.cadastro.payment_method || null) : metodoAntes
+    const mudouCobranca = metodoNovo !== metodoAntes || cartaoNovo !== cartaoAntes
+    const precisaRecalcular = mudouCobranca || (a.dia != null && a.dia !== diaAntes)
 
     // 2. Vigência no futuro sem linha criada? Cria até lá, senão o ajuste
     //    não teria onde ser gravado e sumiria.
@@ -363,7 +402,10 @@ export async function aplicarAjusteRecorrente(a: AjusteRecorrente): Promise<{ ok
     const mudancas: Record<string, any> = {}
     if (a.valor != null && a.valor > 0) { mudancas.amount = a.valor; mudancas.expected_amount = a.valor }
     if (a.dia !== undefined) mudancas.recurring_day = a.dia
-    if (Object.keys(mudancas).length === 0) return { ok: true, atualizadas: 0 }
+    if (Object.keys(mudancas).length === 0) {
+      if (precisaRecalcular) await recalcularFaturaDaConta(nomeAtual, titularAtual)
+      return { ok: true, atualizadas: 0 }
+    }
 
     const { data: afetadas, error: erroBusca } = await s.from('transactions')
       .select('id,purchase_date,status')
@@ -380,6 +422,7 @@ export async function aplicarAjusteRecorrente(a: AjusteRecorrente): Promise<{ ok
       const { error } = await s.from('transactions').update(patch).eq('id', linha.id)
       if (!error) atualizadas++
     }
+    if (precisaRecalcular) await recalcularFaturaDaConta(nomeAtual, titularAtual)
     return { ok: true, atualizadas }
   } catch (e: any) {
     return { ok: false, erro: e?.message || 'Erro inesperado', atualizadas: 0 }
@@ -509,4 +552,46 @@ export async function excluirRecorrente(
   } catch (e: any) {
     return { ok: false, erro: e?.message || 'Erro inesperado', afetadas: 0 }
   }
+}
+
+/**
+ * Preenche os meses que a conta pulou, sem mexer nos que já existem.
+ *
+ * Cada linha sai igual à que o app geraria naquele mês (mesmo dia, cartão e
+ * fatura calculada pelo fechamento do cartão), com o valor da ocorrência mais
+ * próxima. Conta no cartão fica Pendente — quem quita é a fatura inteira.
+ * Conta fora do cartão em mês que já passou entra como Paga, como as parcelas.
+ */
+export async function preencherMesesFaltando(
+  conta: ContaRec, meses: string[],
+): Promise<{ ok: boolean; criados: number; erro?: string }> {
+  if (meses.length === 0) return { ok: true, criados: 0 }
+  const s = createClient()
+  const { data: { user } } = await s.auth.getUser()
+  if (!user) return { ok: false, criados: 0, erro: 'Sessão expirada' }
+
+  // Confere de novo no banco: outra tela pode ter criado o mês nesse meio-tempo
+  const { data: atuais } = await s.from('transactions').select('description,holder,purchase_date')
+    .eq('is_recurring', true).eq('holder', conta.holder).eq('description', conta.template.description)
+  const jaTem = new Set((atuais || []).map((l: any) => mesDe(l.purchase_date)))
+  const alvo = meses.filter(m => !jaTem.has(m))
+  if (alvo.length === 0) return { ok: true, criados: 0 }
+
+  const fechamento = await fechamentoDosCartoes()
+  const hoje = mesAtual()
+  const tpl = conta.template
+  const noCartao = tpl.payment_method === 'cartao_credito'
+  const linhas = alvo.map(mes => {
+    const l: any = linhaDoMes(tpl, mes, user.id, fechamento)
+    l.amount = valorMaisProximo(conta, mes)
+    if (!noCartao && mes < hoje) {
+      l.status = 'Pago'
+      l.paid_date = l.purchase_date
+      l.paid_amount = l.amount
+    }
+    return l
+  })
+  const { error } = await s.from('transactions').insert(linhas)
+  if (error) return { ok: false, criados: 0, erro: error.message }
+  return { ok: true, criados: linhas.length }
 }

@@ -136,3 +136,30 @@ export function prazoDaConta(c: ContaRec, hoje = mesAtual()): Prazo {
   return { tipo: 'encerrada', ultimoMes: c.ultimoMes }
 }
 
+/**
+ * Meses que a conta deveria ter lançamento e não tem.
+ *
+ * Olha do primeiro lançamento (ou de `desde`, se for mais cedo) até o mês
+ * corrente. Só passado e presente: os meses futuros o app gera sozinho ao
+ * navegar. Uma conta sem prazo que "pulou" um mês deixa a fatura do cartão
+ * daquele mês menor do que a real — é isso que esta função acusa.
+ */
+export function mesesFaltando(c: ContaRec, desde?: string, hoje = mesAtual()): string[] {
+  const inicio = desde && desde < c.primeiroMes ? desde : c.primeiroMes
+  const fim = c.ultimoMes < hoje ? c.ultimoMes : hoje
+  const tem = new Set(c.linhas.map(l => mesDe(l.purchase_date)))
+  const faltam: string[] = []
+  for (let m = inicio; m <= fim; m = somaMeses(m, 1)) if (!tem.has(m)) faltam.push(m)
+  return faltam
+}
+
+/** Valor da ocorrência mais próxima do mês (empate: a anterior), para preencher um buraco. */
+export function valorMaisProximo(c: ContaRec, mes: string): number {
+  let melhor: any = null, dist = Infinity
+  for (const l of c.linhas) {
+    const d = Math.abs(distanciaMeses(mesDe(l.purchase_date), mes))
+    const antes = mesDe(l.purchase_date) < mes
+    if (d < dist || (d === dist && antes)) { melhor = l; dist = d }
+  }
+  return Number(melhor?.amount ?? c.template?.expected_amount ?? c.template?.amount) || 0
+}
