@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, CAT_ICONS, dataParaExibir } from '@/lib/utils'
 import { atribuirCartoes } from '@/lib/utils/cartoes'
+import { porCartaoFisico } from '@/lib/utils/cartaoFisico'
 import { format, startOfMonth, endOfMonth, parseISO, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronDown, ChevronUp, ArrowUp, ArrowDown } from 'lucide-react'
@@ -36,7 +37,7 @@ function getBankKey(bank:string){
 }
 
 interface Card { id:string;name:string;bank:string;holder:string;card_type?:string;credit_limit:number;closing_day:number;due_day:number;alert_pct?:number;color:string;is_active:boolean }
-interface Tx { id:string;description:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;category:string;holder:string;card_name?:string;payment_method?:string;transaction_type:string;paid_amount?:number }
+interface Tx { id:string;description:string;amount:number;installment_value?:number;installment_total?:number;total_installments?:number;installment_num?:number;installment_number?:number;status:string;purchase_date:string;category:string;holder:string;card_name?:string;payment_method?:string;transaction_type:string;paid_amount?:number;card_final?:string|null }
 
 export default function Cartoes() {
   const [cards,setCards]=useState<Card[]>([])
@@ -406,6 +407,36 @@ export default function Cartoes() {
                       </div>
                     ):(
                       <div style={{padding:'4px 16px 12px'}}>
+                        {(()=>{
+                          // Quanto foi em cada cartão físico (principal e adicionais) dentro deste cartão
+                          const grupos=porCartaoFisico(itens as any)
+                          const temFinal=grupos.some(g=>g.final)
+                          if(!temFinal){
+                            return /santander/i.test(c.name)?(
+                              <p style={{fontSize:11,color:TEXTMU,margin:'10px 0 2px',lineHeight:1.4}}>
+                                💳 Para ver quanto foi em cada cartão (principal e adicionais), importe a fatura em PDF: Configurações → Importar fatura do cartão.
+                              </p>
+                            ):null
+                          }
+                          const maior=Math.max(...grupos.map(g=>g.total),1)
+                          return (
+                            <div style={{background:'#fff',borderRadius:14,padding:'10px 12px',margin:'10px 0 6px',border:'1px solid rgba(0,0,0,0.05)'}}>
+                              <p style={{fontSize:11,fontWeight:700,color:TEXTMU,textTransform:'uppercase',letterSpacing:'0.07em',margin:'0 0 8px'}}>Por cartão nesta fatura</p>
+                              {grupos.map(g=>(
+                                <div key={g.final||'sem'} style={{marginBottom:7}}>
+                                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:8}}>
+                                    <span style={{fontSize:12.5,fontWeight:600,color:g.final?TEXT:TEXTMU}}>{g.final?`···${g.final}`:'Sem cartão informado'}
+                                      <span style={{fontWeight:500,color:TEXTMU}}> · {g.qtd} compra{g.qtd>1?'s':''}</span></span>
+                                    <span style={{fontSize:13,fontWeight:700,color:TEXT,fontVariantNumeric:'tabular-nums'}}>{formatCurrency(g.total)}</span>
+                                  </div>
+                                  <div style={{height:4,background:'rgba(0,0,0,0.05)',borderRadius:99,marginTop:4,overflow:'hidden'}}>
+                                    <div style={{height:'100%',width:`${Math.max(3,(g.total/maior)*100)}%`,background:g.final?TERRA:'rgba(0,0,0,0.2)',borderRadius:99}}/>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        })()}
                         <p style={{fontSize:11,fontWeight:700,color:TEXTMU,textTransform:'uppercase',letterSpacing:'0.07em',margin:'10px 0 6px'}}>
                           {itens.length} compra{itens.length>1?'s':''} nesta fatura
                         </p>

@@ -215,6 +215,7 @@ export type LinhaOk = {
   fatura: string | null
   status: 'Pago' | 'Pendente' | 'Previsto' | null
   obs: string | null
+  cartaoFinal?: string | null // 4 últimos dígitos do cartão físico (importação de fatura)
   novaCategoria: boolean
   novaSub: boolean
   duplicada: boolean
@@ -430,6 +431,8 @@ export function montarLancamentos(
     owner_id: base.owner_id, owner_name: ownerName, holder: l.holder,
     category: l.categoria, subcategory: l.subcategoria, notes: l.obs,
     import_batch: base.import_batch,
+    // só entra quando informado: planilhas não mandam e não dependem da coluna card_final
+    ...(l.cartaoFinal ? { card_final: l.cartaoFinal } : {}),
   }
   // Pago sempre carrega data e valor pagos — sem isso o app não sabe quando saiu
   const comPagamento = (linha: Record<string, any>) =>

@@ -13,7 +13,7 @@ import { montarLancamentos } from '@/lib/utils/importacao'
 import { interpretarFatura, linhasDasPaginas, type FaturaLida } from '@/lib/utils/faturaPdf'
 import { lerPaginasDoPdf } from '@/lib/utils/faturaPdfBrowser'
 import {
-  prepararLinhas, sugerirMesFatura, conferencia, paraLinhasOk,
+  prepararLinhas, sugerirMesFatura, conferencia, paraLinhasOk, atualizacoesCartaoFisico,
   type Alias, type CartaoApp, type ExistenteFull, type LinhaFatura,
 } from '@/lib/utils/faturaImport'
 
@@ -27,6 +27,11 @@ const botao = (cor: string, cheio = true): React.CSSProperties => ({
   background: cheio ? cor : 'transparent', color: cheio ? '#fff' : cor, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '0 14px',
 })
 const RESPONSAVEIS = ['Lucas', 'Nicoly', 'Prata']
+/** 'LUCAS D S SANTOS' + '4690' → 'Lucas ···4690' (qual cartão físico da fatura) */
+const rotuloCartao = (l: LinhaFatura) => {
+  const n = (l.titularLido.trim().split(/\s+/)[0] || '').toLowerCase()
+  return `${n.charAt(0).toUpperCase()}${n.slice(1)} ···${l.final}`
+}
 
 /* ── Uma compra da fatura, editável ─────────────────────────────── */
 // Fora da página de propósito: se fosse definida lá dentro, cada letra digitada recriaria
@@ -43,6 +48,7 @@ const LinhaEditavel = memo(function LinhaEditavel({ l, catalogo, onChange }: {
         <p style={{ fontSize: 14, fontWeight: 800, color: TEXT, margin: 0, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(l.valor)}</p>
       </div>
       <p style={{ fontSize: 11, color: TEXTMU, margin: '5px 2px 8px', lineHeight: 1.4 }}>
+        <span style={{ background: 'rgba(0,0,0,0.06)', borderRadius: 6, padding: '1px 6px', fontWeight: 600, color: TEXTLT, marginRight: 6 }}>{rotuloCartao(l)}</span>
         {l.descBanco} · {l.data.slice(8)}/{l.data.slice(5, 7)}
         {l.parcela && <> · <b style={{ color: TERRA }}>parcela {l.parcela.x}/{l.parcela.y}</b> (cria as {l.parcela.y} parcelas)</>}
         {l.qtd > 1 && <> · <b>{l.qtd} compras</b> ({l.periodo})</>}
@@ -94,7 +100,7 @@ export default function ImportarFatura() {
   const [verCartoes, setVerCartoes] = useState(false)
   const [importando, setImportando] = useState(false)
   const [progresso, setProgresso] = useState(0)
-  const [resultado, setResultado] = useState<{ lote: string; qtd: number; aprendidos: number } | null>(null)
+  const [resultado, setResultado] = useState<{ lote: string; qtd: number; aprendidos: number; enriquecidos?: number } | null>(null)
 
   async function carregarBase() {
     const s = createClient()
@@ -181,14 +187,25 @@ export default function ImportarFatura() {
       const parte = registros.slice(i, i + 100)
       const { error } = await s.from('transactions').insert(parte)
       if (error) {
-        const falta = /import_batch/i.test(error.message)
+        const falta = /import_batch|card_final/i.test(error.message)
         if (falta) setSemColuna(true)
-        toast.error(falta ? 'Falta uma etapa no banco (coluna import_batch). Nada foi gravado.' : `Erro ao gravar: ${error.message}`)
-        if (gravados > 0) setResultado({ lote, qtd: gravados, aprendidos: 0 })
+        toast.error(falta ? `Falta uma etapa no banco (coluna ${/card_final/i.test(error.message) ? 'card_final — rode supabase-card-final.sql' : 'import_batch'}). Nada foi gravado.` : `Erro ao gravar: ${error.message}`)
+        if (gravados > 0) setResultado({ lote, qtd: gravados, aprendidos: 0, enriquecidos: 0 })
         setImportando(false); return
       }
       gravados += parte.length
       setProgresso(Math.round((gravados / registros.length) * 100))
+    }
+
+    // compras que você já tinha e o PDF reconheceu ganham o cartão físico (só onde ainda está vazio)
+    let enriquecidos = 0
+    for (const u of atualizacoesCartaoFisico(linhas, respostas)) {
+      const q = s.from('transactions').update({ card_final: u.final })
+      const { error: e2 } = u.kind === 'id'
+        ? await q.eq('id', u.id).is('card_final', null)
+        : await q.eq('card_name', u.cartao).eq('installment_total', u.y).like('description', `${u.base.replace(/[%_\\]/g, '\\$&')} (%`)
+            .gte('amount', u.valor - 0.05).lte('amount', u.valor + 0.05).is('card_final', null)
+      if (!e2) enriquecidos++
     }
 
     // memória: da próxima vez o nome e a categoria já vêm preenchidos
@@ -206,7 +223,7 @@ export default function ImportarFatura() {
       }
     }
     setImportando(false)
-    setResultado({ lote, qtd: gravados, aprendidos })
+    setResultado({ lote, qtd: gravados, aprendidos, enriquecidos })
     setLida(null); setNomeArquivo(''); setLinhas([])
     toast.success(`${gravados} lançamentos importados!`)
     carregarBase()
@@ -244,6 +261,7 @@ export default function ImportarFatura() {
           <p style={{ ...tit, color: GREEN }}>✓ {resultado.qtd} lançamentos importados</p>
           <p style={sub}>
             Já aparecem em Cartões, Lançamentos e Relatórios.
+            {!!resultado.enriquecidos && <> Mais <b>{resultado.enriquecidos}</b> compras que você já tinha ganharam o cartão físico, para o resumo “por cartão”.</>}
             {resultado.aprendidos > 0 && <> O app aprendeu o nome e a categoria de <b>{resultado.aprendidos}</b> estabelecimentos — na próxima fatura já vêm preenchidos.</>}
           </p>
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
@@ -311,7 +329,7 @@ export default function ImportarFatura() {
                   <div key={l.id} style={{ background: '#fff', borderRadius: 14, padding: 12 }}>
                     <p style={{ fontSize: 13, fontWeight: 700, color: TEXT, margin: 0 }}>{l.descBanco} · {formatCurrency(l.valor)}</p>
                     <p style={{ fontSize: 11, color: TEXTMU, margin: '2px 0 8px' }}>
-                      {l.tipo === 'parcelada' ? `parcela ${l.parcela!.x}/${l.parcela!.y}` : `${l.data.slice(8)}/${l.data.slice(5, 7)}`}
+                      {rotuloCartao(l)} · {l.tipo === 'parcelada' ? `parcela ${l.parcela!.x}/${l.parcela!.y}` : `${l.data.slice(8)}/${l.data.slice(5, 7)}`}
                     </p>
                     <p style={{ fontSize: 12, color: AMBER, margin: '0 0 8px', lineHeight: 1.4 }}>
                       Parece com <b>{l.achado?.desc}</b> ({formatCurrency(l.achado?.valor || 0)}{l.tipo === 'avista' && l.achado ? ` em ${l.achado.data.slice(8)}/${l.achado.data.slice(5, 7)}` : ''}) — {l.achado?.motivo}.
@@ -366,7 +384,7 @@ export default function ImportarFatura() {
                     <div key={l.id} style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', borderTop: '0.5px solid rgba(0,0,0,0.06)', paddingTop: 8 }}>
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontSize: 12.5, fontWeight: 600, color: TEXT, margin: 0 }}>{l.achado?.desc} · {formatCurrency(l.valor)}</p>
-                        <p style={{ fontSize: 10.5, color: TEXTMU, margin: '1px 0 0' }}>{l.descBanco} — {l.achado?.motivo}</p>
+                        <p style={{ fontSize: 10.5, color: TEXTMU, margin: '1px 0 0' }}>{rotuloCartao(l)} · {l.descBanco} — {l.achado?.motivo}</p>
                       </div>
                       <button onClick={() => atualiza(l.id, { incluir: !l.incluir })} style={{ background: 'rgba(0,0,0,0.05)', border: 'none', borderRadius: 8, height: 30, padding: '0 10px', fontSize: 11, fontWeight: 600, color: l.incluir ? RED : TERRA, cursor: 'pointer', flexShrink: 0 }}>
                         {l.incluir ? 'Não lançar' : 'Lançar mesmo assim'}

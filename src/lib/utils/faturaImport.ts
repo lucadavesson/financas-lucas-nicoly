@@ -51,7 +51,7 @@ export type LinhaFatura = {
   parcela: { x: number; y: number } | null
   faturaPrimeira: string | null  // parcelada: mês da fatura da parcela 1
   situacao: Situacao
-  achado: { desc: string; data: string; valor: number; motivo: string } | null
+  achado: { desc: string; data: string; valor: number; motivo: string; id?: string; serie?: { cartao: string; y: number; base: string; valor: number } } | null
   nome: string
   categoria: string
   subcategoria: string
@@ -231,7 +231,7 @@ export function prepararLinhas(lida: FaturaLida, op: OpcoesFatura): LinhaFatura[
         id: `p${seq++}`, tipo: 'parcelada', cartao, titularLido: c.titular, final: c.final, descBanco: p.desc, chave: s.chave,
         data, valor: p.valor, qtd: 1, periodo: null, parcela: p.parcela, faturaPrimeira,
         situacao: achada ? (achada.exato ? 'ja_existe' : 'talvez') : 'nova',
-        achado: achada ? { desc: achada.desc, data, valor: p.valor, motivo: achada.exato ? 'mesma compra parcelada (valor, nº de parcelas e data)' : 'mesmo valor e nº de parcelas, mas com outra data' } : null,
+        achado: achada ? { desc: achada.desc, data, valor: p.valor, serie: { cartao: app!.nome, y, base: achada.desc, valor: p.valor }, motivo: achada.exato ? 'mesma compra parcelada (valor, nº de parcelas e data)' : 'mesmo valor e nº de parcelas, mas com outra data' } : null,
         nome: s.nome, categoria: s.categoria, subcategoria: s.subcategoria, responsavel: s.responsavel,
         incluir: !achada && !!cartao, origem: s.origem,
       })
@@ -265,7 +265,7 @@ export function prepararLinhas(lida: FaturaLida, op: OpcoesFatura): LinhaFatura[
         situacao = melhor.dif === 0 ? 'ja_existe' : 'talvez'
         if (melhor.e.id) usados.add(melhor.e.id)
         achado = {
-          desc: melhor.e.description, data: melhor.e.purchase_date, valor: Number(melhor.e.amount),
+          id: melhor.e.id, desc: melhor.e.description, data: melhor.e.purchase_date, valor: Number(melhor.e.amount),
           motivo: melhor.dif === 0 ? 'mesmo valor e mesma data' : `mesmo valor, data ${melhor.dif} dia${melhor.dif > 1 ? 's' : ''} diferente`,
         }
       }
@@ -306,7 +306,7 @@ export function paraLinhasOk(linhas: LinhaFatura[], faturaYM: string): LinhaOk[]
   linhas.filter(l => l.incluir && l.cartao).forEach((l, i) => {
     const comum = {
       n: i + 1, descricao: l.nome.trim() || l.descBanco, valor: l.valor, data: l.data,
-      holder: l.responsavel, categoria: l.categoria, subcategoria: l.subcategoria || null,
+      holder: l.responsavel, categoria: l.categoria, subcategoria: l.subcategoria || null, cartaoFinal: l.final,
       forma: 'cartao_credito' as const, conta: l.cartao, status: null, novaCategoria: false, novaSub: false, duplicada: false,
     }
     if (l.tipo === 'parcelada') {
@@ -316,4 +316,26 @@ export function paraLinhasOk(linhas: LinhaFatura[], faturaYM: string): LinhaOk[]
     }
   })
   return ok
+}
+
+/* ── Cartão físico das compras que já existiam ──────────────────── */
+
+export type AtualizacaoFisico =
+  | { kind: 'id'; id: string; final: string }
+  | { kind: 'serie'; cartao: string; y: number; base: string; valor: number; final: string }
+
+/**
+ * Compras do PDF que casaram com algo que você já tinha lançado (e foram puladas)
+ * ganham o cartão físico — assim o resumo por cartão fica completo, não só nas novas.
+ */
+export function atualizacoesCartaoFisico(linhas: LinhaFatura[], respostas: Record<string, 'mesma' | 'outra'>): AtualizacaoFisico[] {
+  const ups: AtualizacaoFisico[] = []
+  for (const l of linhas) {
+    if (l.incluir || !l.achado || !l.cartao) continue
+    const mesma = l.situacao === 'ja_existe' || (l.situacao === 'talvez' && respostas[l.id] === 'mesma')
+    if (!mesma) continue
+    if (l.tipo === 'avista' && l.achado.id) ups.push({ kind: 'id', id: l.achado.id, final: l.final })
+    else if (l.tipo === 'parcelada' && l.achado.serie) ups.push({ kind: 'serie', ...l.achado.serie, final: l.final })
+  }
+  return ups
 }
