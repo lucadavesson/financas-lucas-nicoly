@@ -6,7 +6,7 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ChevronLeft, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, maskCurrency, unmaskCurrency } from '@/lib/utils'
 import { useCatalogo, categoriasAtivas, subcategoriasAtivas, type Catalogo } from '@/lib/utils/catalogo'
 import { mesAtual, rotuloMes, somaMeses } from '@/lib/utils/mesUtils'
 import { montarLancamentos } from '@/lib/utils/importacao'
@@ -51,7 +51,9 @@ const LinhaEditavel = memo(function LinhaEditavel({ l, catalogo, onChange }: {
     <div style={{ background: '#fff', borderRadius: 14, padding: 12, border: '1px solid rgba(0,0,0,0.06)', opacity: l.incluir ? 1 : 0.5 }}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <input value={l.nome} onChange={e => onChange(l.id, { nome: e.target.value })} aria-label="Nome" style={{ ...campo, fontWeight: 600 }} />
-        <p style={{ fontSize: 14, fontWeight: 800, color: TEXT, margin: 0, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(l.valor)}</p>
+        <input value={maskCurrency(String(Math.round(l.valor * 100)))} inputMode="numeric" aria-label="Valor"
+          onChange={e => onChange(l.id, { valor: unmaskCurrency(e.target.value) })}
+          style={{ ...campo, width: 110, flexShrink: 0, fontWeight: 800, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }} />
       </div>
       <p style={{ fontSize: 11, color: TEXTMU, margin: '5px 2px 8px', lineHeight: 1.4 }}>
         <span style={{ background: 'rgba(0,0,0,0.06)', borderRadius: 6, padding: '1px 6px', fontWeight: 600, color: TEXTLT, marginRight: 6 }}>{rotuloCartao(l)}</span>
