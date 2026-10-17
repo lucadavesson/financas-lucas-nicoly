@@ -21,6 +21,7 @@
     "recharts": "^2.12.7",
     "sonner": "^1.4.41",
     "tailwind-merge": "^2.3.0",
+    "tesseract.js": "^7.0.0",
     "typescript": "^5",
     "write-excel-file": "^4.1.1"
   },

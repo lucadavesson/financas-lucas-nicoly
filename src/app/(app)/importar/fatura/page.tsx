@@ -12,6 +12,7 @@ import { mesAtual, rotuloMes, somaMeses } from '@/lib/utils/mesUtils'
 import { montarLancamentos } from '@/lib/utils/importacao'
 import { interpretarFatura, linhasDasPaginas, type FaturaLida } from '@/lib/utils/faturaPdf'
 import { lerPaginasDoPdf } from '@/lib/utils/faturaPdfBrowser'
+import { CARTOES_PRINT, juntarPrints, lerComprasDoPrint, lidaDeImpressoes } from '@/lib/utils/printFatura'
 import {
   prepararLinhas, sugerirMesFatura, conferencia, paraLinhasOk, atualizacoesCartaoFisico,
   type Alias, type CartaoApp, type ExistenteFull, type LinhaFatura,
@@ -95,6 +96,8 @@ export default function ImportarFatura() {
   const [lida, setLida] = useState<FaturaLida | null>(null)
   const [nomeArquivo, setNomeArquivo] = useState('')
   const [lendo, setLendo] = useState(false)
+  const [cartaoPrint, setCartaoPrint] = useState(CARTOES_PRINT[0].final)
+  const [progPrints, setProgPrints] = useState<{ feitos: number; total: number } | null>(null)
   const [banco, setBanco] = useState('')
   const [faturaYM, setFaturaYM] = useState('')
   const [agrupar, setAgrupar] = useState(true)
@@ -167,6 +170,48 @@ export default function ImportarFatura() {
       toast.error('Não consegui ler o PDF: ' + (e?.message || 'arquivo inválido'))
       setLida(null); setNomeArquivo('')
     } finally { setLendo(false) }
+  }
+
+  /** Lê os prints da fatura em aberto no próprio celular (OCR), na ordem escolhida. */
+  async function lerPrints(files: FileList) {
+    const arquivos = Array.from(files)
+    if (arquivos.length === 0) return
+    const cartao = CARTOES_PRINT.find(c => c.final === cartaoPrint) || CARTOES_PRINT[0]
+    setLendo(true); setResultado(null)
+    setProgPrints({ feitos: 0, total: arquivos.length })
+    let worker: any = null
+    try {
+      const { createWorker } = await import('tesseract.js')
+      worker = await createWorker('eng')
+      await worker.setParameters({ tessedit_pageseg_mode: '4' } as any)
+      const listas = []
+      for (let i = 0; i < arquivos.length; i++) {
+        const { data } = await worker.recognize(arquivos[i])
+        listas.push(lerComprasDoPrint(data.text).compras)
+        setProgPrints({ feitos: i + 1, total: arquivos.length })
+      }
+      const todas = juntarPrints(listas)
+      const suspeitas = todas.filter(c => c.suspeita).length
+      const ok = todas.filter(c => !c.suspeita)
+      if (ok.length === 0) {
+        toast.error('Não consegui ler compras nesses prints. Tente prints mais nítidos, com a lista inteira na tela.')
+        setLida(null); setNomeArquivo(''); return
+      }
+      const bancos = Array.from(new Set(cartoes.filter(c => c.credito).map(c => c.banco)))
+      const bancoSant = bancos.find(b => /santander/i.test(b)) || bancos[0] || ''
+      const lidaNova = lidaDeImpressoes(ok, cartao)
+      setBanco(bancoSant)
+      setFaturaYM(sugerirMesFatura(lidaNova))
+      setLida(lidaNova)
+      setNomeArquivo(`${arquivos.length} print${arquivos.length === 1 ? '' : 's'} · ${cartao.label}`)
+      if (suspeitas > 0) toast.message(`${suspeitas} compra${suspeitas === 1 ? '' : 's'} sem status foi deixada de fora (pode ser cancelada). Confira no app se precisar.`)
+    } catch (e: any) {
+      toast.error('Não consegui ler os prints: ' + (e?.message || 'erro desconhecido'))
+      setLida(null); setNomeArquivo('')
+    } finally {
+      if (worker) await worker.terminate().catch(() => {})
+      setProgPrints(null); setLendo(false)
+    }
   }
 
   const atualiza = (id: string, patch: Partial<LinhaFatura>) => setLinhas(ls => ls.map(l => (l.id === id ? { ...l, ...patch } : l)))
@@ -303,6 +348,20 @@ export default function ImportarFatura() {
             onChange={e => { const f = e.target.files?.[0]; if (f) lerArquivo(f); e.target.value = '' }} />
         </label>
         {nomeArquivo && <p style={{ ...sub, marginTop: 8 }}>{nomeArquivo}</p>}
+      </div>
+
+      {/* 1b. Prints da fatura em aberto */}
+      <div style={caixa}>
+        <p style={tit}>Ou leia os prints da fatura em aberto</p>
+        <p style={sub}>Use durante o mês. Escolha o cartão, depois os prints na ordem da tela (do mais recente para o mais antigo). Tudo é lido no seu celular.</p>
+        <select value={cartaoPrint} onChange={e => setCartaoPrint(e.target.value)} disabled={lendo} style={{ ...campo, marginTop: 12 }}>
+          {CARTOES_PRINT.map(c => <option key={c.final} value={c.final}>{c.label}</option>)}
+        </select>
+        <label style={{ ...botao(TEXT, false), marginTop: 10, cursor: lendo ? 'default' : 'pointer', opacity: lendo ? 0.6 : 1 }}>
+          {lendo && progPrints ? <><Loader2 size={16} style={{ animation: 'spin 0.8s linear infinite' }} />Lendo print {progPrints.feitos} de {progPrints.total}…</> : '🖼️ Escolher os prints'}
+          <input type="file" accept="image/*" multiple style={{ display: 'none' }} disabled={lendo}
+            onChange={e => { if (e.target.files) lerPrints(e.target.files); e.target.value = '' }} />
+        </label>
       </div>
 
       {lida && (
