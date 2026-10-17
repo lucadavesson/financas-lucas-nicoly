@@ -27,6 +27,11 @@ const botao = (cor: string, cheio = true): React.CSSProperties => ({
   background: cheio ? cor : 'transparent', color: cheio ? '#fff' : cor, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '0 14px',
 })
 const RESPONSAVEIS = ['Lucas', 'Nicoly', 'Prata']
+type Lote = { lote: string; qtd: number; de: string; ate: string }
+const rotuloLote = (lote: string) => {
+  const m = lote.match(/^imp-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/)
+  return m ? `${m[3]}/${m[2]}/${m[1]} às ${m[4]}:${m[5]}` : lote
+}
 /** 'LUCAS D S SANTOS' + '4690' → 'Lucas ···4690' (qual cartão físico da fatura) */
 const rotuloCartao = (l: LinhaFatura) => {
   const n = (l.titularLido.trim().split(/\s+/)[0] || '').toLowerCase()
@@ -100,6 +105,7 @@ export default function ImportarFatura() {
   const [verCartoes, setVerCartoes] = useState(false)
   const [importando, setImportando] = useState(false)
   const [progresso, setProgresso] = useState(0)
+  const [lotes, setLotes] = useState<Lote[]>([])
   const [resultado, setResultado] = useState<{ lote: string; qtd: number; aprendidos: number; enriquecidos?: number } | null>(null)
 
   async function carregarBase() {
@@ -121,7 +127,22 @@ export default function ImportarFatura() {
     const { data: al, error } = await s.from('estabelecimentos').select('chave,nome,categoria,subcategoria,responsavel')
     if (error) { setSemMemoria(true); setAliases([]) } else { setSemMemoria(false); setAliases((al || []) as Alias[]) }
   }
-  useEffect(() => { carregarBase() }, [])
+  async function carregarLotes() {
+    const s = createClient()
+    const mapa = new Map<string, Lote>()
+    for (let de = 0; de < 30000; de += 1000) {
+      const { data, error } = await s.from('transactions').select('import_batch,purchase_date').not('import_batch', 'is', null).order('id').range(de, de + 999)
+      if (error || !data || data.length === 0) break
+      for (const r of data as any[]) {
+        const a = mapa.get(r.import_batch) || { lote: r.import_batch, qtd: 0, de: r.purchase_date, ate: r.purchase_date }
+        a.qtd++; if (r.purchase_date < a.de) a.de = r.purchase_date; if (r.purchase_date > a.ate) a.ate = r.purchase_date
+        mapa.set(r.import_batch, a)
+      }
+      if (data.length < 1000) break
+    }
+    setLotes(Array.from(mapa.values()).sort((a, b) => b.lote.localeCompare(a.lote)))
+  }
+  useEffect(() => { carregarBase(); carregarLotes() }, [])
 
   // Recalcula a lista quando muda o arquivo, o banco, o mês ou o agrupamento (não a cada edição sua)
   useEffect(() => {
@@ -226,15 +247,16 @@ export default function ImportarFatura() {
     setResultado({ lote, qtd: gravados, aprendidos, enriquecidos })
     setLida(null); setNomeArquivo(''); setLinhas([])
     toast.success(`${gravados} lançamentos importados!`)
-    carregarBase()
+    carregarBase(); carregarLotes()
   }
 
-  async function desfazer() {
-    if (!resultado) return
-    if (!confirm(`Desfazer esta importação?\n\nIsso APAGA os ${resultado.qtd} lançamentos que entraram nela. O resto do app não é tocado.`)) return
-    const { error } = await createClient().from('transactions').delete().eq('import_batch', resultado.lote)
+  async function desfazer(lote: string, qtd: number) {
+    if (!confirm(`Desfazer a importação de ${rotuloLote(lote)}?\n\nIsso APAGA os ${qtd} lançamentos que entraram nela. O resto do app não é tocado.`)) return
+    const { error } = await createClient().from('transactions').delete().eq('import_batch', lote)
     if (error) { toast.error(`Não foi possível desfazer: ${error.message}`); return }
-    toast.success('Importação desfeita'); setResultado(null); carregarBase()
+    toast.success('Importação desfeita')
+    setResultado(r => (r?.lote === lote ? null : r))
+    carregarBase(); carregarLotes()
   }
 
   return (
@@ -266,7 +288,7 @@ export default function ImportarFatura() {
           </p>
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <Link href="/cartoes" style={{ ...botao(GREEN), flex: 1, height: 40, fontSize: 13, textDecoration: 'none' }}>Ver em Cartões</Link>
-            <button onClick={desfazer} style={{ ...botao(RED, false), flex: 1, height: 40, fontSize: 13 }}>Desfazer</button>
+            <button onClick={() => desfazer(resultado.lote, resultado.qtd)} style={{ ...botao(RED, false), flex: 1, height: 40, fontSize: 13 }}>Desfazer</button>
           </div>
         </div>
       )}
@@ -421,9 +443,27 @@ export default function ImportarFatura() {
         </>
       )}
 
+      <div style={caixa}>
+        <p style={tit}>Importações anteriores</p>
+        {lotes.length === 0 ? (
+          <p style={sub}>Nenhuma ainda. Depois de importar, o <b>Desfazer</b> fica aqui — dá para apagar uma importação inteira e refazer.</p>
+        ) : (
+          <>
+            <p style={{ ...sub, marginBottom: 8 }}>Se algo entrou errado, desfaça a importação inteira e envie o PDF de novo.</p>
+            {lotes.map(l => (
+              <div key={l.lote} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 0', borderTop: '0.5px solid rgba(0,0,0,0.06)' }}>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontSize: 12.5, fontWeight: 600, color: TEXT, margin: 0 }}>{rotuloLote(l.lote)}</p>
+                  <p style={{ fontSize: 10.5, color: TEXTMU, margin: '1px 0 0' }}>{l.qtd} lançamentos · datas de {format(new Date(l.de + 'T12:00:00'), 'dd/MM/yy')} a {format(new Date(l.ate + 'T12:00:00'), 'dd/MM/yy')}</p>
+                </div>
+                <button onClick={() => desfazer(l.lote, l.qtd)} style={{ background: 'rgba(255,59,48,0.08)', color: RED, border: 'none', borderRadius: 9, height: 32, padding: '0 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>Desfazer</button>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
       <p style={{ ...sub, textAlign: 'center', marginTop: 8 }}>
         Prefere planilha? <Link href="/importar" style={{ color: TERRA, fontWeight: 700 }}>Importar por planilha</Link>
-        {' · '}Importações anteriores e “Desfazer”: também lá.
       </p>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
