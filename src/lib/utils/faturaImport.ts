@@ -43,6 +43,7 @@ export type LinhaFatura = {
   titularLido: string
   final: string                  // últimos 4 dígitos do cartão físico no PDF
   descBanco: string
+  descricoesBanco: string[]       // nomes originais no banco (vários, quando agrupou)
   chave: string
   data: string                   // 'yyyy-MM-dd' (parcelada: compra original; à vista: última data do grupo)
   valor: number                  // parcelada: valor da parcela; à vista: soma do grupo
@@ -228,7 +229,7 @@ export function prepararLinhas(lida: FaturaLida, op: OpcoesFatura): LinhaFatura[
       const s = sugestao(p.desc, holder)
       const achada = app ? acharSerie(exCartao, app.nome, y, p.valor, data) : null
       out.push({
-        id: `p${seq++}`, tipo: 'parcelada', cartao, titularLido: c.titular, final: c.final, descBanco: p.desc, chave: s.chave,
+        id: `p${seq++}`, tipo: 'parcelada', cartao, titularLido: c.titular, final: c.final, descBanco: p.desc, descricoesBanco: [p.desc], chave: s.chave,
         data, valor: p.valor, qtd: 1, periodo: null, parcela: p.parcela, faturaPrimeira,
         situacao: achada ? (achada.exato ? 'ja_existe' : 'talvez') : 'nova',
         achado: achada ? { desc: achada.desc, data, valor: p.valor, serie: { cartao: app!.nome, y, base: achada.desc, valor: p.valor }, motivo: achada.exato ? 'mesma compra parcelada (valor, nº de parcelas e data)' : 'mesmo valor e nº de parcelas, mas com outra data' } : null,
@@ -270,7 +271,7 @@ export function prepararLinhas(lida: FaturaLida, op: OpcoesFatura): LinhaFatura[
         }
       }
       out.push({
-        id: `a${seq++}`, tipo: 'avista', cartao, titularLido: c.titular, final: c.final, descBanco, chave: s.chave,
+        id: `a${seq++}`, tipo: 'avista', cartao, titularLido: c.titular, final: c.final, descBanco, descricoesBanco: Array.from(new Set(itens.map(i => i.desc))), chave: s.chave,
         data: ultima, valor, qtd: itens.length, periodo, parcela: null, faturaPrimeira: null,
         situacao, achado, nome: s.nome, categoria: s.categoria, subcategoria: s.subcategoria, responsavel: s.responsavel,
         incluir: situacao === 'nova' && !!cartao, origem: s.origem,
@@ -300,6 +301,18 @@ export function conferencia(lida: FaturaLida, linhas: LinhaFatura[]): Conferenci
 
 /* ── De linhas da fatura para lançamentos ───────────────────────── */
 
+/**
+ * Anotação do lançamento: o nome ORIGINAL do banco fica guardado, mesmo que você
+ * renomeie a compra na tela (ex.: "SUPERMERCADOS JOANIN" → "Mercado do bairro").
+ * Quando juntou várias compras, entram os nomes de cada uma.
+ */
+export function anotacaoDaLinha(l: LinhaFatura): string {
+  const nomes = (l.descricoesBanco && l.descricoesBanco.length ? l.descricoesBanco : [l.descBanco]).join(' · ')
+  const extra = l.qtd > 1 ? ` (${l.qtd} compras, ${l.periodo})` : ''
+  const txt = `Nome na fatura: ${nomes}${extra}`
+  return txt.length > 300 ? txt.slice(0, 299) + '…' : txt
+}
+
 /** Linhas escolhidas → o mesmo formato que a importação por planilha já grava. */
 export function paraLinhasOk(linhas: LinhaFatura[], faturaYM: string): LinhaOk[] {
   const ok: LinhaOk[] = []
@@ -308,11 +321,12 @@ export function paraLinhasOk(linhas: LinhaFatura[], faturaYM: string): LinhaOk[]
       n: i + 1, descricao: l.nome.trim() || l.descBanco, valor: l.valor, data: l.data,
       holder: l.responsavel, categoria: l.categoria, subcategoria: l.subcategoria || null, cartaoFinal: l.final,
       forma: 'cartao_credito' as const, conta: l.cartao, status: null, novaCategoria: false, novaSub: false, duplicada: false,
+      obs: anotacaoDaLinha(l),
     }
     if (l.tipo === 'parcelada') {
-      ok.push({ ...comum, tipo: 'parcelada', parcelas: l.parcela!.y, pagas: null, fatura: l.faturaPrimeira, obs: `Importada da fatura ${faturaYM} (parcela ${l.parcela!.x}/${l.parcela!.y})` })
+      ok.push({ ...comum, tipo: 'parcelada', parcelas: l.parcela!.y, pagas: null, fatura: l.faturaPrimeira })
     } else {
-      ok.push({ ...comum, tipo: 'avista', parcelas: null, pagas: null, fatura: faturaYM, obs: l.qtd > 1 ? `${l.qtd} compras agrupadas (${l.periodo})` : null })
+      ok.push({ ...comum, tipo: 'avista', parcelas: null, pagas: null, fatura: faturaYM })
     }
   })
   return ok
