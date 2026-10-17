@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { CreditCard, Target, PiggyBank, Tag, ChevronRight, ChevronLeft, Plus, Pencil, X, Loader2, Shield, LogOut, Calendar, RefreshCw, Download, Trash2, Users, DollarSign, Bell, Upload } from 'lucide-react'
+import { CreditCard, Target, PiggyBank, Tag, ChevronRight, ChevronLeft, Plus, Pencil, X, Loader2, Shield, LogOut, Calendar, RefreshCw, Download, Trash2, Users, DollarSign, Bell, Upload, HelpCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, CAT_ICONS, maskCurrency, unmaskCurrency } from '@/lib/utils'
 import { useCatalogo, categoriasAtivas } from '@/lib/utils/catalogo'
@@ -1649,6 +1649,21 @@ export default function Parametros() {
           <div style={{flex:1}}>
             <p style={{fontSize:14,fontWeight:600,color:TEXT,margin:0}}>Importar fatura do cartão</p>
             <p style={{fontSize:11,color:TEXTMU,margin:'3px 0 0'}}>Escolha o PDF da fatura e o app lança tudo</p>
+          </div>
+          <ChevronRight size={18} color={TEXTMU}/>
+        </button>
+      </div>
+
+      {/* Ajuda */}
+      <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:20}}>
+        <button onClick={()=>router.push('/ajuda')}
+          style={{...sCard,padding:'16px 18px',display:'flex',alignItems:'center',gap:14,textAlign:'left',cursor:'pointer',border:'none',width:'100%'}}>
+          <div style={{width:42,height:42,background:'rgba(0,0,0,0.03)',borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+            <HelpCircle size={20} color={TERRA}/>
+          </div>
+          <div style={{flex:1}}>
+            <p style={{fontSize:14,fontWeight:600,color:TEXT,margin:0}}>Como usar o app</p>
+            <p style={{fontSize:11,color:TEXTMU,margin:'3px 0 0'}}>O que cada tela faz e dicas de uso</p>
           </div>
           <ChevronRight size={18} color={TEXTMU}/>
         </button>
