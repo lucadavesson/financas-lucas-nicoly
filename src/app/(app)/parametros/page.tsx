@@ -1641,14 +1641,14 @@ export default function Parametros() {
         <MenuItem icon={<Calendar size={20} color={TERRA}/>} label="Ciclo Salarial" desc="Dia do pagamento e valores de cada titular" section="salario"/>
         <MenuItem icon={<RefreshCw size={20} color={TERRA}/>} label="Contas Recorrentes" desc="Ver e gerenciar contas que repetem todo mês" section="recorrentes"/>
         <MenuItem icon={<Tag size={20} color={TERRA}/>} label="Categorias e Subcategorias" desc="Ver, criar e organizar categorias de gastos" section="categorias"/>
-        <button onClick={()=>router.push('/importar')}
+        <button onClick={()=>router.push('/importar/fatura')}
           style={{...sCard,padding:'16px 18px',display:'flex',alignItems:'center',gap:14,textAlign:'left',cursor:'pointer',border:'none',width:'100%'}}>
           <div style={{width:42,height:42,background:'rgba(0,0,0,0.03)',borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
             <Upload size={20} color={TERRA}/>
           </div>
           <div style={{flex:1}}>
-            <p style={{fontSize:14,fontWeight:600,color:TEXT,margin:0}}>Importar lançamentos</p>
-            <p style={{fontSize:11,color:TEXTMU,margin:'3px 0 0'}}>Vários de uma vez, por planilha (Excel ou CSV)</p>
+            <p style={{fontSize:14,fontWeight:600,color:TEXT,margin:0}}>Importar fatura do cartão</p>
+            <p style={{fontSize:11,color:TEXTMU,margin:'3px 0 0'}}>Escolha o PDF da fatura e o app lança tudo</p>
           </div>
           <ChevronRight size={18} color={TEXTMU}/>
         </button>

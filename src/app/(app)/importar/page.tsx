@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
@@ -219,7 +220,11 @@ export default function Importar() {
       <button onClick={() => router.back()} style={{ background: 'rgba(0,0,0,0.03)', border: 'none', borderRadius: 12, padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: TEXT, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 12 }}>
         <ChevronLeft size={16} />Voltar
       </button>
-      <h2 style={{ fontSize: 20, fontWeight: 800, color: TEXT, margin: '0 0 4px' }}>Importar lançamentos</h2>
+      <Link href="/importar/fatura" style={{ display: 'block', background: 'rgba(196,98,45,0.08)', border: '1px solid rgba(196,98,45,0.25)', borderRadius: 14, padding: '12px 14px', marginBottom: 14, textDecoration: 'none' }}>
+        <p style={{ fontSize: 13, fontWeight: 700, color: TERRA, margin: 0 }}>📄 Tem o PDF da fatura? Importe direto →</p>
+        <p style={{ fontSize: 11.5, color: TEXTLT, margin: '3px 0 0', lineHeight: 1.4 }}>Sem planilha: o app lê o PDF no celular, reconhece o que já está lançado e você só ajusta nome e categoria.</p>
+      </Link>
+      <h2 style={{ fontSize: 20, fontWeight: 800, color: TEXT, margin: '0 0 4px' }}>Importar lançamentos por planilha</h2>
       <p style={{ fontSize: 12, color: TEXTMU, margin: '0 0 16px' }}>Vários lançamentos de uma vez, por planilha. Nada é gravado antes de você conferir.</p>
 
       {semColuna && (
